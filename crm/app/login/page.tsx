@@ -12,11 +12,20 @@ export default function LoginPage() {
         <p className="font-serif text-2xl text-ivory">Sadharmik & Co.</p>
         <p className="mt-1 text-xs uppercase tracking-[0.3em] text-gold">CRM login</p>
         <input
+          type="text"
+          name="username"
+          placeholder="Username"
+          autoComplete="username"
+          required
+          className="mt-8 w-full rounded-xl border border-royal-soft/40 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none focus:border-gold"
+        />
+        <input
           type="password"
           name="password"
           placeholder="Password"
+          autoComplete="current-password"
           required
-          className="mt-8 w-full rounded-xl border border-royal-soft/40 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none focus:border-gold"
+          className="mt-3 w-full rounded-xl border border-royal-soft/40 bg-white/5 px-4 py-2.5 text-sm text-cream outline-none focus:border-gold"
         />
         {state?.error && <p className="mt-3 text-sm text-red-300">{state.error}</p>}
         <button

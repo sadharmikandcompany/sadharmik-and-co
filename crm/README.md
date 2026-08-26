@@ -12,9 +12,9 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and set a real `CRM_PASSWORD` (this is the login password) and a
-random `CRM_SESSION_SECRET` (any long random string — used to sign the login
-session, not something you need to remember).
+Edit `.env` and set a real `CRM_USERNAME` and `CRM_PASSWORD` (this is the
+login), and a random `CRM_SESSION_SECRET` (any long random string — used to
+sign the login session, not something you need to remember).
 
 ```bash
 npx prisma migrate dev --name init
@@ -27,7 +27,7 @@ npx prisma db seed
 npm run dev
 ```
 
-Open `http://localhost:3000`, log in with the password from `.env`.
+Open `http://localhost:3000`, log in with the username/password from `.env`.
 
 ## Running the tests
 

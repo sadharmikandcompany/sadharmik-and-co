@@ -2,17 +2,18 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { checkPassword, signSession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { checkCredentials, signSession, SESSION_COOKIE_NAME } from "@/lib/auth";
 
 export interface LoginState {
   error: string;
 }
 
 export async function login(_prevState: LoginState | null, formData: FormData): Promise<LoginState | null> {
+  const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  if (!checkPassword(password)) {
-    return { error: "Incorrect password." };
+  if (!checkCredentials(username, password)) {
+    return { error: "Incorrect username or password." };
   }
 
   const cookieStore = await cookies();

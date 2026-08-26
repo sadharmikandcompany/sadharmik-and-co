@@ -19,10 +19,13 @@ function timingSafeStringEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
-export function checkPassword(input: string): boolean {
-  const expected = process.env.CRM_PASSWORD || "";
-  if (!expected || !input) return false;
-  return timingSafeStringEqual(input, expected);
+export function checkCredentials(username: string, password: string): boolean {
+  const expectedUsername = process.env.CRM_USERNAME || "";
+  const expectedPassword = process.env.CRM_PASSWORD || "";
+  if (!expectedUsername || !expectedPassword || !username || !password) return false;
+  const usernameOk = timingSafeStringEqual(username, expectedUsername);
+  const passwordOk = timingSafeStringEqual(password, expectedPassword);
+  return usernameOk && passwordOk;
 }
 
 export function signSession(): string {

@@ -1,21 +1,34 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { checkPassword, signSession, verifySession } from "./auth";
+import { checkCredentials, signSession, verifySession } from "./auth";
 
-describe("checkPassword", () => {
+describe("checkCredentials", () => {
   beforeEach(() => {
+    process.env.CRM_USERNAME = "admin";
     process.env.CRM_PASSWORD = "sadharmik2026";
   });
 
-  it("accepts the correct password", () => {
-    expect(checkPassword("sadharmik2026")).toBe(true);
+  it("accepts the correct username and password", () => {
+    expect(checkCredentials("admin", "sadharmik2026")).toBe(true);
   });
 
-  it("rejects an incorrect password", () => {
-    expect(checkPassword("wrong-password")).toBe(false);
+  it("rejects a correct password with the wrong username", () => {
+    expect(checkCredentials("someone-else", "sadharmik2026")).toBe(false);
+  });
+
+  it("rejects a correct username with the wrong password", () => {
+    expect(checkCredentials("admin", "wrong-password")).toBe(false);
+  });
+
+  it("rejects when both are wrong", () => {
+    expect(checkCredentials("someone-else", "wrong-password")).toBe(false);
+  });
+
+  it("rejects an empty username", () => {
+    expect(checkCredentials("", "sadharmik2026")).toBe(false);
   });
 
   it("rejects an empty password", () => {
-    expect(checkPassword("")).toBe(false);
+    expect(checkCredentials("admin", "")).toBe(false);
   });
 });
 
