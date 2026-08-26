@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { computePurchaseTotal } from "@/lib/money";
 
 export async function createSupplier(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -32,7 +31,8 @@ export async function createPurchase(
   const validLines = lines.filter((l) => l.itemName.trim() && l.quantity > 0 && l.rate > 0);
   if (validLines.length === 0) throw new Error("Add at least one purchase line.");
 
-  const total = Math.round(computePurchaseTotal(validLines));
+  const roundedAmounts = validLines.map((l) => Math.round(l.quantity * l.rate));
+  const total = roundedAmounts.reduce((sum, amount) => sum + amount, 0);
 
   await prisma.purchase.create({
     data: {
@@ -40,12 +40,12 @@ export async function createPurchase(
       total,
       paidStatus,
       items: {
-        create: validLines.map((l) => ({
+        create: validLines.map((l, i) => ({
           itemName: l.itemName.trim(),
           quantity: l.quantity,
           unit: l.unit.trim() || "unit",
           rate: l.rate,
-          amount: Math.round(l.quantity * l.rate),
+          amount: roundedAmounts[i],
         })),
       },
     },
