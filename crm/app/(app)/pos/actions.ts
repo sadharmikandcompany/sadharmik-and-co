@@ -38,10 +38,14 @@ export async function createOrder(customerId: string, lines: PosLine[]): Promise
 
     const totals = computeOrderTotals(billLines);
 
-    const todayCount = await prisma.order.count({
-      where: { orderDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+    const todayPrefix = generateOrderNumber(new Date(), 0).slice(0, -3); // "SDK" + YYMMDD
+    const lastToday = await prisma.order.findFirst({
+      where: { orderNumber: { startsWith: todayPrefix } },
+      orderBy: { orderNumber: "desc" },
+      select: { orderNumber: true },
     });
-    const orderNumber = generateOrderNumber(new Date(), todayCount + 1);
+    const lastSequence = lastToday ? parseInt(lastToday.orderNumber.slice(-3), 10) : 0;
+    const orderNumber = generateOrderNumber(new Date(), lastSequence + 1);
 
     await prisma.$transaction(async (tx) => {
       await tx.order.create({
@@ -61,10 +65,14 @@ export async function createOrder(customerId: string, lines: PosLine[]): Promise
       });
 
       for (const line of activeLines) {
-        await tx.product.update({
-          where: { id: line.productId },
+        const result = await tx.product.updateMany({
+          where: { id: line.productId, stock: { gte: line.quantity } },
           data: { stock: { decrement: line.quantity } },
         });
+        if (result.count === 0) {
+          const product = products.find((p) => p.id === line.productId);
+          throw new Error(`Not enough stock left of ${product?.name ?? "an item"}.`);
+        }
       }
     });
 
@@ -79,14 +87,20 @@ export async function createOrder(customerId: string, lines: PosLine[]): Promise
   }
 }
 
-export async function addCustomerInline(name: string, phone: string, address: string) {
+export interface AddCustomerResult {
+  ok: boolean;
+  error?: string;
+  customer?: { id: string; name: string; phone: string };
+}
+
+export async function addCustomerInline(name: string, phone: string, address: string): Promise<AddCustomerResult> {
   if (!name.trim() || !phone.trim() || !address.trim()) {
-    throw new Error("Name, phone and address are required.");
+    return { ok: false, error: "Name, phone and address are required." };
   }
   const customer = await prisma.customer.create({
     data: { name: name.trim(), phone: phone.trim(), whatsapp: phone.trim(), address: address.trim() },
   });
   revalidatePath("/pos");
   revalidatePath("/customers");
-  return customer;
+  return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
 }

@@ -42,15 +42,16 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
   }
 
   function handleCreateCustomer() {
+    setMessage(null);
     startTransition(async () => {
-      try {
-        const customer = await addCustomerInline(newCustomer.name, newCustomer.phone, newCustomer.address);
-        setCustomerList((prev) => [...prev, { id: customer.id, name: customer.name, phone: customer.phone }]);
-        setCustomerId(customer.id);
+      const result = await addCustomerInline(newCustomer.name, newCustomer.phone, newCustomer.address);
+      if (result.ok && result.customer) {
+        setCustomerList((prev) => [...prev, result.customer!]);
+        setCustomerId(result.customer.id);
         setShowNewCustomer(false);
         setNewCustomer({ name: "", phone: "", address: "" });
-      } catch (err) {
-        setMessage({ type: "error", text: err instanceof Error ? err.message : "Could not add customer." });
+      } else {
+        setMessage({ type: "error", text: result.error ?? "Could not add customer." });
       }
     });
   }
