@@ -1,0 +1,51 @@
+# Sadharmik & Co. — Internal CRM
+
+A private, local back-office app for managing customers, products, orders
+(POS), sales, and purchases. Not linked to or visible from the public
+`index.html` site — this is for the owner/staff only.
+
+## First-time setup
+
+```bash
+cd crm
+npm install
+cp .env.example .env
+```
+
+Edit `.env` and set a real `CRM_PASSWORD` (this is the login password) and a
+random `CRM_SESSION_SECRET` (any long random string — used to sign the login
+session, not something you need to remember).
+
+```bash
+npx prisma migrate dev --name init
+npx prisma db seed
+```
+
+## Running it
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`, log in with the password from `.env`.
+
+## Running the tests
+
+```bash
+npm test
+```
+
+## Data model
+
+See `prisma/schema.prisma` for the full data model: Product (item master),
+Customer, Supplier, Order/OrderItem, Purchase/PurchaseItem.
+
+## Pages
+
+- `/dashboard` — sales stats, low-stock alerts, recent orders
+- `/customers` — list, search, add; click a row for order history
+- `/products` — item master (add/edit flavour, price, stock)
+- `/pos` — build a bill and save it as an order (this is the order-creation
+  screen)
+- `/sales` — order register with status/date filters
+- `/purchases` — suppliers + raw-material purchase register
