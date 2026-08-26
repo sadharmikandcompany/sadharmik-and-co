@@ -31,7 +31,8 @@ export async function createPurchase(
   const validLines = lines.filter((l) => l.itemName.trim() && l.quantity > 0 && l.rate > 0);
   if (validLines.length === 0) throw new Error("Add at least one purchase line.");
 
-  const roundedAmounts = validLines.map((l) => Math.round(l.quantity * l.rate));
+  const roundedRates = validLines.map((l) => Math.round(l.rate));
+  const roundedAmounts = validLines.map((l, i) => Math.round(l.quantity * roundedRates[i]));
   const total = roundedAmounts.reduce((sum, amount) => sum + amount, 0);
 
   await prisma.purchase.create({
@@ -44,7 +45,7 @@ export async function createPurchase(
           itemName: l.itemName.trim(),
           quantity: l.quantity,
           unit: l.unit.trim() || "unit",
-          rate: l.rate,
+          rate: roundedRates[i],
           amount: roundedAmounts[i],
         })),
       },
