@@ -5,7 +5,11 @@ export const SESSION_COOKIE_NAME = "sdhmk_crm_session";
 const SESSION_VALUE = "authenticated";
 
 function getSecret(): string {
-  return process.env.CRM_SESSION_SECRET || "insecure-dev-secret";
+  const secret = process.env.CRM_SESSION_SECRET;
+  if (!secret) {
+    throw new Error("CRM_SESSION_SECRET environment variable is not set.");
+  }
+  return secret;
 }
 
 function timingSafeStringEqual(a: string, b: string): boolean {
