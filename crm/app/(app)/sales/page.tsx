@@ -16,7 +16,7 @@ export default async function SalesPage({
     where: {
       status: validStatus,
       orderDate: {
-        gte: from ? new Date(from) : undefined,
+        gte: from ? new Date(`${from}T00:00:00`) : undefined,
         lte: to ? new Date(`${to}T23:59:59`) : undefined,
       },
     },
