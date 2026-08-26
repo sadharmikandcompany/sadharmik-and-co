@@ -22,12 +22,12 @@ export function PurchaseForm({ suppliers }: { suppliers: { id: string; name: str
   function submit() {
     setError(null);
     startTransition(async () => {
-      try {
-        await createPurchase(supplierId, paidStatus, lines);
+      const result = await createPurchase(supplierId, paidStatus, lines);
+      if (result.ok) {
         setLines([{ itemName: "", quantity: 0, unit: "kg", rate: 0 }]);
         setSupplierId("");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save the purchase.");
+      } else {
+        setError(result.error ?? "Could not save the purchase.");
       }
     });
   }

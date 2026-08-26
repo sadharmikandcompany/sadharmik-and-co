@@ -26,6 +26,7 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
   const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [customerList, setCustomerList] = useState(customers);
+  const [source, setSource] = useState<"WALK_IN" | "WHATSAPP" | "PHONE" | "WEBSITE">("WALK_IN");
   const [isPending, startTransition] = useTransition();
 
   const billLines = useMemo(
@@ -61,7 +62,8 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
     startTransition(async () => {
       const result = await createOrder(
         customerId,
-        Object.entries(quantities).map(([productId, quantity]) => ({ productId, quantity }))
+        Object.entries(quantities).map(([productId, quantity]) => ({ productId, quantity })),
+        source
       );
       if (result.ok) {
         setMessage({ type: "success", text: `Saved as ${result.orderNumber}.` });
@@ -91,6 +93,22 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
             <Button type="button" variant="ghost" onClick={() => setShowNewCustomer((v) => !v)}>
               + New customer
             </Button>
+          </div>
+
+          <div className="mt-3">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">
+              Order source
+            </label>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value as typeof source)}
+              className="mt-2 rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+            >
+              <option value="WALK_IN">Walk-in</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="PHONE">Phone</option>
+              <option value="WEBSITE">Website</option>
+            </select>
           </div>
 
           {showNewCustomer && (

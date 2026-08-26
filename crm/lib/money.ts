@@ -33,6 +33,20 @@ export function computeOrderTotals(lines: BillLine[]): OrderTotals {
   return { packs, subtotal, delivery, total: subtotal + delivery };
 }
 
-export function computePurchaseTotal(lines: { quantity: number; rate: number }[]): number {
-  return lines.reduce((sum, line) => sum + line.quantity * line.rate, 0);
+export interface PurchaseLine {
+  quantity: number;
+  rate: number;
+}
+
+export interface PurchaseTotals {
+  rates: number[];
+  amounts: number[];
+  total: number;
+}
+
+export function computePurchaseTotals(lines: PurchaseLine[]): PurchaseTotals {
+  const rates = lines.map((line) => Math.round(line.rate));
+  const amounts = lines.map((line, i) => Math.round(line.quantity * rates[i]));
+  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  return { rates, amounts, total };
 }

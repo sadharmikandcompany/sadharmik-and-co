@@ -16,7 +16,13 @@ export interface CreateOrderResult {
   orderNumber?: string;
 }
 
-export async function createOrder(customerId: string, lines: PosLine[]): Promise<CreateOrderResult> {
+export type OrderSourceInput = "WEBSITE" | "WHATSAPP" | "PHONE" | "WALK_IN";
+
+export async function createOrder(
+  customerId: string,
+  lines: PosLine[],
+  source: OrderSourceInput = "WALK_IN"
+): Promise<CreateOrderResult> {
   if (!customerId) return { ok: false, error: "Select a customer first." };
 
   const activeLines = lines.filter((l) => l.quantity > 0);
@@ -52,6 +58,7 @@ export async function createOrder(customerId: string, lines: PosLine[]): Promise
         data: {
           orderNumber,
           customerId,
+          source,
           subtotal: totals.subtotal,
           deliveryCharge: totals.delivery,
           total: totals.total,

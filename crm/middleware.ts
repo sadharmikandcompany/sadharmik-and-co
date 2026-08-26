@@ -5,8 +5,16 @@ export const runtime = "nodejs";
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const isAuthed = verifySession(token);
 
-  if (!verifySession(token)) {
+  if (request.nextUrl.pathname === "/login") {
+    if (isAuthed) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  if (!isAuthed) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -15,6 +23,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/login",
     "/dashboard/:path*",
     "/customers/:path*",
     "/products/:path*",

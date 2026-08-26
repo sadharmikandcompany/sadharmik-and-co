@@ -24,7 +24,7 @@ export default async function OrderDetailPage({
       <Link href="/sales" className="text-sm text-royal-soft hover:text-gold-soft">← All sales</Link>
       <h1 className="mt-2 font-serif text-3xl text-royal">{order.orderNumber}</h1>
       <p className="mt-1 text-sm text-royal-soft">
-        {order.customer.name} · {order.orderDate.toLocaleDateString("en-IN")}
+        {order.customer.name} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")}
       </p>
 
       <Card className="mt-6 max-w-md">

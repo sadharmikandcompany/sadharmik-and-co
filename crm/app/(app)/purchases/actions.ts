@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { computePurchaseTotals } from "@/lib/money";
 
 export async function createSupplier(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -21,36 +22,44 @@ export interface PurchaseLineInput {
   rate: number;
 }
 
+export interface CreatePurchaseResult {
+  ok: boolean;
+  error?: string;
+}
+
 export async function createPurchase(
   supplierId: string,
   paidStatus: "PAID" | "DUE" | "PARTIAL",
   lines: PurchaseLineInput[]
-) {
-  if (!supplierId) throw new Error("Select a supplier first.");
+): Promise<CreatePurchaseResult> {
+  if (!supplierId) return { ok: false, error: "Select a supplier first." };
 
   const validLines = lines.filter((l) => l.itemName.trim() && l.quantity > 0 && l.rate > 0);
-  if (validLines.length === 0) throw new Error("Add at least one purchase line.");
+  if (validLines.length === 0) return { ok: false, error: "Add at least one purchase line." };
 
-  const roundedRates = validLines.map((l) => Math.round(l.rate));
-  const roundedAmounts = validLines.map((l, i) => Math.round(l.quantity * roundedRates[i]));
-  const total = roundedAmounts.reduce((sum, amount) => sum + amount, 0);
+  const { rates, amounts, total } = computePurchaseTotals(validLines);
 
-  await prisma.purchase.create({
-    data: {
-      supplierId,
-      total,
-      paidStatus,
-      items: {
-        create: validLines.map((l, i) => ({
-          itemName: l.itemName.trim(),
-          quantity: l.quantity,
-          unit: l.unit.trim() || "unit",
-          rate: roundedRates[i],
-          amount: roundedAmounts[i],
-        })),
+  try {
+    await prisma.purchase.create({
+      data: {
+        supplierId,
+        total,
+        paidStatus,
+        items: {
+          create: validLines.map((l, i) => ({
+            itemName: l.itemName.trim(),
+            quantity: l.quantity,
+            unit: l.unit.trim() || "unit",
+            rate: rates[i],
+            amount: amounts[i],
+          })),
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not save the purchase." };
+  }
 
   revalidatePath("/purchases");
+  return { ok: true };
 }

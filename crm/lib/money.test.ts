@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDeliveryCharge, computeOrderTotals, computePurchaseTotal, computeSubtotal } from "./money";
+import { computeDeliveryCharge, computeOrderTotals, computePurchaseTotals, computeSubtotal } from "./money";
 
 describe("computeDeliveryCharge", () => {
   it("charges ₹70 for 1 pack (500g)", () => {
@@ -46,13 +46,37 @@ describe("computeOrderTotals", () => {
   });
 });
 
-describe("computePurchaseTotal", () => {
-  it("sums quantity × rate across purchase lines", () => {
-    expect(
-      computePurchaseTotal([
-        { quantity: 25, rate: 40 },
-        { quantity: 5, rate: 300 },
-      ])
-    ).toBe(2500);
+describe("computePurchaseTotals", () => {
+  it("rounds a whole-number line exactly", () => {
+    expect(computePurchaseTotals([{ quantity: 10, rate: 180 }])).toEqual({
+      rates: [180],
+      amounts: [1800],
+      total: 1800,
+    });
+  });
+
+  it("rounds a fractional quantity against a whole rate", () => {
+    expect(computePurchaseTotals([{ quantity: 2.5, rate: 33 }])).toEqual({
+      rates: [33],
+      amounts: [83],
+      total: 83,
+    });
+  });
+
+  it("rounds a fractional rate, then derives amount from the rounded rate", () => {
+    expect(computePurchaseTotals([{ quantity: 2, rate: 33.5 }])).toEqual({
+      rates: [34],
+      amounts: [68],
+      total: 68,
+    });
+  });
+
+  it("keeps total reconciled with the sum of rounded per-line amounts", () => {
+    const result = computePurchaseTotals([
+      { quantity: 1.5, rate: 1 },
+      { quantity: 1.5, rate: 1 },
+    ]);
+    expect(result).toEqual({ rates: [1, 1], amounts: [2, 2], total: 4 });
+    expect(result.total).toBe(result.amounts.reduce((s, a) => s + a, 0));
   });
 });

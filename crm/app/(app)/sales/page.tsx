@@ -4,6 +4,12 @@ import { Table } from "@/components/ui";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
 
+function parseDateBoundary(value: string | undefined, suffix: string): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(`${value}${suffix}`);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 export default async function SalesPage({
   searchParams,
 }: {
@@ -16,8 +22,8 @@ export default async function SalesPage({
     where: {
       status: validStatus,
       orderDate: {
-        gte: from ? new Date(`${from}T00:00:00`) : undefined,
-        lte: to ? new Date(`${to}T23:59:59`) : undefined,
+        gte: parseDateBoundary(from, "T00:00:00"),
+        lte: parseDateBoundary(to, "T23:59:59"),
       },
     },
     orderBy: { orderDate: "desc" },
@@ -63,6 +69,7 @@ export default async function SalesPage({
             <th className="px-4 py-3">Customer</th>
             <th className="px-4 py-3">Date</th>
             <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Source</th>
             <th className="px-4 py-3">Total</th>
           </tr>
         </thead>
@@ -77,12 +84,13 @@ export default async function SalesPage({
               <td className="px-4 py-3">{o.customer.name}</td>
               <td className="px-4 py-3">{o.orderDate.toLocaleDateString("en-IN")}</td>
               <td className="px-4 py-3">{o.status.replace(/_/g, " ")}</td>
+              <td className="px-4 py-3">{o.source.replace(/_/g, " ")}</td>
               <td className="px-4 py-3">₹{o.total}</td>
             </tr>
           ))}
           {orders.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
+              <td colSpan={6} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
             </tr>
           )}
         </tbody>
