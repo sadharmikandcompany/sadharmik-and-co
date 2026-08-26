@@ -18,6 +18,7 @@
 - No external services (no Supabase, no cloud DB) in this phase — SQLite file on disk only.
 - Branding reuses the public site's palette: royal blue `#0D2A57` (deep `#071A3B`, soft `#143669`), gold `#C9A24B` (light `#E7CB84`, soft `#9C7E32`), cream `#F2E7CC`, ivory `#FBF5E7`, ink `#0c1f44` — and its fonts, Cormorant Garamond (headings) + Mukta (body).
 - POS is the single order-creation screen — no separate/duplicate order-entry UI.
+- No logic block is duplicated across files — a rule (e.g. delivery pricing) is implemented once and imported everywhere it's needed, including seed/fixture scripts.
 
 ---
 
@@ -259,295 +260,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 2: Prisma schema, client, and seed data
-
-**Files:**
-- Create: `crm/prisma/schema.prisma`
-- Create: `crm/lib/prisma.ts`
-- Create: `crm/prisma/seed.ts`
-
-**Interfaces:**
-- Consumes: `crm/.env`'s `DATABASE_URL` (Task 1).
-- Produces: `prisma` client singleton at `crm/lib/prisma.ts` (`import { prisma } from "@/lib/prisma"`), and models `Product`, `Customer`, `Supplier`, `Order`, `OrderItem`, `Purchase`, `PurchaseItem` with the fields listed below — every later task's Prisma queries rely on these exact field names.
-
-- [ ] **Step 1: Write the schema**
-
-`crm/prisma/schema.prisma`:
-
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-model Product {
-  id         String      @id @default(cuid())
-  name       String      @unique
-  packSize   String
-  price      Int
-  stock      Int         @default(0)
-  isActive   Boolean     @default(true)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  orderItems OrderItem[]
-}
-
-model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String
-  whatsapp  String?
-  address   String
-  notes     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
-}
-
-model Supplier {
-  id            String     @id @default(cuid())
-  name          String
-  phone         String
-  itemsSupplied String?
-  notes         String?
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  purchases     Purchase[]
-}
-
-enum OrderStatus {
-  NEW
-  ROASTING
-  OUT_FOR_DELIVERY
-  DELIVERED
-}
-
-enum OrderSource {
-  WEBSITE
-  WHATSAPP
-  PHONE
-  WALK_IN
-}
-
-model Order {
-  id             String      @id @default(cuid())
-  orderNumber    String      @unique
-  customerId     String
-  customer       Customer    @relation(fields: [customerId], references: [id])
-  status         OrderStatus @default(NEW)
-  source         OrderSource @default(WALK_IN)
-  subtotal       Int
-  deliveryCharge Int
-  total          Int
-  orderDate      DateTime    @default(now())
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  items          OrderItem[]
-}
-
-model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  unitPrice Int
-}
-
-enum PaidStatus {
-  PAID
-  DUE
-  PARTIAL
-}
-
-model Purchase {
-  id           String         @id @default(cuid())
-  supplierId   String
-  supplier     Supplier       @relation(fields: [supplierId], references: [id])
-  purchaseDate DateTime       @default(now())
-  total        Int
-  paidStatus   PaidStatus     @default(DUE)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  items        PurchaseItem[]
-}
-
-model PurchaseItem {
-  id         String   @id @default(cuid())
-  purchaseId String
-  purchase   Purchase @relation(fields: [purchaseId], references: [id])
-  itemName   String
-  quantity   Float
-  unit       String
-  rate       Int
-  amount     Int
-}
-```
-
-- [ ] **Step 2: Add the Prisma client singleton**
-
-`crm/lib/prisma.ts`:
-
-```ts
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-```
-
-- [ ] **Step 3: Run the migration**
-
-```bash
-cd crm
-npx prisma migrate dev --name init
-```
-
-Expected: output ends with `Your database is now in sync with your schema.` and a new `crm/prisma/dev.db` file exists.
-
-- [ ] **Step 4: Write the seed script**
-
-`crm/prisma/seed.ts`:
-
-```ts
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
-
-const FLAVOURS = [
-  "Ghee Sada",
-  "Ghee Jeera",
-  "Methi Masala",
-  "Special Masala",
-  "Methi",
-  "Punjabi",
-  "Nachani",
-  "Jeera Masala",
-];
-
-function computeDelivery(packs: number): number {
-  return packs * 500 >= 1000 ? 0 : 70;
-}
-
-async function main() {
-  for (const name of FLAVOURS) {
-    await prisma.product.upsert({
-      where: { name },
-      update: {},
-      create: { name, packSize: "500g", price: 160, stock: 20 },
-    });
-  }
-
-  const customer = await prisma.customer.upsert({
-    where: { id: "seed-customer-priya" },
-    update: {},
-    create: {
-      id: "seed-customer-priya",
-      name: "Priya Shah",
-      phone: "9820012345",
-      whatsapp: "9820012345",
-      address: "12 Laxmi Nivas, Ghatkopar East, Mumbai 400077",
-    },
-  });
-
-  const supplier = await prisma.supplier.upsert({
-    where: { id: "seed-supplier-om" },
-    update: {},
-    create: {
-      id: "seed-supplier-om",
-      name: "Om Flour Mills",
-      phone: "9821099999",
-      itemsSupplied: "Wheat flour, packaging",
-    },
-  });
-
-  const gheeSada = await prisma.product.findUniqueOrThrow({ where: { name: "Ghee Sada" } });
-  const methi = await prisma.product.findUniqueOrThrow({ where: { name: "Methi" } });
-
-  const packs = 2 + 1;
-  const subtotal = gheeSada.price * 2 + methi.price * 1;
-  const delivery = computeDelivery(packs);
-
-  const existingOrder = await prisma.order.findUnique({ where: { orderNumber: "SDK000000001" } });
-  if (!existingOrder) {
-    await prisma.order.create({
-      data: {
-        orderNumber: "SDK000000001",
-        customerId: customer.id,
-        status: "DELIVERED",
-        source: "WHATSAPP",
-        subtotal,
-        deliveryCharge: delivery,
-        total: subtotal + delivery,
-        items: {
-          create: [
-            { productId: gheeSada.id, quantity: 2, unitPrice: gheeSada.price },
-            { productId: methi.id, quantity: 1, unitPrice: methi.price },
-          ],
-        },
-      },
-    });
-  }
-
-  const existingPurchase = await prisma.purchase.findFirst({ where: { supplierId: supplier.id } });
-  if (!existingPurchase) {
-    await prisma.purchase.create({
-      data: {
-        supplierId: supplier.id,
-        total: 25 * 40,
-        paidStatus: "PAID",
-        items: {
-          create: [{ itemName: "Wheat flour", quantity: 25, unit: "kg", rate: 40, amount: 25 * 40 }],
-        },
-      },
-    });
-  }
-
-  console.log(`Seeded ${FLAVOURS.length} products, 1 customer, 1 supplier, 1 order, 1 purchase.`);
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-```
-
-- [ ] **Step 5: Run the seed and verify**
-
-```bash
-cd crm
-npx prisma db seed
-```
-
-Expected: prints `Seeded 8 products, 1 customer, 1 supplier, 1 order, 1 purchase.` Re-running the same command should print the same line without erroring (the `upsert`/existence checks make it idempotent).
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add crm/prisma crm/lib/prisma.ts
-git commit -m "feat(crm): add Prisma schema, client, and seed data
-
-Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
-```
-
----
-
-### Task 3: Money calculation module
+### Task 2: Money calculation module
 
 **Files:**
 - Create: `crm/lib/money.ts`
@@ -555,7 +268,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/vitest.config.ts`
 
 **Interfaces:**
-- Produces: `BillLine { quantity: number; unitPrice: number }`, `computeDeliveryCharge(packCount: number): number`, `computeSubtotal(lines: BillLine[]): number`, `computeOrderTotals(lines: BillLine[]): { packs: number; subtotal: number; delivery: number; total: number }`, `computePurchaseTotal(lines: { quantity: number; rate: number }[]): number`. Consumed by Task 13 (POS) and Task 15 (Purchases).
+- Produces: `BillLine { quantity: number; unitPrice: number }`, `computeDeliveryCharge(packCount: number): number`, `computeSubtotal(lines: BillLine[]): number`, `computeOrderTotals(lines: BillLine[]): { packs: number; subtotal: number; delivery: number; total: number }`, `computePurchaseTotal(lines: { quantity: number; rate: number }[]): number`. Consumed by Task 5 (seed script), Task 13 (POS), and Task 15 (Purchases).
 
 - [ ] **Step 1: Add the Vitest config**
 
@@ -710,7 +423,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Order number generator
+### Task 3: Order number generator
 
 **Files:**
 - Create: `crm/lib/order-number.ts`
@@ -785,7 +498,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Auth module (shared password + signed session)
+### Task 4: Auth module (shared password + signed session)
 
 **Files:**
 - Create: `crm/lib/auth.ts`
@@ -919,6 +632,292 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
+### Task 5: Prisma schema, client, and seed data
+
+**Files:**
+- Create: `crm/prisma/schema.prisma`
+- Create: `crm/lib/prisma.ts`
+- Create: `crm/prisma/seed.ts`
+
+**Interfaces:**
+- Consumes: `crm/.env`'s `DATABASE_URL` (Task 1); `computeOrderTotals` from `crm/lib/money.ts` (Task 2, reused by the seed script so the delivery-charge rule is implemented exactly once in the whole codebase).
+- Produces: `prisma` client singleton at `crm/lib/prisma.ts` (`import { prisma } from "@/lib/prisma"`), and models `Product`, `Customer`, `Supplier`, `Order`, `OrderItem`, `Purchase`, `PurchaseItem` with the fields listed below — every later task's Prisma queries rely on these exact field names.
+
+- [ ] **Step 1: Write the schema**
+
+`crm/prisma/schema.prisma`:
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  packSize   String
+  price      Int
+  stock      Int         @default(0)
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  whatsapp  String?
+  address   String
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model Supplier {
+  id            String     @id @default(cuid())
+  name          String
+  phone         String
+  itemsSupplied String?
+  notes         String?
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  purchases     Purchase[]
+}
+
+enum OrderStatus {
+  NEW
+  ROASTING
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+enum OrderSource {
+  WEBSITE
+  WHATSAPP
+  PHONE
+  WALK_IN
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  orderNumber    String      @unique
+  customerId     String
+  customer       Customer    @relation(fields: [customerId], references: [id])
+  status         OrderStatus @default(NEW)
+  source         OrderSource @default(WALK_IN)
+  subtotal       Int
+  deliveryCharge Int
+  total          Int
+  orderDate      DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Int
+}
+
+enum PaidStatus {
+  PAID
+  DUE
+  PARTIAL
+}
+
+model Purchase {
+  id           String         @id @default(cuid())
+  supplierId   String
+  supplier     Supplier       @relation(fields: [supplierId], references: [id])
+  purchaseDate DateTime       @default(now())
+  total        Int
+  paidStatus   PaidStatus     @default(DUE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  items        PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  itemName   String
+  quantity   Float
+  unit       String
+  rate       Int
+  amount     Int
+}
+```
+
+- [ ] **Step 2: Add the Prisma client singleton**
+
+`crm/lib/prisma.ts`:
+
+```ts
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+```
+
+- [ ] **Step 3: Run the migration**
+
+```bash
+cd crm
+npx prisma migrate dev --name init
+```
+
+Expected: output ends with `Your database is now in sync with your schema.` and a new `crm/prisma/dev.db` file exists.
+
+- [ ] **Step 4: Write the seed script**
+
+`crm/prisma/seed.ts`:
+
+```ts
+import { PrismaClient } from "@prisma/client";
+import { computeOrderTotals } from "../lib/money";
+
+const prisma = new PrismaClient();
+
+const FLAVOURS = [
+  "Ghee Sada",
+  "Ghee Jeera",
+  "Methi Masala",
+  "Special Masala",
+  "Methi",
+  "Punjabi",
+  "Nachani",
+  "Jeera Masala",
+];
+
+async function main() {
+  for (const name of FLAVOURS) {
+    await prisma.product.upsert({
+      where: { name },
+      update: {},
+      create: { name, packSize: "500g", price: 160, stock: 20 },
+    });
+  }
+
+  const customer = await prisma.customer.upsert({
+    where: { id: "seed-customer-priya" },
+    update: {},
+    create: {
+      id: "seed-customer-priya",
+      name: "Priya Shah",
+      phone: "9820012345",
+      whatsapp: "9820012345",
+      address: "12 Laxmi Nivas, Ghatkopar East, Mumbai 400077",
+    },
+  });
+
+  const supplier = await prisma.supplier.upsert({
+    where: { id: "seed-supplier-om" },
+    update: {},
+    create: {
+      id: "seed-supplier-om",
+      name: "Om Flour Mills",
+      phone: "9821099999",
+      itemsSupplied: "Wheat flour, packaging",
+    },
+  });
+
+  const gheeSada = await prisma.product.findUniqueOrThrow({ where: { name: "Ghee Sada" } });
+  const methi = await prisma.product.findUniqueOrThrow({ where: { name: "Methi" } });
+
+  const totals = computeOrderTotals([
+    { quantity: 2, unitPrice: gheeSada.price },
+    { quantity: 1, unitPrice: methi.price },
+  ]);
+
+  const existingOrder = await prisma.order.findUnique({ where: { orderNumber: "SDK000000001" } });
+  if (!existingOrder) {
+    await prisma.order.create({
+      data: {
+        orderNumber: "SDK000000001",
+        customerId: customer.id,
+        status: "DELIVERED",
+        source: "WHATSAPP",
+        subtotal: totals.subtotal,
+        deliveryCharge: totals.delivery,
+        total: totals.total,
+        items: {
+          create: [
+            { productId: gheeSada.id, quantity: 2, unitPrice: gheeSada.price },
+            { productId: methi.id, quantity: 1, unitPrice: methi.price },
+          ],
+        },
+      },
+    });
+  }
+
+  const existingPurchase = await prisma.purchase.findFirst({ where: { supplierId: supplier.id } });
+  if (!existingPurchase) {
+    await prisma.purchase.create({
+      data: {
+        supplierId: supplier.id,
+        total: 25 * 40,
+        paidStatus: "PAID",
+        items: {
+          create: [{ itemName: "Wheat flour", quantity: 25, unit: "kg", rate: 40, amount: 25 * 40 }],
+        },
+      },
+    });
+  }
+
+  console.log(`Seeded ${FLAVOURS.length} products, 1 customer, 1 supplier, 1 order, 1 purchase.`);
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+```
+
+- [ ] **Step 5: Run the seed and verify**
+
+```bash
+cd crm
+npx prisma db seed
+```
+
+Expected: prints `Seeded 8 products, 1 customer, 1 supplier, 1 order, 1 purchase.` Re-running the same command should print the same line without erroring (the `upsert`/existence checks make it idempotent).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add crm/prisma crm/lib/prisma.ts
+git commit -m "feat(crm): add Prisma schema, client, and seed data
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 6: Login page, middleware, and root redirect
 
 **Files:**
@@ -928,7 +927,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Modify: `crm/app/page.tsx`
 
 **Interfaces:**
-- Consumes: `checkPassword`, `signSession`, `verifySession`, `SESSION_COOKIE_NAME` from `crm/lib/auth.ts` (Task 5).
+- Consumes: `checkPassword`, `signSession`, `verifySession`, `SESSION_COOKIE_NAME` from `crm/lib/auth.ts` (Task 4).
 - Produces: unauthenticated requests to any of `/dashboard`, `/customers`, `/products`, `/pos`, `/sales`, `/purchases` (and their sub-paths) redirect to `/login`; a correct password sets the session cookie and redirects to `/dashboard`.
 
 - [ ] **Step 1: Write the login server action**
@@ -1180,9 +1179,10 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/components/Sidebar.tsx`
 - Create: `crm/app/(app)/actions.ts`
 - Create: `crm/app/(app)/layout.tsx`
+- Create: `crm/app/(app)/dashboard/page.tsx` (placeholder — replaced fully in Task 9)
 
 **Interfaces:**
-- Consumes: `SESSION_COOKIE_NAME` from `crm/lib/auth.ts` (Task 5).
+- Consumes: `SESSION_COOKIE_NAME` from `crm/lib/auth.ts` (Task 4).
 - Produces: `crm/app/(app)/layout.tsx` wraps every page placed under `app/(app)/` with a sidebar + logout button. Tasks 9–15 place their pages inside this route group.
 
 - [ ] **Step 1: Write the logout action**
@@ -1304,7 +1304,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Modify: `crm/app/(app)/dashboard/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `StatCard`, `Card`, `Badge` (Task 7).
+- Consumes: `prisma` (Task 5), `StatCard`, `Card`, `Badge` (Task 7).
 - Produces: the real Dashboard — today/week/month sales stats, low-stock list, recent orders.
 
 - [ ] **Step 1: Implement the dashboard**
@@ -1401,7 +1401,7 @@ cd crm
 npm run dev
 ```
 
-Log in, visit `/dashboard`. Expected: three stat cards ("Today", "This week", "This month" — the seeded order from Task 2 counts towards week/month totals unless it lands on a different calendar week/month than today, which is fine), a "Low stock" card (empty message, since seeded stock is 20 per product), and "Recent orders" showing `SDK000000001 · Priya Shah` with `₹480` (if 2 packs of Ghee Sada @160 + 1 Methi @160 = 480, free delivery at 3 packs = 1500g ≥ 1000g). Stop the dev server before continuing.
+Log in, visit `/dashboard`. Expected: three stat cards ("Today", "This week", "This month" — the seeded order from Task 5 counts towards week/month totals unless it lands on a different calendar week/month than today, which is fine), a "Low stock" card (empty message, since seeded stock is 20 per product), and "Recent orders" showing `SDK000000001 · Priya Shah` with `₹480` (2 packs of Ghee Sada @160 + 1 Methi @160 = 480, free delivery at 3 packs = 1500g ≥ 1000g). Stop the dev server before continuing.
 
 - [ ] **Step 3: Commit**
 
@@ -1421,7 +1421,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/products/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `Button`, `Card`, `Input`, `Table` (Task 7).
+- Consumes: `prisma` (Task 5), `Button`, `Card`, `Input`, `Table` (Task 7).
 - Produces: `/products` — list, add, and inline edit of Products.
 
 - [ ] **Step 1: Write the server actions**
@@ -1557,7 +1557,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/customers/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `Button`, `Card`, `Input`, `Table` (Task 7).
+- Consumes: `prisma` (Task 5), `Button`, `Card`, `Input`, `Table` (Task 7).
 - Produces: `/customers` — searchable list + add form. `/customers?q=...` filters by name/phone substring.
 
 - [ ] **Step 1: Write the server action**
@@ -1688,7 +1688,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/customers/[id]/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `Card` (Task 7).
+- Consumes: `prisma` (Task 5), `Card` (Task 7).
 - Produces: `/customers/[id]` — a single customer's lifetime spend and full order history.
 
 - [ ] **Step 1: Write the page**
@@ -1788,7 +1788,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/pos/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `computeOrderTotals`, `BillLine` (Task 3), `generateOrderNumber` (Task 4), `Button`, `Card`, `Input` (Task 7).
+- Consumes: `prisma` (Task 5), `computeOrderTotals`, `BillLine` (Task 2), `generateOrderNumber` (Task 3), `Button`, `Card`, `Input` (Task 7).
 - Produces: `/pos` — the order-creation screen. `createOrder(customerId: string, lines: { productId: string; quantity: number }[]): Promise<{ ok: boolean; error?: string; orderNumber?: string }>` and `addCustomerInline(name, phone, address): Promise<Customer>`, both callable from client code.
 
 - [ ] **Step 1: Write the server actions**
@@ -2149,7 +2149,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/sales/[id]/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `Card`, `Table` (Task 7).
+- Consumes: `prisma` (Task 5), `Card`, `Table` (Task 7).
 - Produces: `/sales` (filterable order register) and `/sales/[id]` (order detail + status update).
 
 - [ ] **Step 1: Write the status-update action**
@@ -2383,7 +2383,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `crm/app/(app)/purchases/page.tsx`
 
 **Interfaces:**
-- Consumes: `prisma` (Task 2), `computePurchaseTotal` (Task 3), `Button`, `Card`, `Input`, `Table` (Task 7).
+- Consumes: `prisma` (Task 5), `computePurchaseTotal` (Task 2), `Button`, `Card`, `Input`, `Table` (Task 7).
 - Produces: `/purchases` — add supplier, log a purchase with line items, and a purchase register.
 
 - [ ] **Step 1: Write the server actions**
