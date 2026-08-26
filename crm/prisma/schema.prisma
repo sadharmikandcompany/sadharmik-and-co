@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  packSize   String
+  price      Int
+  stock      Int         @default(0)
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  whatsapp  String?
+  address   String
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model Supplier {
+  id            String     @id @default(cuid())
+  name          String
+  phone         String
+  itemsSupplied String?
+  notes         String?
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  purchases     Purchase[]
+}
+
+enum OrderStatus {
+  NEW
+  ROASTING
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+enum OrderSource {
+  WEBSITE
+  WHATSAPP
+  PHONE
+  WALK_IN
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  orderNumber    String      @unique
+  customerId     String
+  customer       Customer    @relation(fields: [customerId], references: [id])
+  status         OrderStatus @default(NEW)
+  source         OrderSource @default(WALK_IN)
+  subtotal       Int
+  deliveryCharge Int
+  total          Int
+  orderDate      DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Int
+}
+
+enum PaidStatus {
+  PAID
+  DUE
+  PARTIAL
+}
+
+model Purchase {
+  id           String         @id @default(cuid())
+  supplierId   String
+  supplier     Supplier       @relation(fields: [supplierId], references: [id])
+  purchaseDate DateTime       @default(now())
+  total        Int
+  paidStatus   PaidStatus     @default(DUE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  items        PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  itemName   String
+  quantity   Float
+  unit       String
+  rate       Int
+  amount     Int
+}
