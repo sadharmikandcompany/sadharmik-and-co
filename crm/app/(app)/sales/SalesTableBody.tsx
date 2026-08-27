@@ -76,11 +76,14 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
                 </Link>
               </td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap items-baseline gap-x-2">
+                <div className="flex flex-wrap items-start gap-x-4">
                   <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
                     {o.customerName}
                   </Link>
-                  <span className="text-xs text-royal-soft">{o.customerAddress}</span>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gold-soft">Address</p>
+                    <p className="text-sm text-royal-soft">{o.customerAddress}</p>
+                  </div>
                 </div>
                 <p className="text-xs text-royal-soft">{o.customerPhone}</p>
               </td>
