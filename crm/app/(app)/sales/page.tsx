@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Table } from "@/components/ui";
 import { ExportCsvButton } from "./ExportCsvButton";
+import { SalesTableBody } from "./SalesTableBody";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
 const PAYMENT_OPTIONS = ["CASH", "UPI", "CARD", "CHEQUE", "PENDING"] as const;
@@ -59,7 +60,7 @@ export default async function SalesPage({
         : {}),
     },
     orderBy: { orderDate: "desc" },
-    include: { customer: true },
+    include: { customer: true, items: { include: { product: true } } },
   });
 
   return (
@@ -165,6 +166,7 @@ export default async function SalesPage({
       <Table>
         <thead>
           <tr className="border-b border-royal-soft/15 text-xs uppercase tracking-wider text-royal-soft">
+            <th className="px-2 py-3" aria-label="Expand" />
             <th className="px-4 py-3">Order #</th>
             <th className="px-4 py-3">Customer</th>
             <th className="px-4 py-3">Date</th>
@@ -174,36 +176,27 @@ export default async function SalesPage({
             <th className="px-4 py-3">Total</th>
           </tr>
         </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} className="border-b border-royal-soft/10 last:border-0">
-              <td className="px-4 py-3">
-                <Link
-                  href={`/sales/${o.id}`}
-                  className="inline-block rounded-full bg-royal-soft/10 px-3 py-1 font-semibold text-royal hover:bg-gold/20 hover:text-gold-soft"
-                >
-                  {o.orderNumber}
-                </Link>
-              </td>
-              <td className="px-4 py-3">
-                <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
-                  {o.customer.name}
-                </Link>
-                <p className="text-xs text-royal-soft">{o.customer.phone}</p>
-              </td>
-              <td className="px-4 py-3">{o.orderDate.toLocaleDateString("en-IN")}</td>
-              <td className="px-4 py-3">{o.status.replace(/_/g, " ")}</td>
-              <td className="px-4 py-3">{o.source.replace(/_/g, " ")}</td>
-              <td className="px-4 py-3">{o.paymentMethod}</td>
-              <td className="px-4 py-3 font-semibold text-royal">₹{o.total}</td>
-            </tr>
-          ))}
-          {orders.length === 0 && (
-            <tr>
-              <td colSpan={7} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
-            </tr>
-          )}
-        </tbody>
+        <SalesTableBody
+          orders={orders.map((o) => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            orderDateLabel: o.orderDate.toLocaleDateString("en-IN"),
+            status: o.status,
+            source: o.source,
+            paymentMethod: o.paymentMethod,
+            total: o.total,
+            customerId: o.customerId,
+            customerName: o.customer.name,
+            customerPhone: o.customer.phone,
+            customerAddress: o.customer.address,
+            items: o.items.map((item) => ({
+              id: item.id,
+              productName: item.product.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+          }))}
+        />
       </Table>
     </div>
   );
