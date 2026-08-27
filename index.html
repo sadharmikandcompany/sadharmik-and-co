@@ -308,6 +308,11 @@
   .acct-btn{display:inline-flex;align-items:center;gap:.45em;background:rgba(255,255,255,.06);border:1px solid var(--royal-line);border-radius:999px;color:var(--cream);font-family:"Mukta",sans-serif;font-weight:600;font-size:.82rem;letter-spacing:.03em;padding:.55em 1.1em;cursor:pointer;transition:border-color .2s,color .2s;white-space:nowrap;}
   .acct-btn:hover{border-color:var(--gold);color:var(--gold-2);}
   .acct-btn svg{width:15px;height:15px;}
+  .cart-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--royal-line);color:var(--cream);transition:border-color .2s,color .2s;flex:none;}
+  .cart-btn:hover{border-color:var(--gold);color:var(--gold-2);}
+  .cart-btn svg{width:17px;height:17px;}
+  .cart-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--gold);color:#22160a;font-family:"Mukta",sans-serif;font-size:.68rem;font-weight:700;line-height:18px;text-align:center;}
+  .mobile-nav a .cart-badge{position:static;margin-left:8px;display:inline-block;}
   @media(max-width:560px){
     .acct-head,.acct-body{padding-left:20px;padding-right:20px;}
     .acct-tabs{padding-left:20px;padding-right:20px;}
@@ -409,6 +414,10 @@
       <a href="#order">Order</a>
     </nav>
     <div class="nav-cta">
+      <a class="cart-btn" href="#order" aria-label="View your order">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 4.6a1 1 0 0 0 .9 1.4H19M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>
+        <span class="cart-badge" id="cartBadge" hidden>0</span>
+      </a>
       <button class="acct-btn" data-open-acct aria-label="My Account">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         My Account
@@ -425,7 +434,7 @@
     <a href="#khakhra">Khakhra</a>
     <a href="#promise">The promise</a>
     <a href="#jain">Jain-friendly</a>
-    <a href="#order">Order</a>
+    <a href="#order">Order <span class="cart-badge" id="cartBadgeMobile" hidden>0</span></a>
     <button class="acct-btn" data-open-acct style="margin-top:8px;width:100%;justify-content:center;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       My Account
@@ -683,10 +692,10 @@
         <div class="order-total"><span>Subtotal</span><b id="orderSubtotal">₹0</b></div>
         <div class="order-total" id="deliveryRow" style="font-size:.85rem;opacity:.8;"><span>Delivery</span><b id="orderDelivery">—</b></div>
         <div class="order-total" style="border-top:1px solid var(--royal-line);margin-top:6px;padding-top:8px;"><span>Estimated total</span><b id="orderTotal">₹0</b></div>
-        <a class="btn btn--gold" id="waOrder" href="#khakhra">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.4.1.6-.1l.7-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3.1.2.1.6-.1 1.1Z"/></svg>
-          Order on WhatsApp
-        </a>
+        <button class="btn btn--gold" id="waOrder" type="button" style="width:100%;justify-content:center;">
+          Proceed to Checkout
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
         <p class="or">— or reach us directly —</p>
         <div class="callrow">
           <a class="btn btn--ghost" href="tel:+918777600400">Call us</a>
@@ -780,6 +789,60 @@
   </div>
 </div>
 
+<!-- checkout modal -->
+<div class="acct-overlay" id="checkoutOverlay" role="dialog" aria-modal="true" aria-label="Checkout">
+  <div class="acct-modal">
+    <div class="acct-head">
+      <div>
+        <h2>Checkout</h2>
+        <div class="acct-head-sub">Sadharmik &amp; Co.</div>
+      </div>
+      <button class="acct-close" id="checkoutClose" aria-label="Close">✕</button>
+    </div>
+    <div class="acct-body">
+      <div id="checkoutFormStep">
+        <ul id="checkoutSummaryList" style="list-style:none;padding:0;margin:0 0 14px;display:grid;gap:6px;"></ul>
+        <div class="order-total"><span>Subtotal</span><b id="checkoutSubtotal">₹0</b></div>
+        <div class="order-total"><span>Delivery</span><b id="checkoutDelivery">—</b></div>
+        <div class="order-total" style="border-top:1px solid var(--royal-line);margin-top:6px;padding-top:8px;"><span>Total</span><b id="checkoutTotal">₹0</b></div>
+
+        <div class="acct-field" style="margin-top:18px;">
+          <label>Full Name</label>
+          <input type="text" id="checkoutName" placeholder="Your name" autocomplete="name" />
+        </div>
+        <div class="acct-field">
+          <label>Phone Number</label>
+          <input type="tel" id="checkoutPhone" placeholder="+91 XXXXX XXXXX" autocomplete="tel" />
+        </div>
+        <div class="acct-field">
+          <label>Delivery Address</label>
+          <textarea id="checkoutAddr" placeholder="Flat / Building, Street, Area, Mumbai — Pincode" autocomplete="street-address"></textarea>
+        </div>
+
+        <div class="acct-hint">💵 <strong>Payment:</strong> Pay on Delivery — no online payment needed yet.</div>
+
+        <p id="checkoutError" style="color:#ff8a80;font-size:.85rem;margin-top:12px;display:none;"></p>
+
+        <button class="acct-save" id="checkoutPlaceOrderBtn" type="button" style="width:100%;justify-content:center;margin-top:16px;">
+          Place Order
+        </button>
+      </div>
+
+      <div id="checkoutConfirmStep" style="display:none;text-align:center;padding:10px 0 20px;">
+        <p style="font-size:2.2rem;margin:0;">🎉</p>
+        <h3 style="margin-top:8px;color:var(--ivory);">Order placed!</h3>
+        <p id="checkoutOrderNumber" style="color:var(--muted);margin-top:6px;"></p>
+        <a class="btn btn--gold" id="checkoutWaConfirm" href="#" target="_blank" rel="noopener" style="margin-top:18px;justify-content:center;width:100%;">
+          Confirm via WhatsApp
+        </a>
+        <button class="acct-btn" id="checkoutDoneBtn" type="button" style="margin-top:12px;width:100%;justify-content:center;">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <a class="fab" id="fab" href="https://wa.me/918777600400?text=Hi%20Sadharmik%20%26%20Co.%2C%20I'd%20like%20to%20place%20an%20order." aria-label="Chat on WhatsApp" target="_blank" rel="noopener">
   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.4.1.6-.1l.7-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3.1.2.1.6-.1 1.1Z"/></svg>
 </a>
@@ -787,6 +850,9 @@
 <script>
   // ===== EDIT THIS: your WhatsApp number in international format, no + or spaces =====
   var WHATSAPP_NUMBER = "918777600400";
+
+  // ===== CRM: where checkout submits orders so they show up in Sales/Dashboard =====
+  var CRM_API_URL = "https://sadharmikandcocrm.vercel.app/api/public-orders";
 
   document.getElementById('yr').textContent = new Date().getFullYear();
 
@@ -843,9 +909,31 @@
   // order = [{name, price, qty}]
   function totalPacks(){ return order.reduce(function(s,o){return s+o.qty;},0); }
 
+  // ===== cart badge (nav icon) =====
+  var cartBadge = document.getElementById('cartBadge');
+  var cartBadgeMobile = document.getElementById('cartBadgeMobile');
+  function updateCartBadge(packs){
+    [cartBadge, cartBadgeMobile].forEach(function(el){
+      if(!el) return;
+      el.textContent = packs;
+      el.hidden = packs === 0;
+    });
+  }
+
+  // Builds the {lines, subtotal, delivery, total} summary shared by the
+  // WhatsApp message, the checkout recap, and the CRM submission — so the
+  // three places that need "what's in the cart, priced out" never drift.
+  function buildOrderSummary(){
+    var activeItems = order.filter(function(o){ return o.qty > 0; });
+    var subtotal = activeItems.reduce(function(s,o){ return s + (o.price*o.qty); }, 0);
+    var delivery = getDelivery(totalPacks());
+    return { items: activeItems, subtotal: subtotal, delivery: delivery, total: subtotal + delivery };
+  }
+
   function render(){
     var packs = totalPacks();
     updateBar(packs);
+    updateCartBadge(packs);
     if(packs === 0){
       listEl.innerHTML = '<li class="order-empty">No items yet — pick a flavour to begin.</li>';
       subtotalEl.textContent = '₹0';
@@ -957,7 +1045,12 @@
   }
   document.getElementById('acctClose').addEventListener('click', closeAccount);
   acctOverlay.addEventListener('click', function(e){ if(e.target===acctOverlay) closeAccount(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeAccount(); });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){
+      closeAccount();
+      closeCheckout();
+    }
+  });
 
   function switchAcctTab(name){
     document.querySelectorAll('.acct-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab===name); });
@@ -980,29 +1073,118 @@
     btn.addEventListener('click', function(){ openAccount(); });
   });
 
-  // build whatsapp message
-  document.getElementById('waOrder').addEventListener('click', function(e){
-    e.preventDefault();
+  // ===== checkout =====
+  var checkoutOverlay = document.getElementById('checkoutOverlay');
+  var checkoutFormStep = document.getElementById('checkoutFormStep');
+  var checkoutConfirmStep = document.getElementById('checkoutConfirmStep');
+  var checkoutError = document.getElementById('checkoutError');
+  var checkoutPlaceOrderBtn = document.getElementById('checkoutPlaceOrderBtn');
+
+  function renderCheckoutSummary(){
+    var summary = buildOrderSummary();
+    var list = document.getElementById('checkoutSummaryList');
+    list.innerHTML = summary.items.map(function(o){
+      return '<li style="display:flex;justify-content:space-between;font-size:.92rem;color:var(--cream);">'
+        + '<span>' + o.name + (o.qty>1 ? ' ×'+o.qty : '') + '</span><span>₹' + (o.price*o.qty) + '</span></li>';
+    }).join('');
+    document.getElementById('checkoutSubtotal').textContent = '₹' + summary.subtotal;
+    document.getElementById('checkoutDelivery').textContent = summary.delivery === 0 ? 'Free' : '₹' + summary.delivery;
+    document.getElementById('checkoutTotal').textContent = '₹' + summary.total;
+    return summary;
+  }
+
+  function openCheckout(){
     if(totalPacks() === 0){
       document.getElementById('khakhra').scrollIntoView({behavior:'smooth'});
       return;
     }
-    var activeItems = order.filter(function(o){return o.qty>0;});
-    var lines = activeItems.map(function(o){return '• ' + o.name + ' (500g) ×' + o.qty + ' — ₹' + (o.price*o.qty);});
-    var subtotal = order.reduce(function(s,o){return s+(o.price*o.qty);},0);
-    var delivery = getDelivery(totalPacks());
-    var total = subtotal + delivery;
-    var deliveryLine = delivery === 0 ? 'Delivery: Free (above 1kg)' : 'Delivery: ₹70';
-    // save to history
-    saveOrderToHistory(activeItems.map(function(o){return {name:o.name,qty:o.qty,lineTotal:o.price*o.qty};}), subtotal, delivery);
-    // auto-fill profile
+    checkoutError.style.display = 'none';
+    checkoutFormStep.style.display = '';
+    checkoutConfirmStep.style.display = 'none';
+    checkoutPlaceOrderBtn.disabled = false;
+    checkoutPlaceOrderBtn.textContent = 'Place Order';
+    renderCheckoutSummary();
     var prof = getProfile();
-    var nameLine  = prof.name  ? '\nName: '+prof.name         : '\nName: ';
-    var phoneLine = prof.phone ? '\nPhone: '+prof.phone       : '';
-    var addrLine  = prof.addr  ? '\nAddress: '+prof.addr      : '\nDelivery address (Mumbai): ';
-    var msg = "Hi Sadharmik & Co., I'd like to order:\n" + lines.join("\n") + "\n\nSubtotal: ₹" + subtotal + "\n" + deliveryLine + "\nTotal: ₹" + total + nameLine + phoneLine + addrLine;
-    var url = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(msg);
-    window.open(url, '_blank');
+    document.getElementById('checkoutName').value  = prof.name  || '';
+    document.getElementById('checkoutPhone').value = prof.phone || '';
+    document.getElementById('checkoutAddr').value  = prof.addr  || '';
+    checkoutOverlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCheckout(){
+    checkoutOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('waOrder').addEventListener('click', openCheckout);
+  document.getElementById('checkoutClose').addEventListener('click', closeCheckout);
+  checkoutOverlay.addEventListener('click', function(e){ if(e.target===checkoutOverlay) closeCheckout(); });
+  document.getElementById('checkoutDoneBtn').addEventListener('click', closeCheckout);
+
+  function buildWhatsappMessage(summary, name, phone, addr, orderNumber){
+    var lines = summary.items.map(function(o){ return '• ' + o.name + ' (500g) ×' + o.qty + ' — ₹' + (o.price*o.qty); });
+    var deliveryLine = summary.delivery === 0 ? 'Delivery: Free (above 1kg)' : 'Delivery: ₹' + summary.delivery;
+    var orderLine = orderNumber ? '\nOrder #: ' + orderNumber : '';
+    return "Hi Sadharmik & Co., I'd like to order:\n" + lines.join("\n")
+      + "\n\nSubtotal: ₹" + summary.subtotal + "\n" + deliveryLine + "\nTotal: ₹" + summary.total
+      + orderLine + "\nName: " + name + "\nPhone: " + phone + "\nAddress: " + addr
+      + "\nPayment: Pay on Delivery";
+  }
+
+  checkoutPlaceOrderBtn.addEventListener('click', function(){
+    var name  = document.getElementById('checkoutName').value.trim();
+    var phone = document.getElementById('checkoutPhone').value.trim();
+    var addr  = document.getElementById('checkoutAddr').value.trim();
+    checkoutError.style.display = 'none';
+
+    if(!name || !phone || !addr){
+      checkoutError.textContent = 'Please fill in your name, phone and delivery address.';
+      checkoutError.style.display = 'block';
+      return;
+    }
+
+    var summary = buildOrderSummary();
+    checkoutPlaceOrderBtn.disabled = true;
+    checkoutPlaceOrderBtn.textContent = 'Placing order…';
+
+    fetch(CRM_API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name: name,
+        phone: phone,
+        address: addr,
+        items: summary.items.map(function(o){ return {productName:o.name, quantity:o.qty}; })
+      })
+    })
+      .then(function(res){ return res.json().then(function(data){ return {status:res.status, data:data}; }); })
+      .then(function(result){
+        if(!result.data || result.data.ok !== true){
+          throw new Error((result.data && result.data.error) || 'Could not place the order.');
+        }
+        var orderNumber = result.data.orderNumber;
+        // remember details for next time
+        localStorage.setItem('sdhmk_profile', JSON.stringify({name:name, phone:phone, addr:addr}));
+        saveOrderToHistory(summary.items.map(function(o){return {name:o.name,qty:o.qty,lineTotal:o.price*o.qty};}), summary.subtotal, summary.delivery);
+
+        var waUrl = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(buildWhatsappMessage(summary, name, phone, addr, orderNumber));
+        document.getElementById('checkoutWaConfirm').href = waUrl;
+        document.getElementById('checkoutOrderNumber').textContent = 'Order #' + orderNumber + ' — we’ll roast it fresh and confirm on WhatsApp.';
+
+        // clear cart
+        order = [];
+        document.querySelectorAll('.card').forEach(function(c){ renderCardBtn(c, 0); });
+        render();
+
+        checkoutFormStep.style.display = 'none';
+        checkoutConfirmStep.style.display = '';
+      })
+      .catch(function(err){
+        checkoutError.innerHTML = (err.message || 'Something went wrong — please try again, or ') +
+          ' <a href="https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(buildWhatsappMessage(summary, name, phone, addr)) + '" target="_blank" rel="noopener" style="color:var(--gold-2);text-decoration:underline;">order via WhatsApp instead</a>.';
+        checkoutError.style.display = 'block';
+        checkoutPlaceOrderBtn.disabled = false;
+        checkoutPlaceOrderBtn.textContent = 'Place Order';
+      });
   });
 
   // keep fab in sync with number
