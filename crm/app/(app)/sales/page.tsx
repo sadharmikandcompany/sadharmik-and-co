@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Table } from "@/components/ui";
+import { ExportCsvButton } from "./ExportCsvButton";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
+const PAYMENT_OPTIONS = ["CASH", "UPI", "CARD", "CHEQUE"] as const;
 
 function parseDateBoundary(value: string | undefined, suffix: string): Date | undefined {
   if (!value) return undefined;
@@ -10,21 +12,51 @@ function parseDateBoundary(value: string | undefined, suffix: string): Date | un
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
+function parseAmount(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    payment?: string;
+    from?: string;
+    to?: string;
+    amountFrom?: string;
+    amountTo?: string;
+  }>;
 }) {
-  const { status, from, to } = await searchParams;
+  const { q, status, payment, from, to, amountFrom, amountTo } = await searchParams;
   const validStatus = STATUS_OPTIONS.find((s) => s === status);
+  const validPayment = PAYMENT_OPTIONS.find((p) => p === payment);
+  const query = (q ?? "").trim();
 
   const orders = await prisma.order.findMany({
     where: {
       status: validStatus,
+      paymentMethod: validPayment,
       orderDate: {
         gte: parseDateBoundary(from, "T00:00:00"),
         lte: parseDateBoundary(to, "T23:59:59"),
       },
+      total: {
+        gte: parseAmount(amountFrom),
+        lte: parseAmount(amountTo),
+      },
+      ...(query
+        ? {
+            OR: [
+              { orderNumber: { contains: query, mode: "insensitive" as const } },
+              { customer: { name: { contains: query, mode: "insensitive" as const } } },
+              { customer: { phone: { contains: query } } },
+            ],
+          }
+        : {}),
     },
     orderBy: { orderDate: "desc" },
     include: { customer: true },
@@ -32,34 +64,102 @@ export default async function SalesPage({
 
   return (
     <div>
-      <h1 className="font-serif text-3xl text-royal">Sales</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-3xl text-royal">Sales</h1>
+          <p className="mt-1 text-sm text-royal-soft">Manage your orders</p>
+        </div>
+        <div className="flex gap-3">
+          <ExportCsvButton
+            rows={orders.map((o) => ({
+              orderNumber: o.orderNumber,
+              customerName: o.customer.name,
+              date: o.orderDate.toLocaleDateString("en-IN"),
+              status: o.status,
+              source: o.source,
+              paymentMethod: o.paymentMethod,
+              subtotal: o.subtotal,
+              gstAmount: o.gstAmount,
+              deliveryCharge: o.deliveryCharge,
+              total: o.total,
+            }))}
+          />
+          <Link
+            href="/pos"
+            className="inline-flex items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep shadow-[0_10px_24px_-10px_rgba(201,162,75,.6)] transition-transform hover:-translate-y-0.5"
+          >
+            + Create Order
+          </Link>
+        </div>
+      </div>
 
-      <form className="mt-6 flex flex-wrap gap-3" action="/sales">
-        <select
-          name="status"
-          defaultValue={status ?? ""}
-          className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-          ))}
-        </select>
+      <form className="mt-6 space-y-3" action="/sales">
         <input
-          type="date"
-          name="from"
-          defaultValue={from ?? ""}
-          className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          type="text"
+          name="q"
+          placeholder="Search order #, customer name or phone…"
+          defaultValue={q ?? ""}
+          className="w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm text-ink outline-none focus:border-gold"
         />
-        <input
-          type="date"
-          name="to"
-          defaultValue={to ?? ""}
-          className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
-        />
-        <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
-          Filter
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <select
+            name="status"
+            defaultValue={status ?? ""}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          >
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+          <select
+            name="payment"
+            defaultValue={payment ?? ""}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          >
+            <option value="">All payment methods</option>
+            {PAYMENT_OPTIONS.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            name="from"
+            defaultValue={from ?? ""}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          />
+          <input
+            type="date"
+            name="to"
+            defaultValue={to ?? ""}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          />
+          <input
+            type="number"
+            name="amountFrom"
+            placeholder="₹ from"
+            defaultValue={amountFrom ?? ""}
+            className="w-28 rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          />
+          <input
+            type="number"
+            name="amountTo"
+            placeholder="₹ to"
+            defaultValue={amountTo ?? ""}
+            className="w-28 rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          />
+          <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
+            Filter
+          </button>
+          {(q || status || payment || from || to || amountFrom || amountTo) && (
+            <Link
+              href="/sales"
+              className="inline-flex items-center rounded-full border border-royal-soft/30 px-5 py-2.5 text-sm font-semibold text-royal-soft hover:border-gold hover:text-gold-soft"
+            >
+              Clear
+            </Link>
+          )}
+        </div>
       </form>
 
       <Table>
@@ -78,16 +178,24 @@ export default async function SalesPage({
           {orders.map((o) => (
             <tr key={o.id} className="border-b border-royal-soft/10 last:border-0">
               <td className="px-4 py-3">
-                <Link href={`/sales/${o.id}`} className="font-semibold text-royal hover:text-gold-soft">
+                <Link
+                  href={`/sales/${o.id}`}
+                  className="inline-block rounded-full bg-royal-soft/10 px-3 py-1 font-semibold text-royal hover:bg-gold/20 hover:text-gold-soft"
+                >
                   {o.orderNumber}
                 </Link>
               </td>
-              <td className="px-4 py-3">{o.customer.name}</td>
+              <td className="px-4 py-3">
+                <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
+                  {o.customer.name}
+                </Link>
+                <p className="text-xs text-royal-soft">{o.customer.phone}</p>
+              </td>
               <td className="px-4 py-3">{o.orderDate.toLocaleDateString("en-IN")}</td>
               <td className="px-4 py-3">{o.status.replace(/_/g, " ")}</td>
               <td className="px-4 py-3">{o.source.replace(/_/g, " ")}</td>
               <td className="px-4 py-3">{o.paymentMethod}</td>
-              <td className="px-4 py-3">₹{o.total}</td>
+              <td className="px-4 py-3 font-semibold text-royal">₹{o.total}</td>
             </tr>
           ))}
           {orders.length === 0 && (
