@@ -169,6 +169,7 @@ export default async function SalesPage({
             <th className="px-2 py-3" aria-label="Expand" />
             <th className="px-4 py-3">Order #</th>
             <th className="px-4 py-3">Customer</th>
+            <th className="px-4 py-3">Address</th>
             <th className="px-4 py-3">Date</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Source</th>

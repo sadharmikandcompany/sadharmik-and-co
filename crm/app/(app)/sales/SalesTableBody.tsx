@@ -39,7 +39,7 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
     return (
       <tbody>
         <tr>
-          <td colSpan={8} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
+          <td colSpan={9} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
         </tr>
       </tbody>
     );
@@ -76,16 +76,13 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
                 </Link>
               </td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap items-start gap-x-4">
-                  <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
-                    {o.customerName}
-                  </Link>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gold-soft">Address</p>
-                    <p className="text-sm text-royal-soft">{o.customerAddress}</p>
-                  </div>
-                </div>
+                <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
+                  {o.customerName}
+                </Link>
                 <p className="text-xs text-royal-soft">{o.customerPhone}</p>
+              </td>
+              <td className="max-w-[220px] px-4 py-3">
+                <p className="truncate text-sm text-royal-soft" title={o.customerAddress}>{o.customerAddress}</p>
               </td>
               <td className="px-4 py-3">{o.orderDateLabel}</td>
               <td className="px-4 py-3">{o.status.replace(/_/g, " ")}</td>
@@ -96,7 +93,7 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
             {isOpen && (
               <tr className="border-b border-royal-soft/10 bg-royal-soft/5 last:border-0">
                 <td />
-                <td colSpan={7} className="px-4 py-4">
+                <td colSpan={8} className="px-4 py-4">
                   <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Order items</p>
                   <div className="mt-2 overflow-x-auto rounded-xl border border-royal-soft/15 bg-white">
                     <table className="w-full min-w-[420px] text-left text-sm">
