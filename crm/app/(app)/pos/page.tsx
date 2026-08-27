@@ -20,6 +20,7 @@ export default async function PosPage() {
             price: p.price,
             gstPercentage: p.gstPercentage,
             stock: p.stock,
+            imageUrl: p.imageUrl,
           }))}
           customers={customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone }))}
         />

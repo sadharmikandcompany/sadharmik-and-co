@@ -192,6 +192,8 @@
   .card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
     background:linear-gradient(90deg,var(--gold-2),var(--gold),var(--gold-soft));opacity:.85;}
   .card:hover{transform:translateY(-8px);box-shadow:0 28px 50px -26px rgba(12,31,68,.4);}
+  .card-img{width:100%;aspect-ratio:4/3;overflow:hidden;background:rgba(12,31,68,.06);}
+  .card-img img{width:100%;height:100%;object-fit:cover;display:block;}
   .card .pad{padding:30px 26px 24px;display:flex;flex-direction:column;gap:10px;flex:1;}
   .card .tag{align-self:flex-start;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;font-weight:600;
     color:var(--gold-soft);border:1px solid rgba(156,126,50,.4);border-radius:999px;padding:4px 11px;}
@@ -853,6 +855,9 @@
 
   // ===== CRM: where checkout submits orders so they show up in Sales/Dashboard =====
   var CRM_API_URL = "https://sadharmikandcocrm.vercel.app/api/public-orders";
+  // Same CRM — this is where the product cards below are loaded from, so
+  // editing a flavour's price/photo/description in the CRM updates the site.
+  var PRODUCTS_API_URL = "https://sadharmikandcocrm.vercel.app/api/public-products";
 
   document.getElementById('yr').textContent = new Date().getFullYear();
 
@@ -992,15 +997,60 @@
     }
   }
 
-  // wrap each card's add button in a div for easy replacement
-  document.querySelectorAll('.card').forEach(function(card){
-    var btn = card.querySelector('.add');
-    var wrap = document.createElement('div');
-    wrap.className = 'add-wrap';
-    btn.parentNode.insertBefore(wrap, btn);
-    wrap.appendChild(btn);
-    btn.addEventListener('click', function(){ setQty(card.dataset.name, 1); });
-  });
+  // wrap each card's add button in a div for easy replacement. Re-callable
+  // so it can run once on the static fallback cards below, and again after
+  // a successful CRM fetch replaces #prodGrid with fresh cards.
+  function initProductCards(){
+    document.querySelectorAll('.card').forEach(function(card){
+      if(card.dataset.bound === '1') return;
+      card.dataset.bound = '1';
+      var btn = card.querySelector('.add');
+      if(!btn) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'add-wrap';
+      btn.parentNode.insertBefore(wrap, btn);
+      wrap.appendChild(btn);
+      btn.addEventListener('click', function(){ setQty(card.dataset.name, 1); });
+    });
+  }
+  initProductCards();
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function productCardHtml(p){
+    var img = p.imageUrl
+      ? '<div class="card-img"><img src="'+p.imageUrl+'" alt="'+escapeHtml(p.name)+'" loading="lazy"></div>'
+      : '';
+    return '<article class="card reveal in" data-name="'+escapeHtml(p.name)+'" data-price="'+p.price+'">'
+      + img
+      + '<div class="pad">'
+      +   '<span class="tag">Jain-friendly</span>'
+      +   '<h3>'+escapeHtml(p.name)+'</h3>'
+      +   '<p class="desc">'+escapeHtml(p.description)+'</p>'
+      +   '<div class="foot">'
+      +     '<span class="price">₹'+p.price+' <small>/ '+escapeHtml(p.packSize)+'</small></span>'
+      +     '<button class="add" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add to order</button>'
+      +   '</div>'
+      + '</div>'
+      + '</article>';
+  }
+
+  // Pull the live catalogue from the CRM. On any failure (offline, CRM
+  // down, empty catalogue) we deliberately leave the static cards already
+  // in the page alone — the site should never show a blank product grid.
+  var prodGrid = document.getElementById('prodGrid');
+  fetch(PRODUCTS_API_URL)
+    .then(function(res){ if(!res.ok) throw new Error('bad status'); return res.json(); })
+    .then(function(data){
+      if(!data || !data.ok || !Array.isArray(data.products) || data.products.length === 0) return;
+      prodGrid.innerHTML = data.products.map(productCardHtml).join('');
+      initProductCards();
+    })
+    .catch(function(){ /* keep the static fallback cards */ });
 
   // ===== ACCOUNT: profile + order history =====
   function getProfile(){ return JSON.parse(localStorage.getItem('sdhmk_profile')||'{}'); }

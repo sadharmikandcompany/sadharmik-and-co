@@ -12,6 +12,7 @@ interface ProductOption {
   price: number;
   gstPercentage: number;
   stock: number;
+  imageUrl: string | null;
 }
 
 interface CustomerOption {
@@ -164,9 +165,19 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
                   key={p.id}
                   className="flex items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-3"
                 >
-                  <div>
-                    <p className="font-semibold text-royal">{p.name}</p>
-                    <p className="text-xs text-royal-soft">₹{p.price} / {p.packSize} · {p.stock} in stock</p>
+                  <div className="flex items-center gap-3">
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.imageUrl} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                    ) : (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-royal-soft/10 text-[9px] text-royal-soft">
+                        No photo
+                      </span>
+                    )}
+                    <div>
+                      <p className="font-semibold text-royal">{p.name}</p>
+                      <p className="text-xs text-royal-soft">₹{p.price} / {p.packSize} · {p.stock} in stock</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
