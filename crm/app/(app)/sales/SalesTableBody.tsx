@@ -10,6 +10,9 @@ interface OrderRow {
   status: string;
   source: string;
   paymentMethod: string;
+  subtotal: number;
+  gstAmount: number;
+  deliveryCharge: number;
   total: number;
   customerId: string;
   customerName: string;
@@ -77,15 +80,39 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
                   <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Delivery address</p>
                   <p className="mt-1 text-sm text-ink">{o.customerAddress}</p>
 
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-gold-soft">Items</p>
-                  <ul className="mt-1 max-w-xs space-y-1 text-sm text-ink">
-                    {o.items.map((item) => (
-                      <li key={item.id} className="flex justify-between gap-4">
-                        <span>{item.productName} × {item.quantity}</span>
-                        <span>₹{item.unitPrice * item.quantity}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-gold-soft">Order items</p>
+                  <div className="mt-2 overflow-x-auto rounded-xl border border-royal-soft/15 bg-white">
+                    <table className="w-full min-w-[420px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-royal-soft/15 text-xs uppercase tracking-wider text-royal-soft">
+                          <th className="px-3 py-2">Product</th>
+                          <th className="px-3 py-2">Qty</th>
+                          <th className="px-3 py-2">Unit Price</th>
+                          <th className="px-3 py-2">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {o.items.map((item) => (
+                          <tr key={item.id} className="border-b border-royal-soft/10 last:border-0">
+                            <td className="px-3 py-2">{item.productName}</td>
+                            <td className="px-3 py-2">{item.quantity}</td>
+                            <td className="px-3 py-2">₹{item.unitPrice}</td>
+                            <td className="px-3 py-2">₹{item.unitPrice * item.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink">
+                    <span>Products: <b className="text-royal">{o.items.length}</b></span>
+                    <span>Qty: <b className="text-royal">{o.items.reduce((s, i) => s + i.quantity, 0)}</b></span>
+                    <span>Subtotal: <b className="text-royal">₹{o.subtotal}</b></span>
+                    <span>GST: <b className="text-royal">{o.gstAmount === 0 ? "₹0" : `₹${o.gstAmount}`}</b></span>
+                    <span>Delivery: <b className="text-royal">{o.deliveryCharge === 0 ? "Free" : `₹${o.deliveryCharge}`}</b></span>
+                    <span>Total: <b className="text-gold-soft">₹{o.total}</b></span>
+                    <span>Source: <b className="text-royal">{o.source.replace(/_/g, " ")}</b></span>
+                  </div>
                 </td>
               </tr>
             )}
