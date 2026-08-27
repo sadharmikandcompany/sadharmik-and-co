@@ -5,7 +5,8 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/customers", label: "Customers" },
   { href: "/products", label: "Products" },
-  { href: "/pos", label: "POS / New order" },
+  { href: "/pos", label: "POS" },
+  { href: "/sales/new", label: "New Order" },
   { href: "/sales", label: "Sales" },
   { href: "/purchases", label: "Purchases" },
 ];

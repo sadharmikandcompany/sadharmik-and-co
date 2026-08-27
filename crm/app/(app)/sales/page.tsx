@@ -4,7 +4,7 @@ import { Table } from "@/components/ui";
 import { ExportCsvButton } from "./ExportCsvButton";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
-const PAYMENT_OPTIONS = ["CASH", "UPI", "CARD", "CHEQUE"] as const;
+const PAYMENT_OPTIONS = ["CASH", "UPI", "CARD", "CHEQUE", "PENDING"] as const;
 
 function parseDateBoundary(value: string | undefined, suffix: string): Date | undefined {
   if (!value) return undefined;
@@ -85,7 +85,7 @@ export default async function SalesPage({
             }))}
           />
           <Link
-            href="/pos"
+            href="/sales/new"
             className="inline-flex items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep shadow-[0_10px_24px_-10px_rgba(201,162,75,.6)] transition-transform hover:-translate-y-0.5"
           >
             + Create Order

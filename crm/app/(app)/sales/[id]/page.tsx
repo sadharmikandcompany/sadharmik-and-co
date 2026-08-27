@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
-import { updateOrderStatus } from "../actions";
+import { updateOrderStatus, updateOrderPaymentMethod } from "../actions";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
+const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
 
 export default async function OrderDetailPage({
   params,
@@ -45,6 +46,12 @@ export default async function OrderDetailPage({
           </div>
           <div className="flex justify-between font-semibold text-royal"><span>Total</span><span>₹{order.total}</span></div>
         </div>
+        {order.notes && (
+          <div className="mt-3 border-t border-royal-soft/15 pt-3 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Notes</p>
+            <p className="mt-1 text-ink">{order.notes}</p>
+          </div>
+        )}
       </Card>
 
       <Card className="mt-6 max-w-md">
@@ -58,6 +65,26 @@ export default async function OrderDetailPage({
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+          <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
+            Update
+          </button>
+        </form>
+      </Card>
+
+      <Card className="mt-6 max-w-md">
+        <h2 className="font-serif text-lg text-royal">Payment</h2>
+        <p className="mt-1 text-xs text-royal-soft">Update this once payment is actually collected.</p>
+        <form action={updateOrderPaymentMethod} className="mt-3 flex items-center gap-3">
+          <input type="hidden" name="id" value={order.id} />
+          <select
+            name="paymentMethod"
+            defaultValue={order.paymentMethod}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          >
+            {PAYMENT_OPTIONS.map((p) => (
+              <option key={p} value={p}>{p === "PENDING" ? "Pending / COD" : p}</option>
             ))}
           </select>
           <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">

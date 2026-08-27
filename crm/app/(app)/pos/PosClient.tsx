@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { computeOrderTotals } from "@/lib/money";
 import { Button, Card, Input, Modal } from "@/components/ui";
-import { addCustomerInline, createOrder, type OrderSourceInput, type PaymentMethodInput } from "./actions";
+import { addCustomerInline, createOrder, type OrderSourceInput, type PaymentMethodInput } from "@/lib/orders";
 
 interface ProductOption {
   id: string;

@@ -65,6 +65,7 @@ enum PaymentMethod {
   UPI
   CARD
   CHEQUE
+  PENDING
 }
 
 model Order {
@@ -75,6 +76,7 @@ model Order {
   status         OrderStatus   @default(NEW)
   source         OrderSource   @default(WALK_IN)
   paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
   subtotal       Int
   gstAmount      Int           @default(0)
   deliveryCharge Int

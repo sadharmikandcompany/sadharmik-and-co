@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 const VALID_STATUSES = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
+const VALID_PAYMENT_METHODS = ["CASH", "UPI", "CARD", "CHEQUE", "PENDING"] as const;
 
 export async function updateOrderStatus(formData: FormData) {
   const id = String(formData.get("id") ?? "");
@@ -18,4 +19,21 @@ export async function updateOrderStatus(formData: FormData) {
   revalidatePath("/sales");
   revalidatePath(`/sales/${id}`);
   revalidatePath("/dashboard");
+}
+
+export async function updateOrderPaymentMethod(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const paymentMethod = String(formData.get("paymentMethod") ?? "");
+
+  if (!id) throw new Error("Missing order id.");
+  if (!VALID_PAYMENT_METHODS.includes(paymentMethod as (typeof VALID_PAYMENT_METHODS)[number])) {
+    throw new Error("Invalid payment method.");
+  }
+
+  await prisma.order.update({
+    where: { id },
+    data: { paymentMethod: paymentMethod as (typeof VALID_PAYMENT_METHODS)[number] },
+  });
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${id}`);
 }

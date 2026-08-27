@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { computeOrderTotals, type BillLine } from "@/lib/money";
 import { generateOrderNumber } from "@/lib/order-number";
 
-export interface PosLine {
+export interface OrderLine {
   productId: string;
   quantity: number;
 }
@@ -14,16 +14,18 @@ export interface CreateOrderResult {
   ok: boolean;
   error?: string;
   orderNumber?: string;
+  orderId?: string;
 }
 
 export type OrderSourceInput = "WEBSITE" | "WHATSAPP" | "PHONE" | "WALK_IN";
-export type PaymentMethodInput = "CASH" | "UPI" | "CARD" | "CHEQUE";
+export type PaymentMethodInput = "CASH" | "UPI" | "CARD" | "CHEQUE" | "PENDING";
 
 export async function createOrder(
   customerId: string,
-  lines: PosLine[],
+  lines: OrderLine[],
   source: OrderSourceInput = "WALK_IN",
-  paymentMethod: PaymentMethodInput = "CASH"
+  paymentMethod: PaymentMethodInput = "CASH",
+  notes?: string
 ): Promise<CreateOrderResult> {
   if (!customerId) return { ok: false, error: "Select a customer first." };
 
@@ -55,13 +57,14 @@ export async function createOrder(
     const lastSequence = lastToday ? parseInt(lastToday.orderNumber.slice(-3), 10) : 0;
     const orderNumber = generateOrderNumber(new Date(), lastSequence + 1);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.create({
+    const createdOrderId = await prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
         data: {
           orderNumber,
           customerId,
           source,
           paymentMethod,
+          notes: notes?.trim() || null,
           subtotal: totals.subtotal,
           gstAmount: totals.gst,
           deliveryCharge: totals.delivery,
@@ -85,14 +88,17 @@ export async function createOrder(
           throw new Error(`Not enough stock left of ${product?.name ?? "an item"}.`);
         }
       }
+
+      return created.id;
     });
 
     revalidatePath("/pos");
     revalidatePath("/sales");
+    revalidatePath("/sales/new");
     revalidatePath("/dashboard");
     revalidatePath(`/customers/${customerId}`);
 
-    return { ok: true, orderNumber };
+    return { ok: true, orderNumber, orderId: createdOrderId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not save the order." };
   }
@@ -113,6 +119,7 @@ export async function addCustomerInline(name: string, phone: string, address: st
       data: { name: name.trim(), phone: phone.trim(), whatsapp: phone.trim(), address: address.trim() },
     });
     revalidatePath("/pos");
+    revalidatePath("/sales/new");
     revalidatePath("/customers");
     return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
   } catch (err) {
