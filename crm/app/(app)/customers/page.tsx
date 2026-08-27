@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Button, Card, Input, Table } from "@/components/ui";
-import { createCustomer } from "./actions";
+import { Input, Table } from "@/components/ui";
+import { AddCustomerButton } from "./AddCustomerButton";
 
 export default async function CustomersPage({
   searchParams,
@@ -19,18 +19,10 @@ export default async function CustomersPage({
 
   return (
     <div>
-      <h1 className="font-serif text-3xl text-royal">Customers</h1>
-
-      <Card className="mt-6">
-        <h2 className="font-serif text-lg text-royal">Add customer</h2>
-        <form action={createCustomer} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input name="name" placeholder="Name" required />
-          <Input name="phone" placeholder="Phone" required />
-          <Input name="address" placeholder="Address" required className="sm:col-span-2" />
-          <Input name="notes" placeholder="Notes (optional)" className="sm:col-span-2" />
-          <Button type="submit" className="justify-center sm:col-span-2">Add customer</Button>
-        </form>
-      </Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-serif text-3xl text-royal">Customers</h1>
+        <AddCustomerButton />
+      </div>
 
       <form className="mt-6 max-w-sm" action="/customers">
         <Input name="q" placeholder="Search by name or phone" defaultValue={q ?? ""} />
