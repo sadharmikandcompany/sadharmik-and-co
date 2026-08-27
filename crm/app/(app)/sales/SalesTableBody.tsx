@@ -24,6 +24,17 @@ interface OrderRow {
 export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Clicking anywhere on a row toggles it — except a link/button inside the
+  // row, which should navigate/act normally. Deliberately not using
+  // stopPropagation on those for this: Next.js's <Link> intercepts clicks
+  // via a delegated listener on an ancestor, so stopping propagation on the
+  // link itself silently blocks its own navigation.
+  function toggleRow(id: string, e: React.MouseEvent<HTMLTableRowElement>) {
+    const target = e.target as HTMLElement;
+    if (target.closest("a, button")) return;
+    setExpandedId((current) => (current === id ? null : id));
+  }
+
   if (orders.length === 0) {
     return (
       <tbody>
@@ -40,7 +51,10 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
         const isOpen = expandedId === o.id;
         return (
           <Fragment key={o.id}>
-            <tr className="border-b border-royal-soft/10 last:border-0">
+            <tr
+              onClick={(e) => toggleRow(o.id, e)}
+              className="cursor-pointer border-b border-royal-soft/10 last:border-0 hover:bg-royal-soft/5"
+            >
               <td className="px-2 py-3 text-center">
                 <button
                   type="button"
@@ -65,6 +79,7 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
                 <Link href={`/customers/${o.customerId}`} className="hover:text-gold-soft">
                   {o.customerName}
                 </Link>
+                <p className="text-xs text-royal-soft">{o.customerAddress}</p>
                 <p className="text-xs text-royal-soft">{o.customerPhone}</p>
               </td>
               <td className="px-4 py-3">{o.orderDateLabel}</td>
@@ -77,10 +92,7 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
               <tr className="border-b border-royal-soft/10 bg-royal-soft/5 last:border-0">
                 <td />
                 <td colSpan={7} className="px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Delivery address</p>
-                  <p className="mt-1 text-sm text-ink">{o.customerAddress}</p>
-
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-gold-soft">Order items</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Order items</p>
                   <div className="mt-2 overflow-x-auto rounded-xl border border-royal-soft/15 bg-white">
                     <table className="w-full min-w-[420px] text-left text-sm">
                       <thead>
