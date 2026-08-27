@@ -13,7 +13,14 @@ export default async function PosPage() {
       <p className="mt-1 text-sm text-royal-soft">Build a bill and save it as an order.</p>
       <div className="mt-6">
         <PosClient
-          products={products.map((p) => ({ id: p.id, name: p.name, packSize: p.packSize, price: p.price, stock: p.stock }))}
+          products={products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            packSize: p.packSize,
+            price: p.price,
+            gstPercentage: p.gstPercentage,
+            stock: p.stock,
+          }))}
           customers={customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone }))}
         />
       </div>

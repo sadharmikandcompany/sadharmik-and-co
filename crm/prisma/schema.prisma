@@ -9,15 +9,16 @@ datasource db {
 }
 
 model Product {
-  id         String      @id @default(cuid())
-  name       String      @unique
-  packSize   String
-  price      Int
-  stock      Int         @default(0)
-  isActive   Boolean     @default(true)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  orderItems OrderItem[]
+  id            String      @id @default(cuid())
+  name          String      @unique
+  packSize      String
+  price         Int
+  gstPercentage Int         @default(0)
+  stock         Int         @default(0)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  orderItems    OrderItem[]
 }
 
 model Customer {
@@ -59,19 +60,28 @@ enum OrderSource {
   WALK_IN
 }
 
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  CHEQUE
+}
+
 model Order {
-  id             String      @id @default(cuid())
-  orderNumber    String      @unique
+  id             String        @id @default(cuid())
+  orderNumber    String        @unique
   customerId     String
-  customer       Customer    @relation(fields: [customerId], references: [id])
-  status         OrderStatus @default(NEW)
-  source         OrderSource @default(WALK_IN)
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  status         OrderStatus   @default(NEW)
+  source         OrderSource   @default(WALK_IN)
+  paymentMethod  PaymentMethod @default(CASH)
   subtotal       Int
+  gstAmount      Int           @default(0)
   deliveryCharge Int
   total          Int
-  orderDate      DateTime    @default(now())
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  orderDate      DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   items          OrderItem[]
 }
 

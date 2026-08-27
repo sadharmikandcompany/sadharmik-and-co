@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDeliveryCharge, computeOrderTotals, computePurchaseTotals, computeSubtotal } from "./money";
+import { computeDeliveryCharge, computeGstAmount, computeOrderTotals, computePurchaseTotals, computeSubtotal } from "./money";
 
 describe("computeDeliveryCharge", () => {
   it("charges ₹70 for 1 pack (500g)", () => {
@@ -34,15 +34,43 @@ describe("computeSubtotal", () => {
   });
 });
 
+describe("computeGstAmount", () => {
+  it("is 0 when a line has no gstPercentage", () => {
+    expect(computeGstAmount([{ quantity: 2, unitPrice: 160 }])).toBe(0);
+  });
+
+  it("is 0 when gstPercentage is explicitly 0", () => {
+    expect(computeGstAmount([{ quantity: 2, unitPrice: 160, gstPercentage: 0 }])).toBe(0);
+  });
+
+  it("computes and rounds GST for a taxed line", () => {
+    // 2 × ₹160 = ₹320 subtotal, 5% GST = ₹16
+    expect(computeGstAmount([{ quantity: 2, unitPrice: 160, gstPercentage: 5 }])).toBe(16);
+  });
+
+  it("sums GST across multiple lines independently", () => {
+    const lines = [
+      { quantity: 2, unitPrice: 160, gstPercentage: 5 }, // ₹16
+      { quantity: 1, unitPrice: 100, gstPercentage: 0 }, // ₹0
+    ];
+    expect(computeGstAmount(lines)).toBe(16);
+  });
+});
+
 describe("computeOrderTotals", () => {
-  it("combines packs, subtotal, delivery and total", () => {
+  it("combines packs, subtotal, gst, delivery and total", () => {
     const result = computeOrderTotals([{ quantity: 1, unitPrice: 160 }]);
-    expect(result).toEqual({ packs: 1, subtotal: 160, delivery: 70, total: 230 });
+    expect(result).toEqual({ packs: 1, subtotal: 160, gst: 0, delivery: 70, total: 230 });
   });
 
   it("gives free delivery at 2 packs", () => {
     const result = computeOrderTotals([{ quantity: 2, unitPrice: 160 }]);
-    expect(result).toEqual({ packs: 2, subtotal: 320, delivery: 0, total: 320 });
+    expect(result).toEqual({ packs: 2, subtotal: 320, gst: 0, delivery: 0, total: 320 });
+  });
+
+  it("adds GST into the total when a line is taxed", () => {
+    const result = computeOrderTotals([{ quantity: 2, unitPrice: 160, gstPercentage: 5 }]);
+    expect(result).toEqual({ packs: 2, subtotal: 320, gst: 16, delivery: 0, total: 336 });
   });
 });
 

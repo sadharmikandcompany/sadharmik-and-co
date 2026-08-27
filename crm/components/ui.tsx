@@ -54,6 +54,40 @@ export function Table({ children }: { children: ReactNode }) {
   );
 }
 
+export function Modal({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-royal-deep/60 p-4">
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-royal-soft/15 bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-serif text-xl text-royal">{title}</p>
+            {subtitle && <p className="mt-1 text-sm text-royal-soft">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full border border-royal-soft/30 px-2.5 py-1 text-sm text-royal-soft hover:border-gold hover:text-gold-soft"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <Card>

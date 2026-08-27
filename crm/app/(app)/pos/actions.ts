@@ -17,11 +17,13 @@ export interface CreateOrderResult {
 }
 
 export type OrderSourceInput = "WEBSITE" | "WHATSAPP" | "PHONE" | "WALK_IN";
+export type PaymentMethodInput = "CASH" | "UPI" | "CARD" | "CHEQUE";
 
 export async function createOrder(
   customerId: string,
   lines: PosLine[],
-  source: OrderSourceInput = "WALK_IN"
+  source: OrderSourceInput = "WALK_IN",
+  paymentMethod: PaymentMethodInput = "CASH"
 ): Promise<CreateOrderResult> {
   if (!customerId) return { ok: false, error: "Select a customer first." };
 
@@ -39,7 +41,7 @@ export async function createOrder(
       if (line.quantity > product.stock) {
         throw new Error(`Only ${product.stock} left of ${product.name}.`);
       }
-      return { quantity: line.quantity, unitPrice: product.price };
+      return { quantity: line.quantity, unitPrice: product.price, gstPercentage: product.gstPercentage };
     });
 
     const totals = computeOrderTotals(billLines);
@@ -59,7 +61,9 @@ export async function createOrder(
           orderNumber,
           customerId,
           source,
+          paymentMethod,
           subtotal: totals.subtotal,
+          gstAmount: totals.gst,
           deliveryCharge: totals.delivery,
           total: totals.total,
           items: {
@@ -104,10 +108,14 @@ export async function addCustomerInline(name: string, phone: string, address: st
   if (!name.trim() || !phone.trim() || !address.trim()) {
     return { ok: false, error: "Name, phone and address are required." };
   }
-  const customer = await prisma.customer.create({
-    data: { name: name.trim(), phone: phone.trim(), whatsapp: phone.trim(), address: address.trim() },
-  });
-  revalidatePath("/pos");
-  revalidatePath("/customers");
-  return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
+  try {
+    const customer = await prisma.customer.create({
+      data: { name: name.trim(), phone: phone.trim(), whatsapp: phone.trim(), address: address.trim() },
+    });
+    revalidatePath("/pos");
+    revalidatePath("/customers");
+    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
+  }
 }

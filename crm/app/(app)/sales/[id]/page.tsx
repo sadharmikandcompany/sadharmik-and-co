@@ -24,7 +24,7 @@ export default async function OrderDetailPage({
       <Link href="/sales" className="text-sm text-royal-soft hover:text-gold-soft">← All sales</Link>
       <h1 className="mt-2 font-serif text-3xl text-royal">{order.orderNumber}</h1>
       <p className="mt-1 text-sm text-royal-soft">
-        {order.customer.name} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")}
+        {order.customer.name} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")} · {order.paymentMethod}
       </p>
 
       <Card className="mt-6 max-w-md">
@@ -38,6 +38,7 @@ export default async function OrderDetailPage({
         </ul>
         <div className="mt-3 space-y-1 border-t border-royal-soft/15 pt-3 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span>₹{order.subtotal}</span></div>
+          <div className="flex justify-between"><span>GST</span><span>{order.gstAmount === 0 ? "₹0" : `₹${order.gstAmount}`}</span></div>
           <div className="flex justify-between">
             <span>Delivery</span>
             <span>{order.deliveryCharge === 0 ? "Free" : `₹${order.deliveryCharge}`}</span>

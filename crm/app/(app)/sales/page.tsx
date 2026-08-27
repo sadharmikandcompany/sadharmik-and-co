@@ -70,6 +70,7 @@ export default async function SalesPage({
             <th className="px-4 py-3">Date</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Source</th>
+            <th className="px-4 py-3">Payment</th>
             <th className="px-4 py-3">Total</th>
           </tr>
         </thead>
@@ -85,12 +86,13 @@ export default async function SalesPage({
               <td className="px-4 py-3">{o.orderDate.toLocaleDateString("en-IN")}</td>
               <td className="px-4 py-3">{o.status.replace(/_/g, " ")}</td>
               <td className="px-4 py-3">{o.source.replace(/_/g, " ")}</td>
+              <td className="px-4 py-3">{o.paymentMethod}</td>
               <td className="px-4 py-3">₹{o.total}</td>
             </tr>
           ))}
           {orders.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
+              <td colSpan={7} className="px-4 py-6 text-center text-sm text-royal-soft">No orders match these filters.</td>
             </tr>
           )}
         </tbody>

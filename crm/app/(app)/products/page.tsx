@@ -11,12 +11,13 @@ export default async function ProductsPage() {
 
       <Card className="mt-6">
         <h2 className="font-serif text-lg text-royal">Add product</h2>
-        <form action={createProduct} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <form action={createProduct} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
           <Input name="name" placeholder="Flavour name" required />
           <Input name="packSize" placeholder="Pack size (e.g. 500g)" required />
           <Input name="price" type="number" min="0" placeholder="Price (₹)" required />
           <Input name="stock" type="number" min="0" placeholder="Stock" required />
-          <Button type="submit" className="justify-center sm:col-span-4">Add product</Button>
+          <Input name="gstPercentage" type="number" min="0" placeholder="GST % (default 0)" />
+          <Button type="submit" className="justify-center sm:col-span-5">Add product</Button>
         </form>
       </Card>
 
@@ -26,6 +27,7 @@ export default async function ProductsPage() {
             <th className="px-4 py-3">Name</th>
             <th className="px-4 py-3">Pack</th>
             <th className="px-4 py-3">Price</th>
+            <th className="px-4 py-3">GST %</th>
             <th className="px-4 py-3">Stock</th>
             <th className="px-4 py-3">Active</th>
             <th className="px-4 py-3">Save</th>
@@ -42,6 +44,9 @@ export default async function ProductsPage() {
                 <td className="px-4 py-3">{p.packSize}</td>
                 <td className="px-4 py-3">
                   <Input name="price" type="number" min="0" defaultValue={p.price} className="w-24" />
+                </td>
+                <td className="px-4 py-3">
+                  <Input name="gstPercentage" type="number" min="0" defaultValue={p.gstPercentage} className="w-20" />
                 </td>
                 <td className="px-4 py-3">
                   <Input name="stock" type="number" min="0" defaultValue={p.stock} className="w-20" />
