@@ -126,3 +126,42 @@ export async function addCustomerInline(name: string, phone: string, address: st
     return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
   }
 }
+
+/**
+ * Used by the public website's checkout — unlike addCustomerInline (which
+ * always creates a fresh Customer for CRM staff entering a new record), a
+ * returning website customer ordering again under the same phone number
+ * should reuse their existing Customer row rather than create a duplicate.
+ */
+export async function findOrCreateCustomerByPhone(
+  name: string,
+  phone: string,
+  address: string
+): Promise<AddCustomerResult> {
+  const trimmedName = name.trim();
+  const trimmedPhone = phone.trim();
+  const trimmedAddress = address.trim();
+  if (!trimmedName || !trimmedPhone || !trimmedAddress) {
+    return { ok: false, error: "Name, phone and address are required." };
+  }
+  try {
+    const existing = await prisma.customer.findFirst({
+      where: { phone: trimmedPhone, isActive: true },
+    });
+
+    const customer = existing
+      ? await prisma.customer.update({
+          where: { id: existing.id },
+          // Keep the customer's latest name/address as they typed it at checkout.
+          data: { name: trimmedName, address: trimmedAddress },
+        })
+      : await prisma.customer.create({
+          data: { name: trimmedName, phone: trimmedPhone, whatsapp: trimmedPhone, address: trimmedAddress },
+        });
+
+    revalidatePath("/customers");
+    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not save customer details." };
+  }
+}
