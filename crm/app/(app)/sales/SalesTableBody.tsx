@@ -14,6 +14,7 @@ interface OrderRow {
   gstAmount: number;
   deliveryCharge: number;
   total: number;
+  amountPaid: number;
   customerId: string;
   customerName: string;
   customerPhone: string;
@@ -89,6 +90,9 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
               <td className="px-4 py-3">{o.source.replace(/_/g, " ")}</td>
               <td className="px-4 py-3">{o.paymentMethod}</td>
               <td className="px-4 py-3 font-semibold text-royal">₹{o.total}</td>
+              <td className="px-4 py-3 font-semibold text-gold-soft">
+                {o.total - o.amountPaid > 0 ? `₹${o.total - o.amountPaid}` : "—"}
+              </td>
             </tr>
             {isOpen && (
               <tr className="border-b border-royal-soft/10 bg-royal-soft/5 last:border-0">
@@ -125,6 +129,8 @@ export function SalesTableBody({ orders }: { orders: OrderRow[] }) {
                     <span>GST: <b className="text-royal">{o.gstAmount === 0 ? "₹0" : `₹${o.gstAmount}`}</b></span>
                     <span>Delivery: <b className="text-royal">{o.deliveryCharge === 0 ? "Free" : `₹${o.deliveryCharge}`}</b></span>
                     <span>Total: <b className="text-gold-soft">₹{o.total}</b></span>
+                    <span>Paid: <b className="text-royal">₹{o.amountPaid}</b></span>
+                    <span>Balance: <b className="text-royal">₹{o.total - o.amountPaid}</b></span>
                     <span>Source: <b className="text-royal">{o.source.replace(/_/g, " ")}</b></span>
                   </div>
                 </td>

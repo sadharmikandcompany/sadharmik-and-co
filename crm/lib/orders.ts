@@ -25,7 +25,8 @@ export async function createOrder(
   lines: OrderLine[],
   source: OrderSourceInput = "WALK_IN",
   paymentMethod: PaymentMethodInput = "CASH",
-  notes?: string
+  notes?: string,
+  amountPaid?: number
 ): Promise<CreateOrderResult> {
   if (!customerId) return { ok: false, error: "Select a customer first." };
 
@@ -69,6 +70,7 @@ export async function createOrder(
           gstAmount: totals.gst,
           deliveryCharge: totals.delivery,
           total: totals.total,
+          amountPaid: amountPaid ?? (paymentMethod === "PENDING" ? 0 : totals.total),
           items: {
             create: activeLines.map((line) => {
               const product = products.find((p) => p.id === line.productId)!;

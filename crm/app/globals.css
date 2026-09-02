@@ -11,8 +11,8 @@
   --color-ivory: #FBF5E7;
   --color-ink: #0c1f44;
 
-  --font-serif: var(--font-cormorant), Georgia, serif;
-  --font-sans: var(--font-mukta), system-ui, sans-serif;
+  --font-serif: var(--font-sans);
+  --font-sans: var(--font-sans);
 }
 
 body {

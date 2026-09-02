@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Mukta } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-cormorant",
-});
-
-const mukta = Mukta({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-mukta",
+  variable: "--font-sans",
 });
 
 export const metadata: Metadata = {
@@ -21,8 +14,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${mukta.variable}`}>
-      <body>{children}</body>
+    <html lang="en" className={`${inter.variable}`}>
+      <body className="font-sans antialiased text-slate-800 bg-slate-50">{children}</body>
     </html>
   );
 }

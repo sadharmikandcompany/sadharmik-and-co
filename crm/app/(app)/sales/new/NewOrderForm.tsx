@@ -56,6 +56,7 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
 
   const [source, setSource] = useState<OrderSourceInput>("PHONE");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInput>("PENDING");
+  const [amountPaidInput, setAmountPaidInput] = useState<string>("");
   const [notes, setNotes] = useState("");
 
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -117,7 +118,8 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
         cartLines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         source,
         paymentMethod,
-        notes
+        notes,
+        amountPaidInput ? Number(amountPaidInput) : undefined
       );
       if (result.ok && result.orderId) {
         router.push(`/sales/${result.orderId}`);
@@ -286,6 +288,16 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Amount Paid (₹)</label>
+              <Input
+                type="number"
+                placeholder={paymentMethod === "PENDING" ? "0" : totals.total.toString()}
+                value={amountPaidInput}
+                onChange={(e) => setAmountPaidInput(e.target.value)}
+                className="mt-2 w-full"
+              />
             </div>
           </div>
           <div className="mt-3">

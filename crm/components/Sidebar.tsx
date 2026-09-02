@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/sales/new", label: "New Order" },
   { href: "/sales", label: "Sales" },
   { href: "/purchases", label: "Purchases" },
+  { href: "/vendors", label: "Vendors" },
 ];
 
 export function Sidebar() {
@@ -31,7 +32,7 @@ export function Sidebar() {
   ).index;
 
   return (
-    <aside className="flex h-screen w-64 flex-none flex-col justify-between border-r border-royal-soft/15 bg-royal-deep px-5 py-8 text-cream">
+    <aside className="sticky top-0 flex h-screen w-64 flex-none flex-col justify-between border-r border-royal-soft/15 bg-royal-deep px-5 py-8 text-cream">
       <div>
         <p className="font-serif text-xl text-ivory">Sadharmik & Co.</p>
         <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-gold">CRM</p>

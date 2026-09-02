@@ -85,6 +85,7 @@ model Order {
   gstAmount      Int           @default(0)
   deliveryCharge Int
   total          Int
+  amountPaid     Int           @default(0)
   orderDate      DateTime      @default(now())
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -107,13 +108,26 @@ enum PaidStatus {
   PARTIAL
 }
 
+enum PurchaseStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
 model Purchase {
   id           String         @id @default(cuid())
   supplierId   String
   supplier     Supplier       @relation(fields: [supplierId], references: [id])
+  poNumber     String?        @unique
+  invoiceNumber String?
   purchaseDate DateTime       @default(now())
   total        Int
+  amountPaid   Int            @default(0)
   paidStatus   PaidStatus     @default(DUE)
+  purchaseStatus PurchaseStatus @default(PENDING)
+  paymentMethod String?
+  batchNumber  String?
+  notes        String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   items        PurchaseItem[]

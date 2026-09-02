@@ -175,6 +175,7 @@ export default async function SalesPage({
             <th className="px-4 py-3">Source</th>
             <th className="px-4 py-3">Payment</th>
             <th className="px-4 py-3">Total</th>
+            <th className="px-4 py-3">Balance</th>
           </tr>
         </thead>
         <SalesTableBody
@@ -189,6 +190,7 @@ export default async function SalesPage({
             gstAmount: o.gstAmount,
             deliveryCharge: o.deliveryCharge,
             total: o.total,
+            amountPaid: o.amountPaid,
             customerId: o.customerId,
             customerName: o.customer.name,
             customerPhone: o.customer.phone,
