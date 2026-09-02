@@ -3,7 +3,8 @@ import { PurchaseOrderForm } from "../../PurchaseForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function EditPurchasePage({ params }: { params: { id: string } }) {
+export default async function EditPurchasePage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
   const [suppliers, purchase] = await Promise.all([
     prisma.supplier.findMany({ 
       where: { isActive: true }, 
@@ -11,7 +12,7 @@ export default async function EditPurchasePage({ params }: { params: { id: strin
       select: { id: true, name: true }
     }),
     prisma.purchase.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: { items: true }
     })
   ]);
