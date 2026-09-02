@@ -59,12 +59,13 @@ reference app but not built now:
 - **Backend**: new API routes added to the existing `crm/` Next.js app under
   `/api/rider/*`, reusing the existing Prisma/Postgres database — no new
   service to host or pay for.
-- **Auth**: username + password per rider (checked against a new `Rider`
-  table), returning a signed token (same HMAC approach `lib/auth.ts` already
-  uses for the CRM's own login, adapted to a bearer token instead of a
-  cookie, since the client is a mobile app, not a browser). The app stores
-  the token with Expo SecureStore and sends `Authorization: Bearer <token>`
-  on every request; an expired/invalid token bounces the app back to Login.
+- **Auth**: phone number + password (checked against the existing `User`
+  table, filtered to `role: DELIVERY_PARTNER` and `isActive`), returning a
+  signed token (same HMAC approach `lib/auth.ts` already uses for the CRM's
+  own login, adapted to a bearer token instead of a cookie, since the client
+  is a mobile app, not a browser). The app stores the token with Expo
+  SecureStore and sends `Authorization: Bearer <token>` on every request; an
+  expired/invalid token bounces the app back to Login.
 - **Rollout in two phases** (per the user's request to prove it locally
   first):
   1. **Local phase**: CRM runs via `npm run dev` on the dev machine; the
@@ -77,41 +78,47 @@ reference app but not built now:
 
 ## Data model changes (`crm/prisma/schema.prisma`)
 
-```prisma
-model Rider {
-  id           String   @id @default(cuid())
-  name         String
-  username     String   @unique
-  passwordHash String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  orders       Order[]
-}
-```
+**Superseded note:** this section originally proposed a new, separate
+`Rider` model. While writing this spec, unrelated in-progress work already
+sitting in the CRM's working tree turned out to cover the same ground: a
+`User` model with a `Role` enum (`ADMIN / STAFF / DELIVERY_PARTNER`) and an
+`Order.deliveryPartnerId` relation. Rather than add a second, competing
+"who does this order belong to" concept, this build reuses that existing
+`User`/`Role` model as the rider identity — a rider *is* a `User` with
+`role: DELIVERY_PARTNER`. That existing work is not yet migrated to the
+database or fully wired up (no UI to assign a partner to an order yet, and
+new-user passwords are stored in plaintext) — both are finished as part of
+this work, below.
 
-- `Order` gains `assignedRiderId String?` (FK to `Rider`, nullable — most
-  existing/new orders have no rider until someone assigns one) and
-  `deliveryNotes String?` (failure reason, or any rider note left on
-  delivery).
+What's added on top of the existing `User`/`Order.deliveryPartnerId` work:
+
+- `User.passwordHash` switches from storing the plaintext password to a
+  bcrypt hash (the existing `users/actions.ts` `createUser` action currently
+  writes `passwordHash: password` verbatim — fixed here since this build
+  adds a real internet-facing login for that same field).
 - `OrderStatus` enum gains `FAILED` alongside the existing
   `NEW / ROASTING / OUT_FOR_DELIVERY / DELIVERED`.
-- `Customer.vipNumber` (already exists) is reused as-is for the "VIP ####"
-  badge seen in the reference app — no new field needed.
+- `Order` gains `deliveryNotes String?` (failure reason, or any rider note
+  left on delivery) — `deliveryPartnerId` already exists.
+- `Customer.vipNumber` (already exists, already migrated conceptually via
+  the pending schema change) is reused as-is for the "VIP ####" badge seen
+  in the reference app — no new field needed.
 
-CRM UI change: the existing Sales/POS screen's status control gets an
-"Assign rider" dropdown (active riders only) that appears when setting status
-to `OUT_FOR_DELIVERY`. A small new "Riders" admin page (list/add/deactivate)
-is needed too, since there's currently no way to create a `Rider` row at all.
+CRM UI change: the Sales order-detail page (`sales/[id]/page.tsx`) gets an
+"Assign delivery partner" dropdown (active `DELIVERY_PARTNER` users only) —
+today it has a status selector but no assignment control at all, so this is
+new, not a change to existing behavior. The already-built `/users` (create a
+user, pick role) and `/delivery-partners` (view a partner's current
+assignments) pages are used as-is.
 
 ## API routes (`crm/app/api/rider/*`)
 
-- `POST /api/rider/login` — `{ username, password }` → `{ token }`. Rejects
-  inactive riders and bad credentials with the same response either way (no
-  "wrong password" vs "no such user" distinction, avoiding username
-  enumeration).
+- `POST /api/rider/login` — `{ phone, password }` → `{ token }`. Rejects
+  inactive/non-delivery-partner users and bad credentials with the same
+  response either way (no "wrong password" vs "no such user" distinction,
+  avoiding phone-number enumeration).
 - `GET /api/rider/orders?status=pending|complete|failed` — orders where
-  `assignedRiderId` = the authenticated rider and status matches
+  `deliveryPartnerId` = the authenticated user and status matches
   (`pending` → `OUT_FOR_DELIVERY`, `complete` → `DELIVERED`, `failed` →
   `FAILED`), newest first, with customer + order items included.
 - `POST /api/rider/orders/:id/deliver` — sets status `DELIVERED`; 403 if the
@@ -126,7 +133,7 @@ existing routes are already tested.
 
 ## App screens
 
-- **Login** — username + password fields, Sign In button. Deep green/gold
+- **Login** — phone + password fields, Sign In button. Deep green/gold
   theme matching the Sadharmik & Co. brand (not the Kalapurna app's blue).
 - **My Deliveries** — three tabs with live counts: *Pending / Complete /
   Failed*. Each order card: order number, VIP badge (customer's
