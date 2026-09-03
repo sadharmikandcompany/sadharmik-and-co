@@ -27,6 +27,7 @@ model Product {
 
 model Customer {
   id        String   @id @default(cuid())
+  vipNumber Int      @default(autoincrement()) @unique
   name      String
   phone     String
   whatsapp  String?
@@ -55,6 +56,7 @@ enum OrderStatus {
   ROASTING
   OUT_FOR_DELIVERY
   DELIVERED
+  FAILED
 }
 
 enum OrderSource {
@@ -72,24 +74,47 @@ enum PaymentMethod {
   PENDING
 }
 
+enum Role {
+  ADMIN
+  STAFF
+  DELIVERY_PARTNER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?  @unique
+  phone        String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  deliveries   Order[]  @relation("OrderDeliveryPartner")
+}
+
 model Order {
-  id             String        @id @default(cuid())
-  orderNumber    String        @unique
-  customerId     String
-  customer       Customer      @relation(fields: [customerId], references: [id])
-  status         OrderStatus   @default(NEW)
-  source         OrderSource   @default(WALK_IN)
-  paymentMethod  PaymentMethod @default(CASH)
-  notes          String?
-  subtotal       Int
-  gstAmount      Int           @default(0)
-  deliveryCharge Int
-  total          Int
-  amountPaid     Int           @default(0)
-  orderDate      DateTime      @default(now())
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  items          OrderItem[]
+  id                String        @id @default(cuid())
+  orderNumber       String        @unique
+  customerId        String
+  customer          Customer      @relation(fields: [customerId], references: [id])
+  deliveryPartnerId String?
+  deliveryPartner   User?         @relation("OrderDeliveryPartner", fields: [deliveryPartnerId], references: [id])
+  status            OrderStatus   @default(NEW)
+  source            OrderSource   @default(WALK_IN)
+  paymentMethod     PaymentMethod @default(CASH)
+  notes             String?
+  deliveryNotes     String?
+  subtotal          Int
+  gstAmount         Int           @default(0)
+  deliveryCharge    Int
+  total             Int
+  amountPaid        Int           @default(0)
+  orderDate         DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  items             OrderItem[]
 }
 
 model OrderItem {
