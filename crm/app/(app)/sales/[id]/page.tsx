@@ -2,9 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
-import { updateOrderStatus, updateOrderPaymentMethod } from "../actions";
+import { updateOrderStatus, updateOrderPaymentMethod, assignDeliveryPartner } from "../actions";
 
-const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
+const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"] as const;
 const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
 
 export default async function OrderDetailPage({
@@ -13,10 +13,16 @@ export default async function OrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: { customer: true, items: { include: { product: true } } },
-  });
+  const [order, deliveryPartners] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id },
+      include: { customer: true, items: { include: { product: true } } },
+    }),
+    prisma.user.findMany({
+      where: { role: "DELIVERY_PARTNER", isActive: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   if (!order) notFound();
 
@@ -25,7 +31,7 @@ export default async function OrderDetailPage({
       <Link href="/sales" className="text-sm text-royal-soft hover:text-gold-soft">← All sales</Link>
       <h1 className="mt-2 font-serif text-3xl text-royal">{order.orderNumber}</h1>
       <p className="mt-1 text-sm text-royal-soft">
-        {order.customer.name} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")} · {order.paymentMethod}
+        {order.customer.firstName} {order.customer.lastName} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")} · {order.paymentMethod}
       </p>
 
       <Card className="mt-6 max-w-md">
@@ -52,6 +58,12 @@ export default async function OrderDetailPage({
             <p className="mt-1 text-ink">{order.notes}</p>
           </div>
         )}
+        {order.deliveryNotes && (
+          <div className="mt-3 border-t border-royal-soft/15 pt-3 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Delivery notes</p>
+            <p className="mt-1 text-ink">{order.deliveryNotes}</p>
+          </div>
+        )}
       </Card>
 
       <Card className="mt-6 max-w-md">
@@ -69,6 +81,27 @@ export default async function OrderDetailPage({
           </select>
           <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
             Update
+          </button>
+        </form>
+      </Card>
+
+      <Card className="mt-6 max-w-md">
+        <h2 className="font-serif text-lg text-royal">Delivery partner</h2>
+        <p className="mt-1 text-xs text-royal-soft">Who's delivering this order — shows up in their app once assigned.</p>
+        <form action={assignDeliveryPartner} className="mt-3 flex items-center gap-3">
+          <input type="hidden" name="id" value={order.id} />
+          <select
+            name="deliveryPartnerId"
+            defaultValue={order.deliveryPartnerId ?? ""}
+            className="rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          >
+            <option value="">Unassigned</option>
+            {deliveryPartners.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
+            Assign
           </button>
         </form>
       </Card>

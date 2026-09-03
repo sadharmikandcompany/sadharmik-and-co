@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
-const VALID_STATUSES = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
+const VALID_STATUSES = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"] as const;
 const VALID_PAYMENT_METHODS = ["CASH", "UPI", "CARD", "CHEQUE", "PENDING"] as const;
 
 export async function updateOrderStatus(formData: FormData) {
@@ -36,4 +36,18 @@ export async function updateOrderPaymentMethod(formData: FormData) {
   });
   revalidatePath("/sales");
   revalidatePath(`/sales/${id}`);
+}
+
+export async function assignDeliveryPartner(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const deliveryPartnerId = String(formData.get("deliveryPartnerId") ?? "");
+  if (!id) throw new Error("Missing order id.");
+
+  await prisma.order.update({
+    where: { id },
+    data: { deliveryPartnerId: deliveryPartnerId || null },
+  });
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${id}`);
+  revalidatePath("/delivery-partners");
 }
