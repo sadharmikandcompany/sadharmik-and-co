@@ -109,7 +109,7 @@ export async function createOrder(
 export interface AddCustomerResult {
   ok: boolean;
   error?: string;
-  customer?: { id: string; name: string; phone: string };
+  customer?: { id: string; name: string; phone: string; vipNumber: number };
 }
 
 export async function addCustomerInline(name: string, phone: string, address: string): Promise<AddCustomerResult> {
@@ -123,7 +123,7 @@ export async function addCustomerInline(name: string, phone: string, address: st
     revalidatePath("/pos");
     revalidatePath("/sales/new");
     revalidatePath("/customers");
-    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
+    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone, vipNumber: customer.vipNumber } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
   }
@@ -162,7 +162,7 @@ export async function findOrCreateCustomerByPhone(
         });
 
     revalidatePath("/customers");
-    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone } };
+    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone, vipNumber: customer.vipNumber } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not save customer details." };
   }
