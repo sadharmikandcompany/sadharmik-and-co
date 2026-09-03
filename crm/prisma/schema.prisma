@@ -66,8 +66,10 @@ enum OrderStatus {
   NEW
   ROASTING
   OUT_FOR_DELIVERY
+  PICKED_UP
   DELIVERED
   FAILED
+  RESCHEDULED
 }
 
 enum OrderSource {
@@ -92,22 +94,37 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String?  @unique
-  phone        String   @unique
-  passwordHash String
-  role         Role     @default(STAFF)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  deliveries   Order[]  @relation("OrderDeliveryPartner")
+  id              String    @id @default(cuid())
+  name            String
+  email           String?   @unique
+  phone           String    @unique
+  passwordHash    String
+  role            Role      @default(STAFF)
+  isActive        Boolean   @default(true)
+  servicePincodes String[]  @default([])
+  rating          Float?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  deliveries      Order[]   @relation("OrderDeliveryPartner")
+  expenses        Expense[]
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  riderId     String
+  rider       User     @relation(fields: [riderId], references: [id])
+  amount      Int
+  category    String?
+  notes       String?
+  expenseDate DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
 
 model Order {
   id                String        @id @default(cuid())
   orderNumber       String        @unique
+  invoiceNumber     Int           @unique @default(autoincrement())
   customerId        String
   customer          Customer      @relation(fields: [customerId], references: [id])
   deliveryPartnerId String?
@@ -117,6 +134,10 @@ model Order {
   paymentMethod     PaymentMethod @default(CASH)
   notes             String?
   deliveryNotes     String?
+  isPriority        Boolean       @default(false)
+  rescheduledDate   DateTime?
+  rescheduleReason  String?
+  settledAt         DateTime?
   subtotal          Int
   gstAmount         Int           @default(0)
   deliveryCharge    Int
