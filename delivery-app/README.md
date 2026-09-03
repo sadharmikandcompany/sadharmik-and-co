@@ -17,7 +17,11 @@ see `crm/README.md` for that side.
    Expo Go app on an Android phone connected to the **same WiFi network**.
 5. Create a rider in the CRM at `/users` (role "Delivery Partner"), assign
    them an order from that order's `/sales/<id>` page, then log into the
-   app with that rider's phone/password.
+   app with that rider's phone/password. Note: assigning a rider does **not**
+   by itself make the order show up in their app — you also need to set that
+   order's Status to "Out for delivery" (the Status dropdown on the same
+   `/sales/<id>` page), since the rider app only lists orders with status
+   `OUT_FOR_DELIVERY`.
 
 ## Next phase (not done yet)
 

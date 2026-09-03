@@ -87,7 +87,7 @@ export default async function OrderDetailPage({
 
       <Card className="mt-6 max-w-md">
         <h2 className="font-serif text-lg text-royal">Delivery partner</h2>
-        <p className="mt-1 text-xs text-royal-soft">Who's delivering this order — shows up in their app once assigned.</p>
+        <p className="mt-1 text-xs text-royal-soft">Who's delivering this order. They'll see it in their app once you also set Status to &quot;Out for delivery&quot; (above) — assigning alone doesn&apos;t send it to their app.</p>
         <form action={assignDeliveryPartner} className="mt-3 flex items-center gap-3">
           <input type="hidden" name="id" value={order.id} />
           <select
