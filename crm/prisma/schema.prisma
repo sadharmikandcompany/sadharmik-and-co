@@ -26,17 +26,28 @@ model Product {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  vipNumber Int      @default(autoincrement()) @unique
-  name      String
-  phone     String
-  whatsapp  String?
-  address   String
-  notes     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+  id               String   @id @default(cuid())
+  vipNumber        Int      @default(autoincrement()) @unique
+  firstName        String
+  lastName         String
+  email            String?
+  mobilePrimary    String
+  whatsapp         String?
+  mobileSecondary1 String?
+  mobileSecondary2 String?
+  companyName      String?
+  gstNumber        String?
+  panNumber        String?
+  shippingAddress  String
+  billingAddress   String?
+  isVip            Boolean  @default(false)
+  isMandir         Boolean  @default(false)
+  isDefaulter      Boolean  @default(false)
+  notes            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  orders           Order[]
 }
 
 model Supplier {
