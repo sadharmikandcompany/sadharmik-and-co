@@ -49,3 +49,22 @@ Customer, Supplier, Order/OrderItem, Purchase/PurchaseItem.
   screen)
 - `/sales` — order register with status/date filters
 - `/purchases` — suppliers + raw-material purchase register
+
+## Delivery rider API
+
+`/api/rider/*` is a separate, token-authenticated API for the Sadharmik
+Delivery Android app (not the browser session used by the rest of the CRM).
+A rider is a `User` row with `role: DELIVERY_PARTNER` — create one from
+`/users`, then assign them to orders from an order's detail page
+(`/sales/<id>`).
+
+Requires `RIDER_TOKEN_SECRET` in `.env` (see `.env.example`) — a long random
+string, separate from `CRM_SESSION_SECRET`.
+
+Routes: `POST /api/rider/login`, `GET /api/rider/me`,
+`GET /api/rider/orders?status=pending|complete|failed`,
+`GET /api/rider/orders/:id`, `POST /api/rider/orders/:id/deliver`,
+`POST /api/rider/orders/:id/fail`. All except `login` require
+`Authorization: Bearer <token>`.
+
+See `delivery-app/README.md` for the Android app itself.
