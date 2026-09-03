@@ -6,4 +6,4 @@
 //
 // Once the CRM is deployed (a later phase, not this one), replace this
 // whole value with that deployed URL instead.
-export const API_BASE_URL = "http://YOUR_COMPUTER_LAN_IP:3000";
+export const API_BASE_URL = "http://192.168.1.47:3000";

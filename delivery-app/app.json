@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "delivery-app",
-    "slug": "delivery-app",
+    "name": "Sadharmik Delivery",
+    "slug": "sadharmik",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "sadharmikdelivery",
@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.sadharmik.delivery",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -26,6 +27,13 @@
       "expo-router",
       "expo-status-bar",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "30dd607a-cb1f-4f20-87f8-edc87a7c8dae"
+      }
+    },
+    "owner": "sadharmiks-team"
   }
 }
