@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getToken, clearToken } from "./api";
+import { getToken, clearToken, setUnauthorizedHandler } from "./api";
 
 interface AuthContextValue {
   isLoading: boolean;
@@ -19,6 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoggedIn(!!token);
       setIsLoading(false);
     });
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setIsLoggedIn(false));
   }, []);
 
   async function logout() {

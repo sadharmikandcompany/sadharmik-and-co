@@ -35,13 +35,18 @@ export default function OrderDetailScreen() {
 
   async function handleDeliver() {
     setIsSubmitting(true);
-    const result = await markDelivered(id);
-    setIsSubmitting(false);
-    if (!result.ok) {
-      Alert.alert("Couldn't update", result.error ?? "Please try again.");
-      return;
+    try {
+      const result = await markDelivered(id);
+      if (!result.ok) {
+        Alert.alert("Couldn't update", result.error ?? "Please try again.");
+        return;
+      }
+      router.back();
+    } catch (err) {
+      Alert.alert("Couldn't update", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-    router.back();
   }
 
   async function handleFail() {
@@ -50,13 +55,18 @@ export default function OrderDetailScreen() {
       return;
     }
     setIsSubmitting(true);
-    const result = await markFailed(id, failReason.trim());
-    setIsSubmitting(false);
-    if (!result.ok) {
-      Alert.alert("Couldn't update", result.error ?? "Please try again.");
-      return;
+    try {
+      const result = await markFailed(id, failReason.trim());
+      if (!result.ok) {
+        Alert.alert("Couldn't update", result.error ?? "Please try again.");
+        return;
+      }
+      router.back();
+    } catch (err) {
+      Alert.alert("Couldn't update", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-    router.back();
   }
 
   if (isLoading) {

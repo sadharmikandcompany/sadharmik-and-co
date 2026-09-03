@@ -20,14 +20,19 @@ export default function LoginScreen() {
       return;
     }
     setIsSubmitting(true);
-    const result = await login(phone.trim(), password);
-    setIsSubmitting(false);
-    if (!result.ok) {
-      setError(result.error ?? "Login failed.");
-      return;
+    try {
+      const result = await login(phone.trim(), password);
+      if (!result.ok) {
+        setError(result.error ?? "Login failed.");
+        return;
+      }
+      setLoggedIn(true);
+      router.replace("/(tabs)");
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setLoggedIn(true);
-    router.replace("/(tabs)");
   }
 
   return (

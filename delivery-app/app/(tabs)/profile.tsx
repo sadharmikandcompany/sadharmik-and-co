@@ -8,15 +8,22 @@ import { theme } from "../../theme";
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { logout } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
       setIsLoading(true);
-      fetchMe().then((result) => {
-        setProfile(result);
-        setIsLoading(false);
-      });
+      setError(null);
+      fetchMe()
+        .then((result) => {
+          setProfile(result);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setError("Could not load your profile. Check your connection and try again.");
+          setIsLoading(false);
+        });
     }, [])
   );
 
@@ -24,6 +31,8 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       {isLoading ? (
         <ActivityIndicator color={theme.colors.primary} />
+      ) : error ? (
+        <Text style={styles.phone}>{error}</Text>
       ) : (
         <>
           <Text style={styles.name}>{profile?.name ?? "Unknown rider"}</Text>
