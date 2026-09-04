@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
+  if (typeof body !== "object" || body === null) {
+    return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
+  }
+
   const result = await createExpense(
     rider.id,
     Math.round(Number(body.amount)),
