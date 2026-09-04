@@ -38,6 +38,7 @@ export async function getDeliverySheet(
 ): Promise<DeliverySheetSummary & { orders: DeliverySheetOrderJson[] }> {
   const where: Prisma.OrderWhereInput = {
     deliveryPartnerId: riderId,
+    status: { in: ["OUT_FOR_DELIVERY", "PICKED_UP"] },
   };
   if (filter === "today") {
     const startOfToday = new Date();
