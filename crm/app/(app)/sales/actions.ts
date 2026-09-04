@@ -69,3 +69,4 @@ export async function toggleOrderPriority(formData: FormData) {
   await prisma.order.update({ where: { id }, data: { isPriority: !isPriority } });
   revalidatePath("/sales");
   revalidatePath(`/sales/${id}`);
+}
