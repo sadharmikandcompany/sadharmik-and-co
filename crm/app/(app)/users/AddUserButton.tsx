@@ -39,7 +39,20 @@ export function AddUserButton() {
             <Input name="email" type="email" placeholder="Email (optional)" />
             <Input name="phone" placeholder="Phone" required />
             <Input name="password" type="password" placeholder="Password" required className="sm:col-span-2" />
-            
+            <Input
+              name="servicePincodes"
+              placeholder="Service area pincodes (comma-separated, e.g. 400001,400002)"
+              className="sm:col-span-2"
+            />
+            <Input
+              name="rating"
+              type="number"
+              placeholder="Rating (optional, e.g. 4.5)"
+              step="0.1"
+              min="0"
+              max="5"
+            />
+
             <div className="sm:col-span-2">
               <select name="role" className="w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-gold" required defaultValue="STAFF">
                 <option value="ADMIN">Admin</option>

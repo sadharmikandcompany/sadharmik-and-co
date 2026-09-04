@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
-import { updateOrderStatus, updateOrderPaymentMethod, assignDeliveryPartner } from "../actions";
+import {
+  updateOrderStatus,
+  updateOrderPaymentMethod,
+  assignDeliveryPartner,
+  settleOrder,
+  toggleOrderPriority,
+} from "../actions";
 
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "DELIVERED", "FAILED", "RESCHEDULED"] as const;
 const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
@@ -83,6 +89,16 @@ export default async function OrderDetailPage({
             Update
           </button>
         </form>
+        <form action={toggleOrderPriority} className="mt-3">
+          <input type="hidden" name="id" value={order.id} />
+          <input type="hidden" name="isPriority" value={String(order.isPriority)} />
+          <button
+            type="submit"
+            className="rounded-full border border-royal-soft/30 px-5 py-2.5 text-sm font-semibold text-royal-deep hover:bg-slate-50"
+          >
+            {order.isPriority ? "Remove Priority Flag" : "Mark as Priority"}
+          </button>
+        </form>
       </Card>
 
       <Card className="mt-6 max-w-md">
@@ -125,6 +141,24 @@ export default async function OrderDetailPage({
           </button>
         </form>
       </Card>
+
+      {(order.settledAt || (order.status === "DELIVERED" && (order.paymentMethod === "CASH" || order.paymentMethod === "PENDING"))) && (
+        <Card className="mt-6 max-w-md">
+          <h2 className="font-serif text-lg text-royal">Settlement</h2>
+          {order.settledAt ? (
+            <p className="mt-3 text-sm text-royal-soft">
+              Settled on {order.settledAt.toLocaleDateString("en-IN")}
+            </p>
+          ) : (
+            <form action={settleOrder} className="mt-3">
+              <input type="hidden" name="id" value={order.id} />
+              <button type="submit" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-royal-deep">
+                Mark Settled
+              </button>
+            </form>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

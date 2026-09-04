@@ -51,3 +51,21 @@ export async function assignDeliveryPartner(formData: FormData) {
   revalidatePath(`/sales/${id}`);
   revalidatePath("/delivery-partners");
 }
+
+export async function settleOrder(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) throw new Error("Missing order id.");
+
+  await prisma.order.update({ where: { id }, data: { settledAt: new Date() } });
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${id}`);
+}
+
+export async function toggleOrderPriority(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) throw new Error("Missing order id.");
+  const isPriority = formData.get("isPriority") === "true";
+
+  await prisma.order.update({ where: { id }, data: { isPriority: !isPriority } });
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${id}`);

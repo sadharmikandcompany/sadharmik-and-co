@@ -16,6 +16,12 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
   const email = String(formData.get("email") ?? "").trim();
   const role = String(formData.get("role") ?? "STAFF") as Role;
   const password = String(formData.get("password") ?? "").trim();
+  const servicePincodesRaw = String(formData.get("servicePincodes") ?? "").trim();
+  const servicePincodes = servicePincodesRaw
+    ? servicePincodesRaw.split(",").map((p) => p.trim()).filter(Boolean)
+    : [];
+  const ratingRaw = String(formData.get("rating") ?? "").trim();
+  const rating = ratingRaw ? Number(ratingRaw) : null;
 
   if (!name || !phone || !password) {
     return { ok: false, error: "Name, phone, and password are required." };
@@ -29,6 +35,8 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
         email: email || null,
         role,
         passwordHash: await hashPassword(password),
+        servicePincodes,
+        rating,
       },
     });
   } catch (err) {
