@@ -1,9 +1,12 @@
 # Sadharmik Delivery — Rider App
 
 An Android app (Expo/React Native) for Sadharmik & Co. delivery partners:
-see the orders assigned to you, call/navigate to the customer, and mark each
-one Delivered or Failed. Talks to the `crm/` app's `/api/rider/*` routes —
-see `crm/README.md` for that side.
+see the orders assigned to you, call/navigate to the customer, mark an order
+"Picked Up" once you have it, then mark it Delivered, Failed, or Reschedule
+it. Talks to the `crm/` app's `/api/rider/*` routes — see `crm/README.md`
+for that side. The app also has Dashboard, Balance (unsettled cash
+collections), Expenses, Delivery Sheets (printable/exportable route sheet),
+and Rescheduled tabs.
 
 ## Running it locally (current phase)
 
@@ -21,7 +24,9 @@ see `crm/README.md` for that side.
    by itself make the order show up in their app — you also need to set that
    order's Status to "Out for delivery" (the Status dropdown on the same
    `/sales/<id>` page), since the rider app only lists orders with status
-   `OUT_FOR_DELIVERY`.
+   `OUT_FOR_DELIVERY` in its Pending tab. Then, in the rider app, the rider
+   still needs to tap into that order and tap "Mark Picked Up" — only after
+   that does Deliver / Fail / Reschedule become available for it.
 
 ## Next phase (not done yet)
 

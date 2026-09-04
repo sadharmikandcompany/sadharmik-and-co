@@ -62,9 +62,17 @@ Requires `RIDER_TOKEN_SECRET` in `.env` (see `.env.example`) — a long random
 string, separate from `CRM_SESSION_SECRET`.
 
 Routes: `POST /api/rider/login`, `GET /api/rider/me`,
-`GET /api/rider/orders?status=pending|complete|failed`,
-`GET /api/rider/orders/:id`, `POST /api/rider/orders/:id/deliver`,
-`POST /api/rider/orders/:id/fail`. All except `login` require
-`Authorization: Bearer <token>`.
+`GET /api/rider/orders?status=pending|in_progress|complete|failed|rescheduled`,
+`GET /api/rider/orders/:id`, `POST /api/rider/orders/:id/pickup`,
+`POST /api/rider/orders/:id/deliver`, `POST /api/rider/orders/:id/fail`,
+`POST /api/rider/orders/:id/reschedule`, `GET /api/rider/dashboard`,
+`GET /api/rider/balance`, `GET /api/rider/expenses` + `POST
+/api/rider/expenses`, `GET /api/rider/delivery-sheet?filter=today|all`. All
+except `login` require `Authorization: Bearer <token>`.
+
+An order's lifecycle is now `OUT_FOR_DELIVERY → PICKED_UP →
+DELIVERED / FAILED / RESCHEDULED` — a rider must mark an order "Picked Up"
+before they can mark it Delivered, Failed, or Reschedule it (previously this
+was a single `OUT_FOR_DELIVERY → DELIVERED/FAILED` step).
 
 See `delivery-app/README.md` for the Android app itself.
