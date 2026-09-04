@@ -82,7 +82,7 @@ export default function DashboardScreen() {
         </View>
         <View style={[styles.statTile, { backgroundColor: "#FFF8E1" }]}>
           <Text style={styles.statValue}>{summary.pickedUp}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>In Progress</Text>
         </View>
         <View style={[styles.statTile, { backgroundColor: "#FFEBEE" }]}>
           <Text style={styles.statValue}>{summary.failed}</Text>
