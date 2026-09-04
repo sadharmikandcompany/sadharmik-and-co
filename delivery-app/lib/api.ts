@@ -38,6 +38,8 @@ export interface RiderProfile {
   id: string;
   name: string;
   phone: string;
+  servicePincodes: string[];
+  rating: number | null;
 }
 
 export interface RiderOrder {
