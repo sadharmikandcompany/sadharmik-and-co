@@ -5,10 +5,14 @@ export function mapRiderStatusParam(status: string | null): OrderStatus | null {
   switch (status) {
     case "pending":
       return "OUT_FOR_DELIVERY";
+    case "in_progress":
+      return "PICKED_UP";
     case "complete":
       return "DELIVERED";
     case "failed":
       return "FAILED";
+    case "rescheduled":
+      return "RESCHEDULED";
     default:
       return null;
   }
@@ -38,21 +42,31 @@ export interface TransitionCheck {
 
 export function canTransitionOrder(
   order: { deliveryPartnerId: string | null; status: string } | null,
-  riderId: string
+  riderId: string,
+  requiredStatus: OrderStatus
 ): TransitionCheck {
   if (!order) return { ok: false, error: "Order not found." };
   if (order.deliveryPartnerId !== riderId) {
     return { ok: false, error: "This order isn't assigned to you." };
   }
-  if (order.status !== "OUT_FOR_DELIVERY") {
+  if (order.status !== requiredStatus) {
     return { ok: false, error: "This order was already updated." };
   }
   return { ok: true };
 }
 
+export async function pickupOrder(riderId: string, orderId: string): Promise<TransitionCheck> {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const check = canTransitionOrder(order, riderId, "OUT_FOR_DELIVERY");
+  if (!check.ok) return check;
+
+  await prisma.order.update({ where: { id: orderId }, data: { status: "PICKED_UP" } });
+  return { ok: true };
+}
+
 export async function deliverOrder(riderId: string, orderId: string): Promise<TransitionCheck> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  const check = canTransitionOrder(order, riderId);
+  const check = canTransitionOrder(order, riderId, "PICKED_UP");
   if (!check.ok) return check;
 
   await prisma.order.update({ where: { id: orderId }, data: { status: "DELIVERED" } });
@@ -61,12 +75,29 @@ export async function deliverOrder(riderId: string, orderId: string): Promise<Tr
 
 export async function failOrder(riderId: string, orderId: string, reason: string): Promise<TransitionCheck> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  const check = canTransitionOrder(order, riderId);
+  const check = canTransitionOrder(order, riderId, "PICKED_UP");
   if (!check.ok) return check;
 
   await prisma.order.update({
     where: { id: orderId },
     data: { status: "FAILED", deliveryNotes: reason.trim() || null },
+  });
+  return { ok: true };
+}
+
+export async function rescheduleOrder(
+  riderId: string,
+  orderId: string,
+  rescheduledDate: Date,
+  reason: string
+): Promise<TransitionCheck> {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const check = canTransitionOrder(order, riderId, "PICKED_UP");
+  if (!check.ok) return check;
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "RESCHEDULED", rescheduledDate, rescheduleReason: reason.trim() || null },
   });
   return { ok: true };
 }
@@ -85,6 +116,9 @@ export function toRiderOrderJson(order: RiderOrderWithRelations) {
     paymentMethod: order.paymentMethod,
     total: order.total,
     deliveryNotes: order.deliveryNotes,
+    isPriority: order.isPriority,
+    rescheduledDate: order.rescheduledDate ? order.rescheduledDate.toISOString() : null,
+    rescheduleReason: order.rescheduleReason,
     items: order.items.map((item) => ({
       id: item.id,
       productName: item.product.name,
