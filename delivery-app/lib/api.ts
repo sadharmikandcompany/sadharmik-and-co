@@ -51,6 +51,9 @@ export interface RiderOrder {
   paymentMethod: string;
   total: number;
   deliveryNotes: string | null;
+  isPriority: boolean;
+  rescheduledDate: string | null;
+  rescheduleReason: string | null;
   items: { id: string; productName: string; quantity: number; unitPrice: number }[];
 }
 
@@ -75,7 +78,9 @@ export async function fetchMe(): Promise<RiderProfile | null> {
   return data.ok ? data.rider : null;
 }
 
-export async function fetchMyDeliveries(status: "pending" | "complete" | "failed"): Promise<RiderOrder[]> {
+export async function fetchMyDeliveries(
+  status: "pending" | "in_progress" | "complete" | "failed" | "rescheduled"
+): Promise<RiderOrder[]> {
   const response = await authedFetch(`/api/rider/orders?status=${status}`);
   if (!response.ok) throw new Error("Could not load deliveries.");
   const data = await response.json();
@@ -103,4 +108,114 @@ export async function markFailed(orderId: string, reason: string): Promise<{ ok:
   });
   const data = await response.json();
   return { ok: data.ok, error: data.error };
+}
+
+export async function pickupOrder(orderId: string): Promise<{ ok: boolean; error?: string }> {
+  const response = await authedFetch(`/api/rider/orders/${orderId}/pickup`, { method: "POST" });
+  const data = await response.json();
+  return { ok: data.ok, error: data.error };
+}
+
+export async function rescheduleOrder(
+  orderId: string,
+  date: string,
+  reason: string
+): Promise<{ ok: boolean; error?: string }> {
+  const response = await authedFetch(`/api/rider/orders/${orderId}/reschedule`, {
+    method: "POST",
+    body: JSON.stringify({ date, reason }),
+  });
+  const data = await response.json();
+  return { ok: data.ok, error: data.error };
+}
+
+export interface DashboardSummary {
+  totalAssigned: number;
+  pickedUp: number;
+  delivered: number;
+  failed: number;
+  todaysCollectionsTotal: number;
+  totalDeliveries: number;
+  rating: number | null;
+}
+
+export async function fetchDashboard(): Promise<DashboardSummary> {
+  const response = await authedFetch("/api/rider/dashboard");
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not load dashboard.");
+  return data.summary;
+}
+
+export interface BalanceOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  total: number;
+  paymentMethod: string;
+}
+
+export interface BalanceCollection {
+  orders: BalanceOrder[];
+  total: number;
+}
+
+export async function fetchBalance(): Promise<BalanceCollection> {
+  const response = await authedFetch("/api/rider/balance");
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not load balance.");
+  return data.balance;
+}
+
+export interface Expense {
+  id: string;
+  amount: number;
+  category: string | null;
+  notes: string | null;
+  expenseDate: string;
+}
+
+export async function fetchExpenses(period: "today" | "week" | "month"): Promise<{ expenses: Expense[]; total: number }> {
+  const response = await authedFetch(`/api/rider/expenses?period=${period}`);
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not load expenses.");
+  return { expenses: data.expenses, total: data.total };
+}
+
+export async function createExpense(
+  amount: number,
+  category: string,
+  notes: string
+): Promise<{ ok: boolean; error?: string }> {
+  const response = await authedFetch("/api/rider/expenses", {
+    method: "POST",
+    body: JSON.stringify({ amount, category, notes }),
+  });
+  const data = await response.json();
+  return { ok: data.ok, error: data.error };
+}
+
+export interface DeliverySheetOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  paymentMethod: string;
+  total: number;
+  items: { productName: string; quantity: number }[];
+}
+
+export interface DeliverySheet {
+  orders: DeliverySheetOrder[];
+  totalOrders: number;
+  totalItems: number;
+  totalAmount: number;
+  totalCod: number;
+}
+
+export async function fetchDeliverySheet(filter: "today" | "all"): Promise<DeliverySheet> {
+  const response = await authedFetch(`/api/rider/delivery-sheet?filter=${filter}`);
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not load delivery sheet.");
+  return data.sheet;
 }
