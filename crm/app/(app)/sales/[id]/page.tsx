@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
 import { updateOrderStatus, updateOrderPaymentMethod, assignDeliveryPartner } from "../actions";
 
-const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"] as const;
+const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "DELIVERED", "FAILED", "RESCHEDULED"] as const;
 const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
 
 export default async function OrderDetailPage({
