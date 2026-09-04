@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const status = mapRiderStatusParam(request.nextUrl.searchParams.get("status"));
   if (!status) {
-    return NextResponse.json({ ok: false, error: "status must be pending, complete, or failed." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "status must be pending, in_progress, complete, failed, or rescheduled." }, { status: 400 });
   }
 
   const orders = await listRiderOrders(rider.id, status);
