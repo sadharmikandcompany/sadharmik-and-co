@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Linking, ActivityIndicator, ScrollView, TextInput, Alert } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { fetchOrder, markDelivered, markFailed, type RiderOrder } from "../../lib/api";
+import { fetchOrder, pickupOrder, markDelivered, markFailed, rescheduleOrder, type RiderOrder } from "../../lib/api";
 import { theme } from "../../theme";
+
+type ActionMode = "none" | "fail" | "reschedule";
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -10,8 +12,10 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<RiderOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showFailReason, setShowFailReason] = useState(false);
+  const [actionMode, setActionMode] = useState<ActionMode>("none");
   const [failReason, setFailReason] = useState("");
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -32,6 +36,22 @@ export default function OrderDetailScreen() {
       load();
     }, [load])
   );
+
+  async function handlePickup() {
+    setIsSubmitting(true);
+    try {
+      const result = await pickupOrder(id);
+      if (!result.ok) {
+        Alert.alert("Couldn't update", result.error ?? "Please try again.");
+        return;
+      }
+      await load();
+    } catch (err) {
+      Alert.alert("Couldn't update", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   async function handleDeliver() {
     setIsSubmitting(true);
@@ -69,6 +89,31 @@ export default function OrderDetailScreen() {
     }
   }
 
+  async function handleReschedule() {
+    const parsedDate = new Date(rescheduleDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      Alert.alert("Valid date required", "Enter the new date as YYYY-MM-DD.");
+      return;
+    }
+    if (!rescheduleReason.trim()) {
+      Alert.alert("Reason required", "Enter a short reason for rescheduling.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await rescheduleOrder(id, parsedDate.toISOString(), rescheduleReason.trim());
+      if (!result.ok) {
+        Alert.alert("Couldn't update", result.error ?? "Please try again.");
+        return;
+      }
+      router.back();
+    } catch (err) {
+      Alert.alert("Couldn't update", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -88,10 +133,16 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const canAct = order.status === "OUT_FOR_DELIVERY";
+  const canPickup = order.status === "OUT_FOR_DELIVERY";
+  const canAct = order.status === "PICKED_UP";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {order.isPriority && (
+        <View style={styles.priorityBanner}>
+          <Text style={styles.priorityBannerText}>PRIORITY ORDER</Text>
+        </View>
+      )}
       <Text style={styles.orderNumber}>{order.orderNumber}</Text>
       <Text style={styles.customerName}>
         VIP {String(order.customerVipNumber).padStart(4, "0")} · {order.customerName}
@@ -129,19 +180,34 @@ export default function OrderDetailScreen() {
       </View>
 
       {order.deliveryNotes && <Text style={styles.notes}>Note: {order.deliveryNotes}</Text>}
+      {order.rescheduledDate && (
+        <Text style={styles.notes}>
+          Rescheduled to {new Date(order.rescheduledDate).toLocaleDateString("en-IN")}
+          {order.rescheduleReason ? ` — ${order.rescheduleReason}` : ""}
+        </Text>
+      )}
 
-      {canAct && !showFailReason && (
+      {canPickup && (
+        <Pressable style={styles.pickupButton} onPress={handlePickup} disabled={isSubmitting}>
+          <Text style={styles.pickupButtonText}>{isSubmitting ? "Updating…" : "Mark Picked Up"}</Text>
+        </Pressable>
+      )}
+
+      {canAct && actionMode === "none" && (
         <View style={styles.footerButtons}>
           <Pressable style={styles.deliverButton} onPress={handleDeliver} disabled={isSubmitting}>
             <Text style={styles.deliverButtonText}>{isSubmitting ? "Updating…" : "Mark Delivered"}</Text>
           </Pressable>
-          <Pressable style={styles.failButton} onPress={() => setShowFailReason(true)} disabled={isSubmitting}>
+          <Pressable style={styles.failButton} onPress={() => setActionMode("fail")} disabled={isSubmitting}>
             <Text style={styles.failButtonText}>Mark Failed</Text>
+          </Pressable>
+          <Pressable style={styles.rescheduleButton} onPress={() => setActionMode("reschedule")} disabled={isSubmitting}>
+            <Text style={styles.rescheduleButtonText}>Reschedule</Text>
           </Pressable>
         </View>
       )}
 
-      {canAct && showFailReason && (
+      {canAct && actionMode === "fail" && (
         <View style={styles.footerButtons}>
           <TextInput
             style={styles.reasonInput}
@@ -152,6 +218,34 @@ export default function OrderDetailScreen() {
           />
           <Pressable style={styles.failButton} onPress={handleFail} disabled={isSubmitting}>
             <Text style={styles.failButtonText}>{isSubmitting ? "Updating…" : "Confirm Failed"}</Text>
+          </Pressable>
+          <Pressable onPress={() => setActionMode("none")} disabled={isSubmitting}>
+            <Text style={styles.cancelLink}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {canAct && actionMode === "reschedule" && (
+        <View style={styles.footerButtons}>
+          <TextInput
+            style={styles.reasonInput}
+            placeholder="New date (YYYY-MM-DD)"
+            placeholderTextColor={theme.colors.textMuted}
+            value={rescheduleDate}
+            onChangeText={setRescheduleDate}
+          />
+          <TextInput
+            style={styles.reasonInput}
+            placeholder="Reason for rescheduling"
+            placeholderTextColor={theme.colors.textMuted}
+            value={rescheduleReason}
+            onChangeText={setRescheduleReason}
+          />
+          <Pressable style={styles.rescheduleButton} onPress={handleReschedule} disabled={isSubmitting}>
+            <Text style={styles.rescheduleButtonText}>{isSubmitting ? "Updating…" : "Confirm Reschedule"}</Text>
+          </Pressable>
+          <Pressable onPress={() => setActionMode("none")} disabled={isSubmitting}>
+            <Text style={styles.cancelLink}>Cancel</Text>
           </Pressable>
         </View>
       )}
@@ -166,6 +260,15 @@ const styles = StyleSheet.create({
   error: { color: theme.colors.danger },
   retryButton: { backgroundColor: theme.colors.primary, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 20 },
   retryText: { color: theme.colors.primaryText, fontWeight: "700" },
+  priorityBanner: {
+    backgroundColor: theme.colors.warning,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  priorityBannerText: { color: theme.colors.primaryText, fontSize: 11, fontWeight: "700" },
   orderNumber: { color: theme.colors.text, fontSize: 20, fontWeight: "700" },
   customerName: { color: theme.colors.primary, marginTop: 4, marginBottom: 12 },
   actionsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
@@ -202,11 +305,16 @@ const styles = StyleSheet.create({
   totalLabel: { color: theme.colors.textMuted },
   totalValue: { color: theme.colors.primary, fontWeight: "700", fontSize: 16 },
   notes: { color: theme.colors.danger, marginBottom: 16 },
+  pickupButton: { backgroundColor: theme.colors.primary, borderRadius: 999, paddingVertical: 16, alignItems: "center", marginBottom: 12 },
+  pickupButtonText: { color: theme.colors.primaryText, fontWeight: "700", fontSize: 16 },
   footerButtons: { gap: 12 },
   deliverButton: { backgroundColor: theme.colors.success, borderRadius: 999, paddingVertical: 16, alignItems: "center" },
   deliverButtonText: { color: "#04150a", fontWeight: "700", fontSize: 16 },
   failButton: { backgroundColor: theme.colors.danger, borderRadius: 999, paddingVertical: 16, alignItems: "center" },
   failButtonText: { color: "#2a0705", fontWeight: "700", fontSize: 16 },
+  rescheduleButton: { backgroundColor: theme.colors.warning, borderRadius: 999, paddingVertical: 16, alignItems: "center" },
+  rescheduleButtonText: { color: "#4a2c00", fontWeight: "700", fontSize: 16 },
+  cancelLink: { color: theme.colors.textMuted, textAlign: "center", padding: 8 },
   reasonInput: {
     backgroundColor: theme.colors.surface,
     color: theme.colors.text,
