@@ -13,7 +13,9 @@ describe("signRiderToken / verifyRiderToken", () => {
 
   it("rejects a tampered token", () => {
     const token = signRiderToken("user_123");
-    expect(verifyRiderToken(token.slice(0, -1) + "0")).toBeNull();
+    const lastChar = token.slice(-1);
+    const replacement = lastChar === "0" ? "1" : "0";
+    expect(verifyRiderToken(token.slice(0, -1) + replacement)).toBeNull();
   });
 
   it("rejects a token signed with a different secret", () => {
