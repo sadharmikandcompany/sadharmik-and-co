@@ -12,17 +12,26 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All Active" },
 ];
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildSheetHtml(sheet: DeliverySheet): string {
   const rows = sheet.orders
     .map(
       (order, index) => `
         <tr>
           <td>${index + 1}</td>
-          <td>${order.orderNumber}</td>
-          <td>${order.customerName}</td>
-          <td>${order.customerPhone}</td>
-          <td>${order.customerAddress}</td>
-          <td>${order.items.map((i) => `${i.productName} x${i.quantity}`).join("<br/>")}</td>
+          <td>${escapeHtml(order.orderNumber)}</td>
+          <td>${escapeHtml(order.customerName)}</td>
+          <td>${escapeHtml(order.customerPhone)}</td>
+          <td>${escapeHtml(order.customerAddress)}</td>
+          <td>${order.items.map((i) => `${escapeHtml(i.productName)} x${i.quantity}`).join("<br/>")}</td>
           <td>${order.paymentMethod}</td>
           <td>₹${order.total.toLocaleString("en-IN")}</td>
         </tr>
