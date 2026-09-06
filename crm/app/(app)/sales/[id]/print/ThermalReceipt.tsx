@@ -16,9 +16,7 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
       {/* Header */}
       <div className="text-center mb-2">
         <h1 className="text-[18px] font-bold tracking-wide">SADHARMIK &amp; COMPANY</h1>
-        <p>G2, Mahadev Nagar-A CHS Ltd, Nr Bank of</p>
-        <p>Maharastra, B P Road, Nr Mahadev Mandir,</p>
-        <p>Bhayandar (East), 101105</p>
+        <p>G2, Mahadev Nagar-A CHS Ltd, Nr Bank of Maharastra, B P Road, Nr Mahadev Mandir, Bhayandar (East), 101105</p>
         <p>Ph: 8777600400</p>
         {/* TODO: this GSTIN is still the old Kalapurna Ghee entity's — swap
             in Sadharmik & Company's own GSTIN before this goes back live. */}
@@ -120,7 +118,7 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
 
       <div>
         <p>Payment: {order.paymentMethod.toLowerCase()}</p>
-        <p>Status: {order.status.toLowerCase()}</p>
+        <p>Status: {order.status.toLowerCase().replace(/_/g, " ")}</p>
       </div>
 
       <hr className="border-t-[1.5px] border-black my-2" />
