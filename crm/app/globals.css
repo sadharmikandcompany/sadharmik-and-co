@@ -15,6 +15,14 @@
   --font-sans: var(--font-sans);
 }
 
+html, body {
+  /* A wide table (e.g. the Orders list) should scroll inside its own box,
+     never widen the whole page — without this, scrolling past its edge
+     drags the entire layout (header, filters, sidebar area) sideways
+     instead of just the table content. */
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--color-ivory);
   color: var(--color-ink);

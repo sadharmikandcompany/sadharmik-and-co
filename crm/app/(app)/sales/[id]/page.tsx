@@ -10,7 +10,7 @@ import {
   toggleOrderPriority,
 } from "../actions";
 
-const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "DELIVERED", "FAILED", "RESCHEDULED"] as const;
+const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "DELIVERED", "FAILED", "RESCHEDULED", "CANCELLED"] as const;
 const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
 
 export default async function OrderDetailPage({
@@ -35,10 +35,22 @@ export default async function OrderDetailPage({
   return (
     <div>
       <Link href="/sales" className="text-sm text-royal-soft hover:text-gold-soft">← All sales</Link>
-      <h1 className="mt-2 font-serif text-3xl text-royal">{order.orderNumber}</h1>
-      <p className="mt-1 text-sm text-royal-soft">
-        {order.customer.firstName} {order.customer.lastName} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")} · {order.paymentMethod}
-      </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="mt-2 font-serif text-3xl text-royal">{order.orderNumber}</h1>
+          <p className="mt-1 text-sm text-royal-soft">
+            {order.customer.firstName} {order.customer.lastName} · {order.orderDate.toLocaleDateString("en-IN")} · {order.source.replace(/_/g, " ")} · {order.paymentMethod}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`/sales/${order.id}/print?type=a4`} target="_blank" className="rounded-full bg-white border border-royal-soft/30 px-4 py-2 text-sm font-semibold text-royal-deep hover:bg-slate-50">
+            Print A4
+          </Link>
+          <Link href={`/sales/${order.id}/print?type=thermal`} target="_blank" className="rounded-full bg-royal-deep px-4 py-2 text-sm font-semibold text-white hover:bg-royal">
+            Print Thermal
+          </Link>
+        </div>
+      </div>
 
       <Card className="mt-6 max-w-md">
         <ul className="space-y-1 text-sm">
