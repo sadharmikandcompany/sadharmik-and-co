@@ -12,7 +12,7 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
   const sgst = (order.gstAmount / 2).toFixed(2);
 
   return (
-    <div className="inline-block bg-white p-4 max-w-[80mm] text-[13px] font-mono leading-[1.4] text-black">
+    <div className="bg-white p-4 mx-auto max-w-[80mm] text-[13px] font-mono leading-[1.4] text-black">
       {/* Header */}
       <div className="text-center mb-2">
         <h1 className="text-[18px] font-bold tracking-wide">SADHARMIK &amp; COMPANY</h1>

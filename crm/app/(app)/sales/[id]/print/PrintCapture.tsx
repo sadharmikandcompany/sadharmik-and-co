@@ -23,7 +23,11 @@ export function PrintCapture({ order, type }: { order: OrderWithDetails; type: "
 
     async function run() {
       try {
-        const node = nodeRef.current;
+        // Capture the receipt/invoice's own root element, not the wrapper
+        // div around it — the wrapper spans the full page width, so
+        // capturing it grabs a lot of blank page along with the (narrow,
+        // centered) receipt. Its one real child is always that root element.
+        const node = nodeRef.current?.firstElementChild as HTMLElement | null;
         if (!node) throw new Error("Nothing to capture.");
 
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -80,12 +84,7 @@ export function PrintCapture({ order, type }: { order: OrderWithDetails; type: "
           </p>
         </div>
       )}
-      {/* inline-block so this shrink-wraps to the receipt/invoice's own
-          width instead of stretching to the full page — otherwise
-          html2canvas captures the whole (mostly blank) page width, which
-          both prints a lot of blank space and makes the capture much
-          slower than it needs to be. */}
-      <div ref={nodeRef} className="inline-block">
+      <div ref={nodeRef}>
         {type === "thermal" ? <ThermalReceipt order={order} /> : <A4Invoice order={order} />}
       </div>
     </div>

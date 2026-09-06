@@ -17,7 +17,9 @@ export function RouteSheetCapture({ manifest }: { manifest: RouteManifest }) {
 
     async function run() {
       try {
-        const node = nodeRef.current;
+        // Capture the sheet's own root element, not the full-width wrapper
+        // around it — see PrintCapture.tsx for why.
+        const node = nodeRef.current?.firstElementChild as HTMLElement | null;
         if (!node) throw new Error("Nothing to capture.");
 
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -66,9 +68,7 @@ export function RouteSheetCapture({ manifest }: { manifest: RouteManifest }) {
           </p>
         </div>
       )}
-      {/* inline-block so the capture shrink-wraps to the sheet's own width
-          instead of the full page — see PrintCapture.tsx for why. */}
-      <div ref={nodeRef} className="inline-block">
+      <div ref={nodeRef}>
         <RouteDeliverySheet manifest={manifest} />
       </div>
     </div>

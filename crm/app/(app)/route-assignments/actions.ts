@@ -17,6 +17,7 @@ export async function createRouteAssignmentAction(formData: FormData) {
 
   revalidatePath("/route-assignments");
   revalidatePath("/sales");
+  revalidatePath("/dashboard");
   if (!result.ok) {
     // Surfaced as a query param since this is a plain <form action> with no
     // client state to hold an inline error message.
@@ -41,9 +42,31 @@ export async function assignRouteDeliveryPartner(formData: FormData) {
   const deliveryPartnerId = String(formData.get("deliveryPartnerId") ?? "");
   if (!id) throw new Error("Missing route id.");
 
-  await prisma.routeAssignment.update({ where: { id }, data: { deliveryPartnerId: deliveryPartnerId || null } });
+  await prisma.$transaction(async (tx) => {
+    await tx.routeAssignment.update({ where: { id }, data: { deliveryPartnerId: deliveryPartnerId || null } });
+
+    // A route's driver is also every one of its orders' driver — the rider
+    // app only ever looks at Order.deliveryPartnerId, never the route.
+    const orders = await tx.order.findMany({ where: { routeAssignmentId: id }, select: { id: true, status: true } });
+    if (orders.length === 0) return;
+
+    await tx.order.updateMany({
+      where: { routeAssignmentId: id },
+      data: { deliveryPartnerId: deliveryPartnerId || null },
+    });
+
+    if (deliveryPartnerId) {
+      const idsToBump = orders.filter((o) => ["NEW", "ROASTING"].includes(o.status)).map((o) => o.id);
+      if (idsToBump.length > 0) {
+        await tx.order.updateMany({ where: { id: { in: idsToBump } }, data: { status: "OUT_FOR_DELIVERY" } });
+      }
+    }
+  });
+
   revalidatePath("/route-assignments");
   revalidatePath(`/route-assignments/${id}`);
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 /** Takes an order back off a route so it's eligible for a different one. */

@@ -58,7 +58,7 @@ export async function createRouteAssignment(
       // the page loading and this submit.
       const stillEligible = await tx.order.findMany({
         where: { id: { in: orderIds }, routeAssignmentId: null },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (stillEligible.length !== orderIds.length) {
         throw new Error("One or more selected orders are already on another route. Refresh and try again.");
@@ -74,8 +74,23 @@ export async function createRouteAssignment(
 
       await tx.order.updateMany({
         where: { id: { in: orderIds } },
-        data: { routeAssignmentId: route.id },
+        data: {
+          routeAssignmentId: route.id,
+          // A route's driver is also each order's driver — the rider app
+          // only ever looks at Order.deliveryPartnerId, never the route,
+          // so without this an order "on a route" is invisible to them.
+          ...(deliveryPartnerId ? { deliveryPartnerId } : {}),
+        },
       });
+
+      if (deliveryPartnerId) {
+        // Same as assigning a driver to a single order: NEW/ROASTING orders
+        // move to OUT_FOR_DELIVERY so they show up in the rider's queue.
+        const idsToBump = stillEligible.filter((o) => ["NEW", "ROASTING"].includes(o.status)).map((o) => o.id);
+        if (idsToBump.length > 0) {
+          await tx.order.updateMany({ where: { id: { in: idsToBump } }, data: { status: "OUT_FOR_DELIVERY" } });
+        }
+      }
 
       return route.id;
     });
