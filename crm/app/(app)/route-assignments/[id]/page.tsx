@@ -65,7 +65,7 @@ export default async function RouteAssignmentDetailPage({
                     <form action={removeOrderFromRoute}>
                       <input type="hidden" name="routeId" value={manifest.id} />
                       <input type="hidden" name="orderId" value={o.id} />
-                      <button type="submit" className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                      <button type="submit" className="text-xs text-red-500 hover:text-red-700">Unassign</button>
                     </form>
                   </div>
                 </div>

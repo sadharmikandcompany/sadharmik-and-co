@@ -7,11 +7,13 @@ const ELIGIBLE_STATUSES = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "
 export interface EligibleOrderRow {
   id: string;
   orderNumber: string;
+  invoiceNumber: number;
   orderDateLabel: string;
   status: string;
   paymentMethod: string;
   total: number;
   customerName: string;
+  customerPhone: string;
   customerAddress: string;
   itemsSummary: string;
 }
@@ -27,14 +29,57 @@ export async function listEligibleOrdersForRoute(): Promise<EligibleOrderRow[]> 
   return orders.map((o) => ({
     id: o.id,
     orderNumber: o.orderNumber,
+    invoiceNumber: o.invoiceNumber,
     orderDateLabel: o.orderDate.toLocaleDateString("en-IN"),
     status: o.status,
     paymentMethod: o.paymentMethod,
     total: o.total,
     customerName: `${o.customer.firstName} ${o.customer.lastName}`.trim(),
+    customerPhone: o.customer.mobilePrimary,
     customerAddress: o.customer.shippingAddress,
     itemsSummary: o.items.map((i) => `${i.product.name} x${i.quantity}`).join(", "),
   }));
+}
+
+export interface AssignedOrderRow {
+  id: string;
+  orderNumber: string;
+  invoiceNumber: number;
+  customerName: string;
+  customerPhone: string;
+  total: number;
+  routeId: string;
+  routeNumber: number;
+  warehouseName: string;
+  deliveryPartnerName: string | null;
+}
+
+/** Orders currently on a route — shown so staff can pull one back off
+ * (e.g. a delivery didn't go out, or was assigned to the wrong route). */
+export async function listAssignedOrders(): Promise<AssignedOrderRow[]> {
+  const orders = await prisma.order.findMany({
+    where: { routeAssignmentId: { not: null } },
+    orderBy: { orderDate: "desc" },
+    include: {
+      customer: true,
+      routeAssignment: { include: { warehouse: true, deliveryPartner: true } },
+    },
+  });
+
+  return orders
+    .filter((o) => o.routeAssignment)
+    .map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      invoiceNumber: o.invoiceNumber,
+      customerName: `${o.customer.firstName} ${o.customer.lastName}`.trim(),
+      customerPhone: o.customer.mobilePrimary,
+      total: o.total,
+      routeId: o.routeAssignment!.id,
+      routeNumber: o.routeAssignment!.routeNumber,
+      warehouseName: o.routeAssignment!.warehouse.name,
+      deliveryPartnerName: o.routeAssignment!.deliveryPartner?.name ?? null,
+    }));
 }
 
 export interface CreateRouteAssignmentResult {
