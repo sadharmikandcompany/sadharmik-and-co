@@ -22,6 +22,7 @@ export default async function ProductsPage() {
             gstPercentage: p.gstPercentage,
             stock: p.stock,
             isActive: p.isActive,
+            showOnWebsite: p.showOnWebsite,
             imageUrl: p.imageUrl,
             description: p.description,
           }))}

@@ -16,6 +16,9 @@ model Product {
   gstPercentage Int         @default(0)
   stock         Int         @default(0)
   isActive      Boolean     @default(true)
+  // Independent of isActive: a product can stay usable internally (POS,
+  // New Order) while being hidden from the public website's catalogue.
+  showOnWebsite Boolean     @default(true)
   // Shown on the public website's product cards. Nullable so existing rows
   // (and quick "just add a flavour" entries) don't need a photo/blurb up front.
   imageUrl      String?

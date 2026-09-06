@@ -17,7 +17,7 @@ export async function OPTIONS() {
 
 export async function GET() {
   const products = await prisma.product.findMany({
-    where: { isActive: true },
+    where: { isActive: true, showOnWebsite: true },
     orderBy: { name: "asc" },
     select: { name: true, price: true, packSize: true, description: true, imageUrl: true, stock: true },
   });

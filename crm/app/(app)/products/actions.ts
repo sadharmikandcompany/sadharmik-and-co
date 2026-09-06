@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export interface ProductActionResult {
@@ -51,10 +52,13 @@ export async function createProduct(formData: FormData): Promise<ProductActionRe
   const image = parseImageUrl(formData);
   if (!image.ok) return { ok: false, error: image.error };
   const description = parseDescription(formData);
+  // Absent checkbox (unchecked) still means "show it" for a brand-new
+  // product unless the form explicitly says otherwise.
+  const showOnWebsite = formData.get("showOnWebsite") !== "off";
 
   try {
     await prisma.product.create({
-      data: { name, packSize, price, stock, gstPercentage, imageUrl: image.value, description },
+      data: { name, packSize, price, stock, gstPercentage, imageUrl: image.value, description, showOnWebsite },
     });
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not add product." };
@@ -68,6 +72,8 @@ export async function createProduct(formData: FormData): Promise<ProductActionRe
 
 export async function updateProduct(formData: FormData): Promise<ProductActionResult> {
   const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const packSize = String(formData.get("packSize") ?? "").trim();
   const priceRaw = String(formData.get("price") ?? "").trim();
   const stockRaw = String(formData.get("stock") ?? "").trim();
   const gstRaw = String(formData.get("gstPercentage") ?? "").trim();
@@ -75,9 +81,12 @@ export async function updateProduct(formData: FormData): Promise<ProductActionRe
   const stock = Number(stockRaw);
   const gstPercentage = gstRaw ? Number(gstRaw) : 0;
   const isActive = formData.get("isActive") === "on";
+  const showOnWebsite = formData.get("showOnWebsite") === "on";
 
   if (!id) return { ok: false, error: "Missing product id." };
   if (
+    !name ||
+    !packSize ||
     !priceRaw ||
     !stockRaw ||
     !Number.isFinite(price) ||
@@ -87,7 +96,7 @@ export async function updateProduct(formData: FormData): Promise<ProductActionRe
     stock < 0 ||
     gstPercentage < 0
   ) {
-    return { ok: false, error: "Price, stock and GST% must be valid, non-negative numbers." };
+    return { ok: false, error: "Name, pack size, price, stock and GST% must all be filled in (price/stock/GST% non-negative)." };
   }
 
   const image = parseImageUrl(formData);
@@ -97,10 +106,38 @@ export async function updateProduct(formData: FormData): Promise<ProductActionRe
   try {
     await prisma.product.update({
       where: { id },
-      data: { price, stock, gstPercentage, isActive, imageUrl: image.value, description },
+      data: { name, packSize, price, stock, gstPercentage, isActive, showOnWebsite, imageUrl: image.value, description },
     });
   } catch (err) {
+    // Product.name is unique — surface that collision clearly instead of a raw Prisma error.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, error: `A product named "${name}" already exists.` };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "Could not update product." };
+  }
+
+  revalidatePath("/products");
+  revalidatePath("/pos");
+  revalidatePath("/sales/new");
+  return { ok: true };
+}
+
+export async function deleteProduct(formData: FormData): Promise<ProductActionResult> {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { ok: false, error: "Missing product id." };
+
+  const orderItemCount = await prisma.orderItem.count({ where: { productId: id } });
+  if (orderItemCount > 0) {
+    return {
+      ok: false,
+      error: `This product is on ${orderItemCount} existing order${orderItemCount === 1 ? "" : "s"} and can't be deleted — deactivate it instead.`,
+    };
+  }
+
+  try {
+    await prisma.product.delete({ where: { id } });
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not delete product." };
   }
 
   revalidatePath("/products");

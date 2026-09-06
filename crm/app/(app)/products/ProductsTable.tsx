@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, Table } from "@/components/ui";
-import { updateProduct } from "./actions";
+import { updateProduct, deleteProduct } from "./actions";
 import { readImageAsCompressedDataUrl } from "./imageUtils";
 
 export interface ProductRow {
@@ -13,6 +13,7 @@ export interface ProductRow {
   gstPercentage: number;
   stock: number;
   isActive: boolean;
+  showOnWebsite: boolean;
   imageUrl: string | null;
   description: string | null;
 }
@@ -30,7 +31,8 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           <th className="px-4 py-3">Stock</th>
           <th className="px-4 py-3">Description</th>
           <th className="px-4 py-3">Active</th>
-          <th className="px-4 py-3">Save</th>
+          <th className="px-4 py-3">On Website</th>
+          <th className="px-4 py-3">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -39,7 +41,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         ))}
         {products.length === 0 && (
           <tr>
-            <td colSpan={9} className="px-4 py-6 text-center text-sm text-royal-soft">No products yet.</td>
+            <td colSpan={10} className="px-4 py-6 text-center text-sm text-royal-soft">No products yet.</td>
           </tr>
         )}
       </tbody>
@@ -48,14 +50,18 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
 }
 
 function ProductRowItem({ product }: { product: ProductRow }) {
+  const [name, setName] = useState(product.name);
+  const [packSize, setPackSize] = useState(product.packSize);
   const [price, setPrice] = useState(String(product.price));
   const [gstPercentage, setGstPercentage] = useState(String(product.gstPercentage));
   const [stock, setStock] = useState(String(product.stock));
   const [isActive, setIsActive] = useState(product.isActive);
+  const [showOnWebsite, setShowOnWebsite] = useState(product.showOnWebsite);
   const [description, setDescription] = useState(product.description ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(product.imageUrl);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
+  const [isDeleting, startDeleting] = useTransition();
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,15 +77,29 @@ function ProductRowItem({ product }: { product: ProductRow }) {
     setError(null);
     const formData = new FormData();
     formData.set("id", product.id);
+    formData.set("name", name);
+    formData.set("packSize", packSize);
     formData.set("price", price);
     formData.set("stock", stock);
     formData.set("gstPercentage", gstPercentage);
     formData.set("description", description);
     formData.set("imageUrl", imageUrl ?? "");
     if (isActive) formData.set("isActive", "on");
+    if (showOnWebsite) formData.set("showOnWebsite", "on");
     startSaving(async () => {
       const result = await updateProduct(formData);
       if (!result.ok) setError(result.error ?? "Could not save product.");
+    });
+  }
+
+  function handleDelete() {
+    if (!confirm(`Delete "${product.name}"? This can't be undone.`)) return;
+    setError(null);
+    const formData = new FormData();
+    formData.set("id", product.id);
+    startDeleting(async () => {
+      const result = await deleteProduct(formData);
+      if (!result.ok) setError(result.error ?? "Could not delete product.");
     });
   }
 
@@ -103,8 +123,22 @@ function ProductRowItem({ product }: { product: ProductRow }) {
           )}
         </div>
       </td>
-      <td className="px-4 py-3 font-medium text-royal">{product.name}</td>
-      <td className="px-4 py-3">{product.packSize}</td>
+      <td className="px-4 py-3">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-32 rounded-xl border border-royal-soft/30 bg-white px-3 py-2 text-sm font-medium text-royal outline-none focus:border-gold"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="text"
+          value={packSize}
+          onChange={(e) => setPackSize(e.target.value)}
+          className="w-20 rounded-xl border border-royal-soft/30 bg-white px-3 py-2 text-sm outline-none focus:border-gold"
+        />
+      </td>
       <td className="px-4 py-3">
         <input
           type="number"
@@ -145,9 +179,27 @@ function ProductRowItem({ product }: { product: ProductRow }) {
         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
       </td>
       <td className="px-4 py-3">
-        <Button type="button" variant="ghost" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "Saving…" : "Save"}
-        </Button>
+        <input
+          type="checkbox"
+          title="Visible in the website's product catalogue"
+          checked={showOnWebsite}
+          onChange={(e) => setShowOnWebsite(e.target.checked)}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col items-start gap-1.5">
+          <Button type="button" variant="ghost" onClick={handleSave} disabled={isSaving || isDeleting}>
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isSaving || isDeleting}
+            className="text-[11px] text-red-600 hover:text-red-700 disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
         {error && <p className="mt-1 max-w-[140px] text-[11px] text-red-600">{error}</p>}
       </td>
     </tr>
