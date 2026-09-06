@@ -66,7 +66,9 @@ export function RouteSheetCapture({ manifest }: { manifest: RouteManifest }) {
           </p>
         </div>
       )}
-      <div ref={nodeRef}>
+      {/* inline-block so the capture shrink-wraps to the sheet's own width
+          instead of the full page — see PrintCapture.tsx for why. */}
+      <div ref={nodeRef} className="inline-block">
         <RouteDeliverySheet manifest={manifest} />
       </div>
     </div>

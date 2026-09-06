@@ -1,5 +1,4 @@
 import React from "react";
-import QRCode from "react-qr-code";
 import { Order, Customer, OrderItem, Product } from "@prisma/client";
 
 type OrderWithDetails = Order & {
@@ -8,22 +7,21 @@ type OrderWithDetails = Order & {
 };
 
 export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
-  // Assuming a static UPI ID for the QR code since it's a generic store QR
-  const upiId = "7770008880@upi";
-
   // Calculate CGST and SGST (Assuming 5% GST total, so 2.5% each)
   const cgst = (order.gstAmount / 2).toFixed(2);
   const sgst = (order.gstAmount / 2).toFixed(2);
 
   return (
-    <div className="bg-white p-4 mx-auto max-w-[80mm] text-[13px] font-mono leading-[1.4] text-black">
+    <div className="inline-block bg-white p-4 max-w-[80mm] text-[13px] font-mono leading-[1.4] text-black">
       {/* Header */}
       <div className="text-center mb-2">
-        <h1 className="text-[18px] font-bold tracking-wide">KALAPURNA GHEE</h1>
-        <p>11A Iqbal Building Ground Floor , Near Zakhadevi</p>
-        <p>Mandir</p>
-        <p>Mumbai - 400028</p>
-        <p>Ph: 8898398468</p>
+        <h1 className="text-[18px] font-bold tracking-wide">SADHARMIK &amp; COMPANY</h1>
+        <p>G2, Mahadev Nagar-A CHS Ltd, Nr Bank of</p>
+        <p>Maharastra, B P Road, Nr Mahadev Mandir,</p>
+        <p>Bhayandar (East), 101105</p>
+        <p>Ph: 8777600400</p>
+        {/* TODO: this GSTIN is still the old Kalapurna Ghee entity's — swap
+            in Sadharmik & Company's own GSTIN before this goes back live. */}
         <p>GSTIN: 27DABPG1499H1ZM</p>
       </div>
 
@@ -127,17 +125,8 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
 
       <hr className="border-t-[1.5px] border-black my-2" />
 
-      {/* Scan To Pay / Footer */}
+      {/* Footer */}
       <div className="text-center mt-2 flex flex-col items-center">
-        <p className="font-bold mb-2 tracking-wide">SCAN TO PAY</p>
-        <div className="mb-1 mix-blend-multiply w-[120px] h-[120px]">
-          <QRCode value={`upi://pay?pa=${upiId}&pn=KalapurnaGhee&am=${order.total}`} size={120} />
-        </div>
-        <p className="font-bold text-[14px]">Pay: Rs. {order.total.toFixed(2)}</p>
-        <p className="text-[11px] mb-4">Scan QR code with any UPI app</p>
-        
-        <hr className="border-t-[1.5px] border-black w-full my-2" />
-        
         <p className="mt-1">Thank you for doing business with us!</p>
         <p>Visit again!</p>
       </div>

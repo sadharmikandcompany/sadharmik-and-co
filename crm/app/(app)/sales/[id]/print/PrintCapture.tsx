@@ -80,7 +80,12 @@ export function PrintCapture({ order, type }: { order: OrderWithDetails; type: "
           </p>
         </div>
       )}
-      <div ref={nodeRef}>
+      {/* inline-block so this shrink-wraps to the receipt/invoice's own
+          width instead of stretching to the full page — otherwise
+          html2canvas captures the whole (mostly blank) page width, which
+          both prints a lot of blank space and makes the capture much
+          slower than it needs to be. */}
+      <div ref={nodeRef} className="inline-block">
         {type === "thermal" ? <ThermalReceipt order={order} /> : <A4Invoice order={order} />}
       </div>
     </div>

@@ -8,7 +8,7 @@ type OrderWithDetails = Order & {
 
 export function A4Invoice({ order }: { order: OrderWithDetails }) {
   return (
-    <div className="bg-white p-8 md:p-12 shadow-sm max-w-4xl mx-auto min-h-[1056px]">
+    <div className="bg-white p-8 md:p-12 shadow-sm max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-6 mb-8">
         <div>
@@ -17,11 +17,11 @@ export function A4Invoice({ order }: { order: OrderWithDetails }) {
           <p className="text-gray-500 text-sm mt-1">Order Ref: {order.orderNumber}</p>
         </div>
         <div className="sm:text-right">
-          <p className="text-xl sm:text-2xl font-bold text-gray-900">Sadharmik & Co.</p>
-          <p className="text-sm text-gray-600">Kalapurna Ghee, Shop no.1, Iqbal Bldg.</p>
-          <p className="text-sm text-gray-600">Gokhle Road, Nr. Jakhadevi Mandir</p>
-          <p className="text-sm text-gray-600">Dadar west - 400028</p>
-          <p className="text-sm text-gray-600 mt-1">+91-7770008880 | info@kalapurna.in</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">Sadharmik & Company</p>
+          <p className="text-sm text-gray-600">G2, Mahadev Nagar-A CHS Ltd, Nr Bank of Maharastra</p>
+          <p className="text-sm text-gray-600">B P Road, Nr Mahadev Mandir</p>
+          <p className="text-sm text-gray-600">Bhayandar (East), 101105</p>
+          <p className="text-sm text-gray-600 mt-1">+91-8777600400</p>
         </div>
       </div>
 
