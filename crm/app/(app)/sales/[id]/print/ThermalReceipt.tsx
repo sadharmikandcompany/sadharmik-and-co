@@ -61,11 +61,17 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
               <tr>
                 {/* pt-1.5 only (no pb) so this sits flush against its own
                     qty/rate/amount row right below — the gap belongs
-                    between items, not inside one. */}
-                <td colSpan={4} className="pt-1.5 leading-tight break-words">
+                    between items, not inside one. Confined to the Item
+                    column (no colSpan) rather than stretched across the
+                    whole row, so a long name wraps within that column
+                    instead of running the full receipt width. */}
+                <td className="pt-1.5 leading-tight break-words align-top">
                   {item.product.name}
                   {/* HSN Code can be added here if available in product */}
                 </td>
+                <td className="pt-1.5"></td>
+                <td className="pt-1.5"></td>
+                <td className="pt-1.5"></td>
               </tr>
               <tr>
                 <td></td>
