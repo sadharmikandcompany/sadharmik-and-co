@@ -59,16 +59,19 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
           {order.items.map((item) => (
             <React.Fragment key={item.id}>
               <tr>
-                <td colSpan={4} className="pb-1 leading-tight pt-1 break-words">
+                {/* pt-1.5 only (no pb) so this sits flush against its own
+                    qty/rate/amount row right below — the gap belongs
+                    between items, not inside one. */}
+                <td colSpan={4} className="pt-1.5 leading-tight break-words">
                   {item.product.name}
                   {/* HSN Code can be added here if available in product */}
                 </td>
               </tr>
               <tr>
                 <td></td>
-                <td className="text-right align-top">{item.quantity}</td>
-                <td className="text-right align-top">{item.unitPrice.toFixed(2)}</td>
-                <td className="text-right align-top">{(item.unitPrice * item.quantity).toFixed(2)}</td>
+                <td className="pb-1.5 text-right align-top">{item.quantity}</td>
+                <td className="pb-1.5 text-right align-top">{item.unitPrice.toFixed(2)}</td>
+                <td className="pb-1.5 text-right align-top">{(item.unitPrice * item.quantity).toFixed(2)}</td>
               </tr>
             </React.Fragment>
           ))}
