@@ -122,10 +122,11 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
       const lastName = nameParts.slice(1).join(" ") || firstName;
       const result = await addCustomerInline(firstName, lastName, newCustomer.phone, newCustomer.address);
       if (result.ok && result.customer) {
-        setCustomerList((prev) => [...prev, { ...result.customer!, vipNumber: result.customer!.vipNumber }]);
+        const customer = { ...result.customer, vipNumber: result.customer.vipNumber ?? undefined };
+        setCustomerList((prev) => [...prev, customer]);
         setNewCustomer({ name: "", phone: "", address: "" });
         setShowNewCustomerForm(false);
-        chooseCustomer({ ...result.customer!, vipNumber: result.customer!.vipNumber });
+        chooseCustomer(customer);
       } else {
         setCustomerModalError(result.error ?? "Could not add customer.");
       }

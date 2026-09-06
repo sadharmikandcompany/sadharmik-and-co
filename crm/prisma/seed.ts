@@ -28,10 +28,11 @@ async function main() {
     update: {},
     create: {
       id: "seed-customer-priya",
-      name: "Priya Shah",
-      phone: "9820012345",
+      firstName: "Priya",
+      lastName: "Shah",
+      mobilePrimary: "9820012345",
       whatsapp: "9820012345",
-      address: "12 Laxmi Nivas, Ghatkopar East, Mumbai 400077",
+      shippingAddress: "12 Laxmi Nivas, Ghatkopar East, Mumbai 400077",
     },
   });
 

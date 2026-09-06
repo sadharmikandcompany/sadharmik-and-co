@@ -4,12 +4,13 @@ export function Button({
   className = "",
   variant = "gold",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "outline" }) {
   const base =
     "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:cursor-not-allowed";
   const variants: Record<string, string> = {
     gold: "bg-gold text-royal-deep shadow-[0_10px_24px_-10px_rgba(201,162,75,.6)]",
     ghost: "border border-royal-soft/40 text-royal bg-transparent",
+    outline: "border border-royal-soft/40 text-royal bg-white hover:bg-slate-50",
   };
   return <button className={`${base} ${variants[variant]} ${className}`} {...props} />;
 }
