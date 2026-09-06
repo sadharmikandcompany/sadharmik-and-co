@@ -6,6 +6,9 @@ export interface BillLine {
   quantity: number;
   unitPrice: number;
   gstPercentage?: number;
+  // Per-line discount, e.g. from the order editor's "Disc %" column.
+  // Optional and defaults to 0, so existing callers (POS, New Order) are unaffected.
+  discountPercentage?: number;
 }
 
 export interface OrderTotals {
@@ -24,13 +27,20 @@ export function computeDeliveryCharge(packCount: number): number {
   return packCount * PACK_WEIGHT_GRAMS >= FREE_DELIVERY_WEIGHT_GRAMS ? 0 : DELIVERY_CHARGE_RUPEES;
 }
 
+// Line amount after discount, before GST.
+export function computeLineAmount(line: BillLine): number {
+  const gross = line.quantity * line.unitPrice;
+  const discount = Math.round((gross * (line.discountPercentage ?? 0)) / 100);
+  return gross - discount;
+}
+
 export function computeSubtotal(lines: BillLine[]): number {
-  return lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+  return lines.reduce((sum, line) => sum + computeLineAmount(line), 0);
 }
 
 export function computeGstAmount(lines: BillLine[]): number {
   return lines.reduce((sum, line) => {
-    const lineGst = Math.round((line.quantity * line.unitPrice * (line.gstPercentage ?? 0)) / 100);
+    const lineGst = Math.round((computeLineAmount(line) * (line.gstPercentage ?? 0)) / 100);
     return sum + lineGst;
   }, 0);
 }

@@ -4,7 +4,7 @@ import { PosClient } from "./PosClient";
 export default async function PosPage() {
   const [products, customers] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.customer.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { isActive: true }, orderBy: { firstName: "asc" } }),
   ]);
 
   return (
@@ -22,7 +22,7 @@ export default async function PosPage() {
             stock: p.stock,
             imageUrl: p.imageUrl,
           }))}
-          customers={customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone }))}
+          customers={customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), phone: c.mobilePrimary, vipNumber: c.vipNumber }))}
         />
       </div>
     </div>

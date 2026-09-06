@@ -19,6 +19,7 @@ interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  vipNumber?: number;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethodInput; label: string }[] = [
@@ -87,8 +88,10 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
     if (q.length < 2) return [];
+    const qCode = q.replace(/\s+/g, "");
+    const code = (c: CustomerOption) => (c.vipNumber ? `sd${String(c.vipNumber).padStart(4, "0")}` : "");
     return customerList.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q)
+      (c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || code(c).includes(qCode)
     );
   }, [customerList, customerQuery]);
 
@@ -112,12 +115,17 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
   function handleCreateCustomer() {
     setCustomerModalError(null);
     startAddingCustomer(async () => {
-      const result = await addCustomerInline(newCustomer.name, newCustomer.phone, newCustomer.address);
+      // addCustomerInline wants first/last name separately; split on the
+      // first space and fall back to using the whole thing as both.
+      const nameParts = newCustomer.name.trim().split(/\s+/);
+      const firstName = nameParts[0] ?? "";
+      const lastName = nameParts.slice(1).join(" ") || firstName;
+      const result = await addCustomerInline(firstName, lastName, newCustomer.phone, newCustomer.address);
       if (result.ok && result.customer) {
-        setCustomerList((prev) => [...prev, result.customer!]);
+        setCustomerList((prev) => [...prev, { ...result.customer!, vipNumber: result.customer!.vipNumber }]);
         setNewCustomer({ name: "", phone: "", address: "" });
         setShowNewCustomerForm(false);
-        chooseCustomer(result.customer);
+        chooseCustomer({ ...result.customer!, vipNumber: result.customer!.vipNumber });
       } else {
         setCustomerModalError(result.error ?? "Could not add customer.");
       }
@@ -240,9 +248,9 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
       </div>
 
       {showCustomerModal && (
-        <Modal title="Select customer" subtitle="Search by name or phone" onClose={() => setShowCustomerModal(false)}>
+        <Modal title="Select customer" subtitle="Search by name, phone, or Sd code" onClose={() => setShowCustomerModal(false)}>
           <Input
-            placeholder="Search by name, phone…"
+            placeholder="Search by name, phone, or Sd code…"
             value={customerQuery}
             onChange={(e) => setCustomerQuery(e.target.value)}
             autoFocus
@@ -264,7 +272,10 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
                     onClick={() => chooseCustomer(c)}
                     className="flex w-full items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-2.5 text-left text-sm hover:border-gold"
                   >
-                    <span className="font-medium text-royal">{c.name}</span>
+                    <span className="font-medium text-royal">
+                      {c.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(c.vipNumber).padStart(4, '0')}</span>}
+                      {c.name}
+                    </span>
                     <span className="text-royal-soft">{c.phone}</span>
                   </button>
                 ))
@@ -314,7 +325,10 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
           onClose={() => setShowCheckoutModal(false)}
         >
           <div className="rounded-xl border border-royal-soft/15 px-4 py-3">
-            <p className="font-semibold text-royal">{selectedCustomer.name}</p>
+            <p className="font-semibold text-royal">
+              {selectedCustomer.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(selectedCustomer.vipNumber).padStart(4, '0')}</span>}
+              {selectedCustomer.name}
+            </p>
             <p className="text-sm text-royal-soft">{selectedCustomer.phone}</p>
           </div>
 
@@ -325,11 +339,10 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
                 key={m.value}
                 type="button"
                 onClick={() => setPaymentMethod(m.value)}
-                className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
-                  paymentMethod === m.value
+                className={`rounded-xl border px-3 py-2 text-sm font-semibold ${paymentMethod === m.value
                     ? "border-gold bg-gold text-royal-deep"
                     : "border-royal-soft/30 text-royal"
-                }`}
+                  }`}
               >
                 {m.label}
               </button>

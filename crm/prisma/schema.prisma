@@ -70,6 +70,7 @@ enum OrderStatus {
   DELIVERED
   FAILED
   RESCHEDULED
+  CANCELLED
 }
 
 enum OrderSource {
@@ -108,6 +109,7 @@ model User {
 
   deliveries      Order[]   @relation("OrderDeliveryPartner")
   expenses        Expense[]
+  routeAssignments RouteAssignment[] @relation("RouteAssignmentDeliveryPartner")
 }
 
 model Expense {
@@ -129,6 +131,8 @@ model Order {
   customer          Customer      @relation(fields: [customerId], references: [id])
   deliveryPartnerId String?
   deliveryPartner   User?         @relation("OrderDeliveryPartner", fields: [deliveryPartnerId], references: [id])
+  routeAssignmentId String?
+  routeAssignment   RouteAssignment? @relation(fields: [routeAssignmentId], references: [id])
   status            OrderStatus   @default(NEW)
   source            OrderSource   @default(WALK_IN)
   paymentMethod     PaymentMethod @default(CASH)
@@ -150,13 +154,49 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  unitPrice Int
+  id                String  @id @default(cuid())
+  orderId           String
+  order             Order   @relation(fields: [orderId], references: [id])
+  productId         String
+  product           Product @relation(fields: [productId], references: [id])
+  quantity          Int
+  unitPrice         Int
+  discountPercentage Int    @default(0)
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routeAssignments RouteAssignment[]
+}
+
+enum RouteAssignmentStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// A batch of orders dispatched together out of one warehouse — the
+// "Route Assignment" feature. Named routes (Route 1, Route 2, ...) are a
+// later addition; for now each assignment is just its own numbered batch.
+model RouteAssignment {
+  id                String                @id @default(cuid())
+  routeNumber       Int                   @unique @default(autoincrement())
+  warehouseId       String
+  warehouse         Warehouse             @relation(fields: [warehouseId], references: [id])
+  deliveryPartnerId String?
+  deliveryPartner   User?                 @relation("RouteAssignmentDeliveryPartner", fields: [deliveryPartnerId], references: [id])
+  status            RouteAssignmentStatus @default(PENDING)
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  orders            Order[]
 }
 
 enum PaidStatus {

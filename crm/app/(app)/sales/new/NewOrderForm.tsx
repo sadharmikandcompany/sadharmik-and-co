@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { computeOrderTotals } from "@/lib/money";
 import { Button, Card, Input } from "@/components/ui";
 import {
-  addCustomerInline,
   createOrder,
   type OrderSourceInput,
   type PaymentMethodInput,
 } from "@/lib/orders";
+import { AddCustomerButton } from "@/app/(app)/customers/AddCustomerButton";
 
 interface ProductOption {
   id: string;
@@ -24,6 +24,13 @@ interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  vipNumber?: number;
+}
+
+// "Sd0001"-style code so staff can search by the customer's printed code,
+// not just name/phone.
+function customerCode(vipNumber?: number) {
+  return vipNumber ? `sd${String(vipNumber).padStart(4, "0")}` : "";
 }
 
 const PAYMENT_METHODS: { value: PaymentMethodInput; label: string }[] = [
@@ -41,15 +48,12 @@ const ORDER_SOURCES: { value: OrderSourceInput; label: string }[] = [
   { value: "WEBSITE", label: "Website" },
 ];
 
-export function NewOrderForm({ products, customers }: { products: ProductOption[]; customers: CustomerOption[] }) {
+export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNumber?: number, products: ProductOption[]; customers: CustomerOption[] }) {
   const router = useRouter();
 
   const [customerList, setCustomerList] = useState(customers);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
-  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
-  const [customerError, setCustomerError] = useState<string | null>(null);
 
   const [productQuery, setProductQuery] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -60,13 +64,18 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
   const [notes, setNotes] = useState("");
 
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const [isAddingCustomer, startAddingCustomer] = useTransition();
   const [isSaving, startSaving] = useTransition();
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase();
     if (q.length < 2) return [];
-    return customerList.filter((c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q));
+    const qCode = q.replace(/\s+/g, "");
+    return customerList.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone.toLowerCase().includes(q) ||
+        customerCode(c.vipNumber).includes(qCode)
+    );
   }, [customerList, customerQuery]);
 
   const filteredProducts = useMemo(() => {
@@ -90,22 +99,6 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
     setQuantities((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(qty, stock)) }));
   }
 
-  function handleCreateCustomer() {
-    setCustomerError(null);
-    startAddingCustomer(async () => {
-      const result = await addCustomerInline(newCustomer.name, newCustomer.phone, newCustomer.address);
-      if (result.ok && result.customer) {
-        setCustomerList((prev) => [...prev, result.customer!]);
-        setSelectedCustomer(result.customer);
-        setNewCustomer({ name: "", phone: "", address: "" });
-        setShowNewCustomerForm(false);
-        setCustomerQuery("");
-      } else {
-        setCustomerError(result.error ?? "Could not add customer.");
-      }
-    });
-  }
-
   function handleSaveOrder() {
     if (!selectedCustomer) {
       setMessage({ type: "error", text: "Select a customer first." });
@@ -122,7 +115,7 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
         amountPaidInput ? Number(amountPaidInput) : undefined
       );
       if (result.ok && result.orderId) {
-        router.push(`/sales/${result.orderId}`);
+        router.push("/sales");
       } else {
         setMessage({ type: "error", text: result.error ?? "Could not save the order." });
       }
@@ -151,7 +144,7 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
           ) : (
             <>
               <Input
-                placeholder="Search by name, phone…"
+                placeholder="Search by name, phone, or Sd code…"
                 value={customerQuery}
                 onChange={(e) => setCustomerQuery(e.target.value)}
                 className="mt-3"
@@ -168,49 +161,26 @@ export function NewOrderForm({ products, customers }: { products: ProductOption[
                         onClick={() => setSelectedCustomer(c)}
                         className="flex w-full items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-2.5 text-left text-sm hover:border-gold"
                       >
-                        <span className="font-medium text-royal">{c.name}</span>
+                        <span className="font-medium text-royal">
+                          {c.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(c.vipNumber).padStart(4, "0")}</span>}
+                          {c.name}
+                        </span>
                         <span className="text-royal-soft">{c.phone}</span>
                       </button>
                     ))
                   )}
                 </div>
               )}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowNewCustomerForm((v) => !v)}
-                className="mt-3"
-              >
-                + Add new customer
-              </Button>
-              {showNewCustomerForm && (
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Input
-                    placeholder="Name"
-                    value={newCustomer.name}
-                    onChange={(e) => setNewCustomer((c) => ({ ...c, name: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Phone"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer((c) => ({ ...c, phone: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Address"
-                    value={newCustomer.address}
-                    onChange={(e) => setNewCustomer((c) => ({ ...c, address: e.target.value }))}
-                  />
-                  {customerError && <p className="text-sm text-red-600 sm:col-span-3">{customerError}</p>}
-                  <Button
-                    type="button"
-                    onClick={handleCreateCustomer}
-                    disabled={isAddingCustomer}
-                    className="justify-center sm:col-span-3"
-                  >
-                    {isAddingCustomer ? "Saving…" : "Save customer"}
-                  </Button>
-                </div>
-              )}
+              <div className="mt-3">
+                <AddCustomerButton 
+                  nextVipNumber={nextVipNumber}
+                  onSuccess={(customer) => {
+                    setCustomerList((prev) => [...prev, customer]);
+                    setSelectedCustomer(customer);
+                    setCustomerQuery("");
+                  }} 
+                />
+              </div>
             </>
           )}
         </Card>

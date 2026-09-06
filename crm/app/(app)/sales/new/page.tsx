@@ -2,10 +2,16 @@ import { prisma } from "@/lib/prisma";
 import { NewOrderForm } from "./NewOrderForm";
 
 export default async function NewOrderPage() {
-  const [products, customers] = await Promise.all([
+  const [products, customers, maxVipCustomer] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.customer.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { isActive: true }, orderBy: { firstName: "asc" } }),
+    prisma.customer.findFirst({
+      orderBy: { vipNumber: 'desc' },
+      select: { vipNumber: true }
+    })
   ]);
+
+  const nextVipNumber = (maxVipCustomer?.vipNumber || 0) + 1;
 
   return (
     <div>
@@ -15,6 +21,7 @@ export default async function NewOrderPage() {
       </p>
       <div className="mt-6">
         <NewOrderForm
+          nextVipNumber={nextVipNumber}
           products={products.map((p) => ({
             id: p.id,
             name: p.name,
@@ -23,7 +30,7 @@ export default async function NewOrderPage() {
             gstPercentage: p.gstPercentage,
             stock: p.stock,
           }))}
-          customers={customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone }))}
+          customers={customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), phone: c.mobilePrimary, vipNumber: c.vipNumber }))}
         />
       </div>
     </div>
