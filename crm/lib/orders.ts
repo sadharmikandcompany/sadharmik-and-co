@@ -109,21 +109,30 @@ export async function createOrder(
 export interface AddCustomerResult {
   ok: boolean;
   error?: string;
-  customer?: { id: string; name: string; phone: string; vipNumber: number };
+  customer?: { id: string; name: string; phone: string; vipNumber: number | null };
 }
 
-export async function addCustomerInline(name: string, phone: string, address: string): Promise<AddCustomerResult> {
-  if (!name.trim() || !phone.trim() || !address.trim()) {
-    return { ok: false, error: "Name, phone and address are required." };
+export async function addCustomerInline(
+  firstName: string,
+  lastName: string,
+  phone: string,
+  address: string
+): Promise<AddCustomerResult> {
+  const trimmedFirstName = firstName.trim();
+  const trimmedLastName = lastName.trim();
+  const trimmedPhone = phone.trim();
+  const trimmedAddress = address.trim();
+  if (!trimmedFirstName || !trimmedLastName || !trimmedPhone || !trimmedAddress) {
+    return { ok: false, error: "First Name, Last Name, phone and address are required." };
   }
   try {
     const customer = await prisma.customer.create({
-      data: { name: name.trim(), phone: phone.trim(), whatsapp: phone.trim(), address: address.trim() },
+      data: { firstName: trimmedFirstName, lastName: trimmedLastName, mobilePrimary: trimmedPhone, whatsapp: trimmedPhone, shippingAddress: trimmedAddress },
     });
     revalidatePath("/pos");
     revalidatePath("/sales/new");
     revalidatePath("/customers");
-    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone, vipNumber: customer.vipNumber } };
+    return { ok: true, customer: { id: customer.id, name: `${customer.firstName} ${customer.lastName}`.trim(), phone: customer.mobilePrimary, vipNumber: customer.vipNumber } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
   }
@@ -136,33 +145,35 @@ export async function addCustomerInline(name: string, phone: string, address: st
  * should reuse their existing Customer row rather than create a duplicate.
  */
 export async function findOrCreateCustomerByPhone(
-  name: string,
+  firstName: string,
+  lastName: string,
   phone: string,
   address: string
 ): Promise<AddCustomerResult> {
-  const trimmedName = name.trim();
+  const trimmedFirstName = firstName.trim();
+  const trimmedLastName = lastName.trim();
   const trimmedPhone = phone.trim();
   const trimmedAddress = address.trim();
-  if (!trimmedName || !trimmedPhone || !trimmedAddress) {
-    return { ok: false, error: "Name, phone and address are required." };
+  if (!trimmedFirstName || !trimmedLastName || !trimmedPhone || !trimmedAddress) {
+    return { ok: false, error: "First Name, Last Name, phone and address are required." };
   }
   try {
     const existing = await prisma.customer.findFirst({
-      where: { phone: trimmedPhone, isActive: true },
+      where: { mobilePrimary: trimmedPhone, isActive: true },
     });
 
     const customer = existing
       ? await prisma.customer.update({
           where: { id: existing.id },
           // Keep the customer's latest name/address as they typed it at checkout.
-          data: { name: trimmedName, address: trimmedAddress },
+          data: { firstName: trimmedFirstName, lastName: trimmedLastName, shippingAddress: trimmedAddress },
         })
       : await prisma.customer.create({
-          data: { name: trimmedName, phone: trimmedPhone, whatsapp: trimmedPhone, address: trimmedAddress },
+          data: { firstName: trimmedFirstName, lastName: trimmedLastName, mobilePrimary: trimmedPhone, whatsapp: trimmedPhone, shippingAddress: trimmedAddress },
         });
 
     revalidatePath("/customers");
-    return { ok: true, customer: { id: customer.id, name: customer.name, phone: customer.phone, vipNumber: customer.vipNumber } };
+    return { ok: true, customer: { id: customer.id, name: `${customer.firstName} ${customer.lastName}`.trim(), phone: customer.mobilePrimary, vipNumber: customer.vipNumber } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not save customer details." };
   }

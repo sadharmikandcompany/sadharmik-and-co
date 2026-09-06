@@ -2,31 +2,41 @@
 
 import { useState, useTransition } from "react";
 import { Button, Input, Modal } from "@/components/ui";
-import { createCustomer } from "./actions";
+import { updateCustomer, deleteCustomer } from "./actions";
 
-export function AddCustomerButton({
-  nextVipNumber,
-  onSuccess
-}: {
-  nextVipNumber?: number;
-  onSuccess?: (customer: any) => void;
-}) {
-  const [open, setOpen] = useState(false);
+interface Customer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  mobilePrimary: string;
+  whatsapp: string | null;
+  mobileSecondary1: string | null;
+  mobileSecondary2: string | null;
+  companyName: string | null;
+  gstNumber: string | null;
+  panNumber: string | null;
+  shippingAddress: string;
+  billingAddress: string | null;
+  isVip: boolean;
+  isMandir: boolean;
+  isDefaulter: boolean;
+  isActive: boolean;
+  notes: string | null;
+}
+
+export function CustomerRowActions({ customer }: { customer: Customer }) {
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
 
-  // For the shipping address structure check
+  // For the shipping address structure check - default to false for edit since it's saved as string
   const [useStructuredShipping, setUseStructuredShipping] = useState(false);
 
-  function close() {
-    setOpen(false);
-    setError(null);
-  }
-
-  function handleSubmit(formData: FormData) {
+  function handleEditSubmit(formData: FormData) {
     setError(null);
     startSaving(async () => {
-      // If structured address is checked, we combine the fields before sending
       if (useStructuredShipping) {
         const room = formData.get("ship_room") || "";
         const floor = formData.get("ship_floor") || "";
@@ -43,53 +53,70 @@ export function AddCustomerButton({
         formData.set("shippingAddress", combined);
       }
 
-      const result = await createCustomer(formData);
+      const result = await updateCustomer(customer.id, formData);
       if (!result.ok) {
-        setError(result.error ?? "Could not add customer.");
+        setError(result.error ?? "Could not update customer.");
         return;
       }
-      if (onSuccess && result.customer) {
-        onSuccess(result.customer);
+      setIsEditOpen(false);
+    });
+  }
+
+  function handleDelete() {
+    setError(null);
+    startSaving(async () => {
+      const result = await deleteCustomer(customer.id);
+      if (!result.ok) {
+        setError(result.error ?? "Could not delete customer.");
+        return;
       }
-      close();
+      setIsDeleteDialogOpen(false);
     });
   }
 
   return (
-    <>
-      <Button type="button" onClick={() => setOpen(true)}>
-        + Add Customer
-      </Button>
+    <div className="flex gap-2 justify-end">
+      <button
+        onClick={() => setIsEditOpen(true)}
+        className="text-xs font-semibold text-royal hover:text-gold-soft px-2 py-1 border border-royal-soft/20 rounded hover:border-gold-soft transition-colors"
+      >
+        Edit
+      </button>
+      <button
+        onClick={() => setIsDeleteDialogOpen(true)}
+        className="text-xs font-semibold text-red-600 hover:text-red-800 px-2 py-1 border border-red-200 rounded hover:border-red-400 transition-colors"
+      >
+        Delete
+      </button>
 
-      {open && (
+      {isEditOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col relative my-8">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-xl font-semibold text-royal">Add New Customer</h2>
-                <p className="text-sm text-royal-soft">Enter customer details to create a new customer</p>
+                <h2 className="text-xl font-semibold text-royal">Edit Customer</h2>
+                <p className="text-sm text-royal-soft">Update details for {customer.firstName} {customer.lastName}</p>
               </div>
-              <button onClick={close} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button onClick={() => setIsEditOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
-            <form action={handleSubmit} className="p-6 space-y-8 text-left">
+            <form action={handleEditSubmit} className="p-6 space-y-8 text-left">
 
               {/* Basic Information */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Basic Information</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Personal details of the customer</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-semibold mb-1 block">First Name *</label>
-                    <Input name="firstName" required />
+                    <Input name="firstName" defaultValue={customer.firstName} required />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Last Name *</label>
-                    <Input name="lastName" required />
+                    <Input name="lastName" defaultValue={customer.lastName} required />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Email (Optional)</label>
-                    <Input name="email" type="email" placeholder="example@domain.com" />
+                    <Input name="email" type="email" defaultValue={customer.email || ""} />
                   </div>
                 </div>
               </section>
@@ -97,22 +124,21 @@ export function AddCustomerButton({
               {/* Contact Information */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Contact Information</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Phone numbers and contact details</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Mobile Primary *</label>
-                    <Input id="mobilePrimaryInput" name="mobilePrimary" placeholder="10 digit mobile number" required />
+                    <Input id={`mobilePrimaryEdit_${customer.id}`} name="mobilePrimary" defaultValue={customer.mobilePrimary} required />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">WhatsApp Number</label>
-                    <Input id="whatsappInput" name="whatsapp" placeholder="10 digit number" />
+                    <Input id={`whatsappEdit_${customer.id}`} name="whatsapp" defaultValue={customer.whatsapp || ""} />
                     <label className="flex items-center gap-2 mt-2 text-xs">
                       <input
                         type="checkbox"
                         className="rounded border-gray-300"
                         onChange={(e) => {
-                          const primaryInput = document.getElementById('mobilePrimaryInput') as HTMLInputElement;
-                          const whatsappInput = document.getElementById('whatsappInput') as HTMLInputElement;
+                          const primaryInput = document.getElementById(`mobilePrimaryEdit_${customer.id}`) as HTMLInputElement;
+                          const whatsappInput = document.getElementById(`whatsappEdit_${customer.id}`) as HTMLInputElement;
                           if (e.target.checked && primaryInput && whatsappInput) {
                             whatsappInput.value = primaryInput.value;
                           }
@@ -123,11 +149,11 @@ export function AddCustomerButton({
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Mobile Secondary 1</label>
-                    <Input name="mobileSecondary1" placeholder="10 digit number" />
+                    <Input name="mobileSecondary1" defaultValue={customer.mobileSecondary1 || ""} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Mobile Secondary 2</label>
-                    <Input name="mobileSecondary2" placeholder="10 digit number" />
+                    <Input name="mobileSecondary2" defaultValue={customer.mobileSecondary2 || ""} />
                   </div>
                 </div>
               </section>
@@ -135,19 +161,18 @@ export function AddCustomerButton({
               {/* Business Information */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Business Information</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Company, GST, and PAN details (optional)</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Company Name</label>
-                    <Input name="companyName" />
+                    <Input name="companyName" defaultValue={customer.companyName || ""} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">GST Number</label>
-                    <Input name="gstNumber" placeholder="15 characters" />
+                    <Input name="gstNumber" defaultValue={customer.gstNumber || ""} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold mb-1 block">PAN Card Number</label>
-                    <Input name="panNumber" placeholder="ABCDE1234F" />
+                    <Input name="panNumber" defaultValue={customer.panNumber || ""} />
                   </div>
                 </div>
               </section>
@@ -155,7 +180,6 @@ export function AddCustomerButton({
               {/* Shipping Address */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Shipping Address *</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Provide either full address OR structured address fields</p>
 
                 <div className="mb-4">
                   <label className="flex items-center gap-2 text-sm font-semibold mb-2">
@@ -171,7 +195,7 @@ export function AddCustomerButton({
                 {!useStructuredShipping ? (
                   <Input
                     name="shippingAddress"
-                    placeholder="Enter complete address here to skip structured fields below"
+                    defaultValue={customer.shippingAddress}
                     required
                   />
                 ) : (
@@ -192,50 +216,44 @@ export function AddCustomerButton({
               {/* Billing Address */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Billing Address</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Invoice and billing address</p>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" defaultChecked />
-                  Same as Shipping Address
-                </label>
-                <div className="mt-4">
-                  <Input name="billingAddress" placeholder="If different, enter billing address" />
-                </div>
+                <Input name="billingAddress" defaultValue={customer.billingAddress || ""} placeholder="If different, enter billing address" />
               </section>
 
               {/* Customer Classification */}
               <section>
                 <h3 className="text-lg font-semibold border-b pb-2 mb-4">Customer Classification</h3>
-                <p className="text-sm text-gray-500 mb-4 -mt-2">Customer type and status tags</p>
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap gap-6">
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         name="isVip"
+                        defaultChecked={customer.isVip}
                         onChange={(e) => {
                           const el = e.target as HTMLInputElement;
                           if (el.parentElement?.nextElementSibling) {
-                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
+                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'block' : 'none';
                           }
                         }}
                       />
                       VIP Customer
                     </label>
 
-                    {/* Inline VIP Number Input (Hidden by default) */}
-                    <div style={{ display: 'none' }} className="ml-2 items-center gap-2">
-                      <span className="text-sm font-semibold text-royal uppercase">Sd</span>
-                      <Input name="vipNumber" type="number" defaultValue={nextVipNumber} className="w-24 text-sm" />
+                    {/* Inline VIP Number Input */}
+                    <div style={{ display: customer.isVip ? 'flex' : 'none' }} className="ml-2 items-center gap-2">
+                      <span className="text-sm font-semibold text-royal">Sd</span>
+                      {/* Note: we don't pass the old VIP number directly since the user might want to edit it or leave it alone. We can pass it if we add it to the interface. But for now they can leave empty to ignore. */}
+                      <Input name="vipNumber" type="number" placeholder="New # (optional)" className="w-32 text-sm" />
                     </div>
 
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isMandir" /> Mandir/Temple
+                      <input type="checkbox" name="isMandir" defaultChecked={customer.isMandir} /> Mandir/Temple
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isDefaulter" /> Defaulter
+                      <input type="checkbox" name="isDefaulter" defaultChecked={customer.isDefaulter} /> Defaulter
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isActive" value="true" defaultChecked /> Active
+                      <input type="checkbox" name="isActive" value="true" defaultChecked={customer.isActive} /> Active
                     </label>
                   </div>
                 </div>
@@ -244,15 +262,32 @@ export function AddCustomerButton({
               {error && <p className="text-sm text-red-600">{error}</p>}
 
               <div className="sticky bottom-0 bg-white border-t px-6 py-4 -mx-6 -mb-6 flex justify-end gap-3 rounded-b-lg z-10">
-                <Button type="button" variant="outline" onClick={close}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={isSaving} className="bg-royal text-white hover:bg-royal/90">
-                  {isSaving ? "Saving…" : "Create"}
+                  {isSaving ? "Saving…" : "Save Changes"}
                 </Button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </>
+
+      {isDeleteDialogOpen && (
+        <Modal title="Delete Customer" onClose={() => setIsDeleteDialogOpen(false)}>
+          <div className="space-y-4 text-left">
+            <p className="text-sm text-gray-600">Are you sure you want to delete <strong>{customer.firstName} {customer.lastName}</strong>?</p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={isSaving} onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white border-0">
+                {isSaving ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }

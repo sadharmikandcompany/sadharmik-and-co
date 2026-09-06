@@ -26,8 +26,9 @@ export default async function CustomerDetailPage({
   return (
     <div>
       <Link href="/customers" className="text-sm text-royal-soft hover:text-gold-soft">← All customers</Link>
-      <h1 className="mt-2 font-serif text-3xl text-royal">{customer.name}</h1>
-      <p className="mt-1 text-sm text-royal-soft">{customer.phone} · {customer.address}</p>
+      <h1 className="mt-2 font-serif text-3xl text-royal">{customer.firstName} {customer.lastName}</h1>
+      <p className="mt-1 text-sm font-mono font-bold text-gold-soft">VIP #: Sd {String(customer.vipNumber).padStart(4, '0')}</p>
+      <p className="mt-1 text-sm text-royal-soft">{customer.mobilePrimary} · {customer.shippingAddress}</p>
 
       <Card className="mt-6 max-w-xs">
         <p className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Lifetime spend</p>

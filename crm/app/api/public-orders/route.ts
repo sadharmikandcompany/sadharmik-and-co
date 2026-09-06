@@ -78,7 +78,11 @@ export async function POST(request: NextRequest) {
     lines.push({ productId: product.id, quantity: Math.round(item.quantity) });
   }
 
-  const customerResult = await findOrCreateCustomerByPhone(name, phone, address);
+  const nameParts = name.split(" ");
+  const firstName = nameParts[0] || "-";
+  const lastName = nameParts.slice(1).join(" ") || "-";
+
+  const customerResult = await findOrCreateCustomerByPhone(firstName, lastName, phone, address);
   if (!customerResult.ok || !customerResult.customer) {
     return jsonError(customerResult.error ?? "Could not save your details.", 400);
   }

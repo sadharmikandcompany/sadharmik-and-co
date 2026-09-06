@@ -99,7 +99,7 @@ export default async function DashboardPage() {
             <ul className="mt-3 space-y-2">
               {recentOrders.map((o) => (
                 <li key={o.id} className="flex items-center justify-between text-sm">
-                  <span>{o.orderNumber} · {o.customer.name}</span>
+                  <span>{o.orderNumber} · {o.customer.firstName} {o.customer.lastName}</span>
                   <span className="font-semibold text-royal">₹{o.total}</span>
                 </li>
               ))}
