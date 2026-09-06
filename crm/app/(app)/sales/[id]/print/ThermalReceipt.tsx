@@ -59,7 +59,7 @@ export function ThermalReceipt({ order }: { order: OrderWithDetails }) {
           {order.items.map((item) => (
             <React.Fragment key={item.id}>
               <tr>
-                <td colSpan={4} className="pb-1 leading-tight pt-1">
+                <td colSpan={4} className="pb-1 leading-tight pt-1 break-words">
                   {item.product.name}
                   {/* HSN Code can be added here if available in product */}
                 </td>
