@@ -45,6 +45,9 @@ model Customer {
   billingAddress   String?
   isVip            Boolean  @default(false)
   isMandir         Boolean  @default(false)
+  mandirNumber     Int?     @unique
+  isShop           Boolean  @default(false)
+  shopNumber       Int?     @unique
   isDefaulter      Boolean  @default(false)
   notes            String?
   isActive         Boolean  @default(true)
