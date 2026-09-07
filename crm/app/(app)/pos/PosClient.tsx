@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { computeOrderTotals } from "@/lib/money";
 import { Button, Card, Input, Modal } from "@/components/ui";
-import { addCustomerInline, createOrder, type OrderSourceInput, type PaymentMethodInput } from "@/lib/orders";
+import { createOrder, type OrderSourceInput, type PaymentMethodInput } from "@/lib/orders";
+import { AddCustomerButton } from "@/app/(app)/customers/AddCustomerButton";
 
 interface ProductOption {
   id: string;
@@ -36,7 +37,15 @@ const ORDER_SOURCES: { value: OrderSourceInput; label: string }[] = [
   { value: "WEBSITE", label: "Website" },
 ];
 
-export function PosClient({ products, customers }: { products: ProductOption[]; customers: CustomerOption[] }) {
+export function PosClient({
+  products,
+  customers,
+  nextVipNumber,
+}: {
+  products: ProductOption[];
+  customers: CustomerOption[];
+  nextVipNumber?: number;
+}) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [productQuery, setProductQuery] = useState("");
 
@@ -45,16 +54,12 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
 
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
-  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
-  const [customerModalError, setCustomerModalError] = useState<string | null>(null);
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInput>("CASH");
   const [source, setSource] = useState<OrderSourceInput>("WALK_IN");
 
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const [isAddingCustomer, startAddingCustomer] = useTransition();
   const [isCompletingOrder, startCompletingOrder] = useTransition();
 
   const filteredProducts = useMemo(() => {
@@ -100,9 +105,7 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
   }
 
   function openCustomerModal() {
-    setCustomerModalError(null);
     setCustomerQuery("");
-    setShowNewCustomerForm(false);
     setShowCustomerModal(true);
   }
 
@@ -112,25 +115,10 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
     setShowCheckoutModal(true);
   }
 
-  function handleCreateCustomer() {
-    setCustomerModalError(null);
-    startAddingCustomer(async () => {
-      // addCustomerInline wants first/last name separately; split on the
-      // first space and fall back to using the whole thing as both.
-      const nameParts = newCustomer.name.trim().split(/\s+/);
-      const firstName = nameParts[0] ?? "";
-      const lastName = nameParts.slice(1).join(" ") || firstName;
-      const result = await addCustomerInline(firstName, lastName, newCustomer.phone, newCustomer.address);
-      if (result.ok && result.customer) {
-        const customer = { ...result.customer, vipNumber: result.customer.vipNumber ?? undefined };
-        setCustomerList((prev) => [...prev, customer]);
-        setNewCustomer({ name: "", phone: "", address: "" });
-        setShowNewCustomerForm(false);
-        chooseCustomer(customer);
-      } else {
-        setCustomerModalError(result.error ?? "Could not add customer.");
-      }
-    });
+  function handleNewCustomer(customer: { id: string; name: string; phone: string; vipNumber?: number | null }) {
+    const c = { ...customer, vipNumber: customer.vipNumber ?? undefined };
+    setCustomerList((prev) => [...prev, c]);
+    chooseCustomer(c);
   }
 
   function handleCompleteOrder() {
@@ -284,38 +272,9 @@ export function PosClient({ products, customers }: { products: ProductOption[]; 
             </div>
           )}
 
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setShowNewCustomerForm((v) => !v)}
-            className="mt-4"
-          >
-            + Add New Customer
-          </Button>
-
-          {showNewCustomerForm && (
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <Input
-                placeholder="Name"
-                value={newCustomer.name}
-                onChange={(e) => setNewCustomer((c) => ({ ...c, name: e.target.value }))}
-              />
-              <Input
-                placeholder="Phone"
-                value={newCustomer.phone}
-                onChange={(e) => setNewCustomer((c) => ({ ...c, phone: e.target.value }))}
-              />
-              <Input
-                placeholder="Address"
-                value={newCustomer.address}
-                onChange={(e) => setNewCustomer((c) => ({ ...c, address: e.target.value }))}
-              />
-              {customerModalError && <p className="text-sm text-red-600">{customerModalError}</p>}
-              <Button type="button" onClick={handleCreateCustomer} disabled={isAddingCustomer} className="justify-center">
-                {isAddingCustomer ? "Saving…" : "Save customer"}
-              </Button>
-            </div>
-          )}
+          <div className="mt-4">
+            <AddCustomerButton nextVipNumber={nextVipNumber} onSuccess={handleNewCustomer} />
+          </div>
         </Modal>
       )}
 
