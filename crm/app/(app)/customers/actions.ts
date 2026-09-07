@@ -9,6 +9,17 @@ export interface CreateCustomerResult {
   customer?: any;
 }
 
+// /pos and /sales/new both read the customer list in their (statically
+// rendered) server component, so a create/update/delete here has to
+// revalidate them too, not just /customers — otherwise the customer list
+// they show goes stale until something else happens to bust it, even
+// though the row is already in the database and visible on /customers.
+function revalidateCustomerPages() {
+  revalidatePath("/customers");
+  revalidatePath("/pos");
+  revalidatePath("/sales/new");
+}
+
 export async function createCustomer(formData: FormData): Promise<CreateCustomerResult> {
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
@@ -51,14 +62,15 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
     return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
   }
 
-  revalidatePath("/customers");
-  return { 
-    ok: true, 
-    customer: { 
-      id: createdCustomer.id, 
-      name: `${createdCustomer.firstName} ${createdCustomer.lastName}`.trim(), 
-      phone: createdCustomer.mobilePrimary 
-    } 
+  revalidateCustomerPages();
+  return {
+    ok: true,
+    customer: {
+      id: createdCustomer.id,
+      name: `${createdCustomer.firstName} ${createdCustomer.lastName}`.trim(),
+      phone: createdCustomer.mobilePrimary,
+      vipNumber: createdCustomer.vipNumber
+    }
   };
 }
 
@@ -104,7 +116,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
     return { ok: false, error: err instanceof Error ? err.message : "Could not update customer." };
   }
 
-  revalidatePath("/customers");
+  revalidateCustomerPages();
   return { ok: true };
 }
 
@@ -118,6 +130,6 @@ export async function deleteCustomer(id: string): Promise<CreateCustomerResult> 
     return { ok: false, error: err instanceof Error ? err.message : "Could not delete customer." };
   }
 
-  revalidatePath("/customers");
+  revalidateCustomerPages();
   return { ok: true };
 }
