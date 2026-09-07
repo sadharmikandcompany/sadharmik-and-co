@@ -3,6 +3,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EditOrderForm } from "./EditOrderForm";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function EditOrderPage({
   params,
 }: {

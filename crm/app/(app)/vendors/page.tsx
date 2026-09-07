@@ -3,6 +3,9 @@ import { Button, Card, Input, Table } from "@/components/ui";
 import { DeleteForm } from "@/components/DeleteForm";
 import { createSupplier, deleteSupplier } from "./actions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function VendorsPage() {
   const vendors = await prisma.supplier.findMany({ 
     where: { isActive: true }, 

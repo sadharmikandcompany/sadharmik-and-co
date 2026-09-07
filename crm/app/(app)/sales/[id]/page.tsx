@@ -10,6 +10,9 @@ import {
   toggleOrderPriority,
 } from "../actions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 const STATUS_OPTIONS = ["NEW", "ROASTING", "OUT_FOR_DELIVERY", "PICKED_UP", "DELIVERED", "FAILED", "RESCHEDULED", "CANCELLED"] as const;
 const PAYMENT_OPTIONS = ["PENDING", "CASH", "UPI", "CARD", "CHEQUE"] as const;
 

@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PrintCapture } from "./PrintCapture";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function PrintPage({
   params,
   searchParams,

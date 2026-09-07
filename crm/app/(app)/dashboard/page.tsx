@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { Card, StatCard, Badge } from "@/components/ui";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }

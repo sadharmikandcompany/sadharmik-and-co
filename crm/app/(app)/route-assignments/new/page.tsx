@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { listEligibleOrdersForRoute, listAssignedOrders } from "@/lib/routeAssignments";
 import { NewRouteAssignmentForm } from "./NewRouteAssignmentForm";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function NewRouteAssignmentPage({
   searchParams,
 }: {

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { listRouteAssignments } from "@/lib/routeAssignments";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-gray-100 text-gray-700 border border-gray-200",
   IN_PROGRESS: "bg-amber-100 text-amber-800 border border-amber-200",

@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
 import { createWarehouse, toggleWarehouseActive } from "./actions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function WarehousesPage() {
   const warehouses = await prisma.warehouse.findMany({
     orderBy: { name: "asc" },

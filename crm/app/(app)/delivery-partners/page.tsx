@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { Table } from "@/components/ui";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function DeliveryPartnersPage() {
   const partners = await prisma.user.findMany({
     where: { role: "DELIVERY_PARTNER", isActive: true },

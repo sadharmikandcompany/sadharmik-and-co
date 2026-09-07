@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { NewOrderForm } from "./NewOrderForm";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function NewOrderPage() {
   const [products, customers, maxVipCustomer] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),

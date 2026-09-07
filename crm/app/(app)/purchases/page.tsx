@@ -4,6 +4,9 @@ import { Button, Card, StatCard, Table, Badge } from "@/components/ui";
 import { DeleteForm } from "@/components/DeleteForm";
 import { deletePurchase } from "./actions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function PurchasesPage() {
   const [purchases, pendingCount, receivedCount, totalValue] = await Promise.all([
     prisma.purchase.findMany({ orderBy: { purchaseDate: "desc" }, include: { supplier: true, items: true } }),

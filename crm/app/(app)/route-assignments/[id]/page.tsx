@@ -10,6 +10,9 @@ import {
   deleteRouteAssignment,
 } from "../actions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 const STATUS_OPTIONS = ["PENDING", "IN_PROGRESS", "COMPLETED"] as const;
 
 export default async function RouteAssignmentDetailPage({

@@ -3,6 +3,9 @@ import { PurchaseOrderForm } from "../../PurchaseForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function EditPurchasePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
   const [suppliers, purchase] = await Promise.all([

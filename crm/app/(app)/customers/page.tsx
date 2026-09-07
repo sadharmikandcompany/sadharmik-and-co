@@ -5,6 +5,9 @@ import { AddCustomerButton } from "./AddCustomerButton";
 
 import { CustomerRowActions } from "./CustomerRowActions";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function CustomersPage({
   searchParams,
 }: {

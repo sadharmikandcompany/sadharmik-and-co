@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { PurchaseOrderForm } from "../PurchaseForm";
 import Link from "next/link";
 
+// Always render fresh — this is live business data, never a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function NewPurchasePage() {
   const suppliers = await prisma.supplier.findMany({ 
     where: { isActive: true }, 
