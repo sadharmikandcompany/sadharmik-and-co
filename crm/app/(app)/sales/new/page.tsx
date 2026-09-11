@@ -30,10 +30,19 @@ export default async function NewOrderPage() {
             name: p.name,
             packSize: p.packSize,
             price: p.price,
+            mandirPrice: p.mandirPrice,
+            shopPrice: p.shopPrice,
             gstPercentage: p.gstPercentage,
             stock: p.stock,
           }))}
-          customers={customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), phone: c.mobilePrimary, vipNumber: c.vipNumber }))}
+          customers={customers.map((c) => ({
+            id: c.id,
+            name: `${c.firstName} ${c.lastName}`.trim(),
+            phone: c.mobilePrimary,
+            vipNumber: c.vipNumber,
+            isMandir: c.isMandir,
+            isShop: c.isShop,
+          }))}
         />
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeOrderTotals } from "@/lib/money";
+import { effectivePrice } from "@/lib/pricing";
 import { Button, Card, Input } from "@/components/ui";
 import {
   createOrder,
@@ -16,6 +17,8 @@ interface ProductOption {
   name: string;
   packSize: string;
   price: number;
+  mandirPrice: number | null;
+  shopPrice: number | null;
   gstPercentage: number;
   stock: number;
 }
@@ -25,6 +28,8 @@ interface CustomerOption {
   name: string;
   phone: string;
   vipNumber?: number;
+  isMandir: boolean;
+  isShop: boolean;
 }
 
 // "Sd0001"-style code so staff can search by the customer's printed code,
@@ -110,7 +115,7 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
         const nextQuantity = Math.min(existing.quantity + pickerQty, product.stock);
         return prev.map((line) => (line.product.id === product.id ? { ...line, quantity: nextQuantity } : line));
       }
-      return [...prev, { product, quantity: Math.min(pickerQty, product.stock), unitPrice: product.price }];
+      return [...prev, { product, quantity: Math.min(pickerQty, product.stock), unitPrice: effectivePrice(product, selectedCustomer) }];
     });
     setPickerProductId("");
     setPickerQty(1);
