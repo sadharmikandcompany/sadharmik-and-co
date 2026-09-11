@@ -30,6 +30,16 @@ function parseDescription(formData: FormData): string | null {
   return raw.slice(0, MAX_DESCRIPTION_LENGTH);
 }
 
+function parseOptionalPrice(formData: FormData, field: string): { ok: true; value: number | null } | { ok: false; error: string } {
+  const raw = String(formData.get(field) ?? "").trim();
+  if (!raw) return { ok: true, value: null };
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    return { ok: false, error: `${field === "mandirPrice" ? "Mandir price" : "Shop price"} must be a non-negative number.` };
+  }
+  return { ok: true, value };
+}
+
 export async function createProduct(formData: FormData): Promise<ProductActionResult> {
   const name = String(formData.get("name") ?? "").trim();
   const packSize = String(formData.get("packSize") ?? "").trim();
@@ -55,10 +65,25 @@ export async function createProduct(formData: FormData): Promise<ProductActionRe
   // Absent checkbox (unchecked) still means "show it" for a brand-new
   // product unless the form explicitly says otherwise.
   const showOnWebsite = formData.get("showOnWebsite") !== "off";
+  const mandirPrice = parseOptionalPrice(formData, "mandirPrice");
+  if (!mandirPrice.ok) return { ok: false, error: mandirPrice.error };
+  const shopPrice = parseOptionalPrice(formData, "shopPrice");
+  if (!shopPrice.ok) return { ok: false, error: shopPrice.error };
 
   try {
     await prisma.product.create({
-      data: { name, packSize, price, stock, gstPercentage, imageUrl: image.value, description, showOnWebsite },
+      data: {
+        name,
+        packSize,
+        price,
+        stock,
+        gstPercentage,
+        imageUrl: image.value,
+        description,
+        showOnWebsite,
+        mandirPrice: mandirPrice.value,
+        shopPrice: shopPrice.value,
+      },
     });
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not add product." };
@@ -102,11 +127,27 @@ export async function updateProduct(formData: FormData): Promise<ProductActionRe
   const image = parseImageUrl(formData);
   if (!image.ok) return { ok: false, error: image.error };
   const description = parseDescription(formData);
+  const mandirPrice = parseOptionalPrice(formData, "mandirPrice");
+  if (!mandirPrice.ok) return { ok: false, error: mandirPrice.error };
+  const shopPrice = parseOptionalPrice(formData, "shopPrice");
+  if (!shopPrice.ok) return { ok: false, error: shopPrice.error };
 
   try {
     await prisma.product.update({
       where: { id },
-      data: { name, packSize, price, stock, gstPercentage, isActive, showOnWebsite, imageUrl: image.value, description },
+      data: {
+        name,
+        packSize,
+        price,
+        stock,
+        gstPercentage,
+        isActive,
+        showOnWebsite,
+        imageUrl: image.value,
+        description,
+        mandirPrice: mandirPrice.value,
+        shopPrice: shopPrice.value,
+      },
     });
   } catch (err) {
     // Product.name is unique — surface that collision clearly instead of a raw Prisma error.
