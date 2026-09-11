@@ -64,6 +64,10 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInput>("PENDING");
   const [amountPaidInput, setAmountPaidInput] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [shippingChargeInput, setShippingChargeInput] = useState("");
+  const [isPriority, setIsPriority] = useState(false);
+  const [orderDateInput, setOrderDateInput] = useState("");
+  const [activeTab, setActiveTab] = useState<"payment" | "shipping" | "notes">("payment");
 
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [isSaving, startSaving] = useTransition();
@@ -91,6 +95,9 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     [cart]
   );
   const autoTotals = computeOrderTotals(billLines);
+  const effectiveDelivery =
+    shippingChargeInput.trim() === "" ? autoTotals.delivery : Math.max(0, Math.round(Number(shippingChargeInput)) || 0);
+  const totals = { ...autoTotals, delivery: effectiveDelivery, total: autoTotals.subtotal + autoTotals.gst + effectiveDelivery };
 
   function handleAddToCart() {
     const product = products.find((p) => p.id === pickerProductId);
@@ -122,11 +129,14 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     startSaving(async () => {
       const result = await createOrder(
         selectedCustomer.id,
-        cartLines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+        cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         source,
         paymentMethod,
         notes,
-        amountPaidInput ? Number(amountPaidInput) : undefined
+        amountPaidInput ? Number(amountPaidInput) : undefined,
+        shippingChargeInput.trim() === "" ? undefined : effectiveDelivery,
+        orderDateInput ? new Date(orderDateInput) : undefined,
+        isPriority
       );
       if (result.ok && result.orderId) {
         router.push("/sales");
@@ -295,53 +305,110 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
         </Card>
 
         <Card>
-          <h2 className="font-serif text-lg text-royal">Order details</h2>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Source</label>
-              <select
-                value={source}
-                onChange={(e) => setSource(e.target.value as OrderSourceInput)}
-                className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+          <h2 className="font-serif text-lg text-royal">Order Details</h2>
+          <p className="text-sm text-royal-soft">Configure payment, shipping, and additional details</p>
+
+          <div className="mt-3 flex overflow-hidden rounded-xl border border-royal-soft/20 text-sm font-semibold">
+            {(["payment", "shipping", "notes"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 px-4 py-2.5 capitalize ${
+                  activeTab === tab ? "bg-gold text-royal-deep" : "bg-white text-royal-soft"
+                }`}
               >
-                {ORDER_SOURCES.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "payment" && (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodInput)}
+                  className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Amount Paid (₹)</label>
+                <Input
+                  type="number"
+                  placeholder={paymentMethod === "PENDING" ? "0" : totals.total.toString()}
+                  value={amountPaidInput}
+                  onChange={(e) => setAmountPaidInput(e.target.value)}
+                  className="mt-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Shipping Charges (₹)</label>
+                <Input
+                  type="number"
+                  placeholder={autoTotals.delivery.toString()}
+                  value={shippingChargeInput}
+                  onChange={(e) => setShippingChargeInput(e.target.value)}
+                  className="mt-2 w-full"
+                />
+              </div>
+              <label className="mt-2 flex items-center gap-2 text-sm text-royal sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={isPriority}
+                  onChange={(e) => setIsPriority(e.target.checked)}
+                  className="h-4 w-4 rounded border-royal-soft/40"
+                />
+                Priority Order
+              </label>
             </div>
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Payment</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodInput)}
-                className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
-              >
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
+          )}
+
+          {activeTab === "shipping" && (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Source</label>
+                <select
+                  value={source}
+                  onChange={(e) => setSource(e.target.value as OrderSourceInput)}
+                  className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+                >
+                  {ORDER_SOURCES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Order Date (optional)</label>
+                <Input
+                  type="datetime-local"
+                  placeholder="Defaults to today"
+                  value={orderDateInput}
+                  onChange={(e) => setOrderDateInput(e.target.value)}
+                  className="mt-2 w-full"
+                />
+                <p className="mt-1 text-xs text-royal-soft">Leave empty to use today's date and time.</p>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Amount Paid (₹)</label>
-              <Input
-                type="number"
-                placeholder={paymentMethod === "PENDING" ? "0" : totals.total.toString()}
-                value={amountPaidInput}
-                onChange={(e) => setAmountPaidInput(e.target.value)}
-                className="mt-2 w-full"
+          )}
+
+          {activeTab === "notes" && (
+            <div className="mt-4">
+              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Notes (optional)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. delivery instructions, special request…"
+                rows={3}
+                className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm text-ink outline-none focus:border-gold"
               />
             </div>
-          </div>
-          <div className="mt-3">
-            <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Notes (optional)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. delivery instructions, special request…"
-              rows={3}
-              className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm text-ink outline-none focus:border-gold"
-            />
-          </div>
+          )}
         </Card>
       </div>
 
@@ -365,7 +432,7 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
           <Button
             type="button"
             onClick={handleSaveOrder}
-            disabled={isSaving || cartLines.length === 0}
+            disabled={isSaving || cart.length === 0}
             className="mt-4 w-full justify-center"
           >
             {isSaving ? "Saving…" : "Save Order"}
