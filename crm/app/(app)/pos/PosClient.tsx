@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { computeOrderTotals } from "@/lib/money";
+import { effectivePrice } from "@/lib/pricing";
 import { Button, Card, Input, Modal } from "@/components/ui";
 import { createOrder, type OrderSourceInput, type PaymentMethodInput } from "@/lib/orders";
 import { AddCustomerButton } from "@/app/(app)/customers/AddCustomerButton";
@@ -11,6 +12,8 @@ interface ProductOption {
   name: string;
   packSize: string;
   price: number;
+  mandirPrice: number | null;
+  shopPrice: number | null;
   gstPercentage: number;
   stock: number;
   imageUrl: string | null;
@@ -21,6 +24,8 @@ interface CustomerOption {
   name: string;
   phone: string;
   vipNumber?: number;
+  isMandir: boolean;
+  isShop: boolean;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethodInput; label: string }[] = [
@@ -83,10 +88,10 @@ export function PosClient({
     () =>
       cartLines.map(({ product, quantity }) => ({
         quantity,
-        unitPrice: product.price,
+        unitPrice: effectivePrice(product, selectedCustomer),
         gstPercentage: product.gstPercentage,
       })),
-    [cartLines]
+    [cartLines, selectedCustomer]
   );
   const totals = computeOrderTotals(billLines);
 
@@ -115,7 +120,7 @@ export function PosClient({
     setShowCheckoutModal(true);
   }
 
-  function handleNewCustomer(customer: { id: string; name: string; phone: string; vipNumber?: number | null }) {
+  function handleNewCustomer(customer: { id: string; name: string; phone: string; vipNumber?: number | null; isMandir: boolean; isShop: boolean }) {
     const c = { ...customer, vipNumber: customer.vipNumber ?? undefined };
     setCustomerList((prev) => [...prev, c]);
     chooseCustomer(c);
@@ -127,7 +132,11 @@ export function PosClient({
     startCompletingOrder(async () => {
       const result = await createOrder(
         selectedCustomer.id,
-        cartLines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+        cartLines.map(({ product, quantity }) => ({
+          productId: product.id,
+          quantity,
+          unitPrice: effectivePrice(product, selectedCustomer),
+        })),
         source,
         paymentMethod
       );
@@ -325,7 +334,7 @@ export function PosClient({
             {cartLines.map(({ product, quantity }) => (
               <li key={product.id} className="flex justify-between">
                 <span>{product.name} × {quantity}</span>
-                <span>₹{product.price * quantity}</span>
+                <span>₹{effectivePrice(product, selectedCustomer) * quantity}</span>
               </li>
             ))}
           </ul>

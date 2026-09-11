@@ -23,11 +23,20 @@ export default async function PosPage() {
             name: p.name,
             packSize: p.packSize,
             price: p.price,
+            mandirPrice: p.mandirPrice,
+            shopPrice: p.shopPrice,
             gstPercentage: p.gstPercentage,
             stock: p.stock,
             imageUrl: p.imageUrl,
           }))}
-          customers={customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), phone: c.mobilePrimary, vipNumber: c.vipNumber }))}
+          customers={customers.map((c) => ({
+            id: c.id,
+            name: `${c.firstName} ${c.lastName}`.trim(),
+            phone: c.mobilePrimary,
+            vipNumber: c.vipNumber,
+            isMandir: c.isMandir,
+            isShop: c.isShop,
+          }))}
           nextVipNumber={nextVipNumber}
         />
       </div>
