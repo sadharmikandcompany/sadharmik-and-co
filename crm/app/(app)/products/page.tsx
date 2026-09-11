@@ -22,6 +22,8 @@ export default async function ProductsPage() {
             name: p.name,
             packSize: p.packSize,
             price: p.price,
+            mandirPrice: p.mandirPrice,
+            shopPrice: p.shopPrice,
             gstPercentage: p.gstPercentage,
             stock: p.stock,
             isActive: p.isActive,
