@@ -45,11 +45,11 @@ export function computeGstAmount(lines: BillLine[]): number {
   }, 0);
 }
 
-export function computeOrderTotals(lines: BillLine[]): OrderTotals {
+export function computeOrderTotals(lines: BillLine[], deliveryOverride?: number): OrderTotals {
   const packs = totalPacks(lines);
   const subtotal = computeSubtotal(lines);
   const gst = computeGstAmount(lines);
-  const delivery = computeDeliveryCharge(packs);
+  const delivery = deliveryOverride !== undefined ? Math.max(0, Math.round(deliveryOverride)) : computeDeliveryCharge(packs);
   return { packs, subtotal, gst, delivery, total: subtotal + gst + delivery };
 }
 

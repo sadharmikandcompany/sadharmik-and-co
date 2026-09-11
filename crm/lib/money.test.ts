@@ -72,6 +72,26 @@ describe("computeOrderTotals", () => {
     const result = computeOrderTotals([{ quantity: 2, unitPrice: 160, gstPercentage: 5 }]);
     expect(result).toEqual({ packs: 2, subtotal: 320, gst: 16, delivery: 0, total: 336 });
   });
+
+  it("uses the delivery override instead of the auto-computed charge when provided", () => {
+    const result = computeOrderTotals([{ quantity: 1, unitPrice: 160 }], 25);
+    expect(result).toEqual({ packs: 1, subtotal: 160, gst: 0, delivery: 25, total: 185 });
+  });
+
+  it("clamps a negative delivery override to 0", () => {
+    const result = computeOrderTotals([{ quantity: 1, unitPrice: 160 }], -10);
+    expect(result).toEqual({ packs: 1, subtotal: 160, gst: 0, delivery: 0, total: 160 });
+  });
+
+  it("rounds a fractional delivery override", () => {
+    const result = computeOrderTotals([{ quantity: 1, unitPrice: 160 }], 25.6);
+    expect(result).toEqual({ packs: 1, subtotal: 160, gst: 0, delivery: 26, total: 186 });
+  });
+
+  it("falls back to the auto-computed charge when no override is given", () => {
+    const result = computeOrderTotals([{ quantity: 1, unitPrice: 160 }]);
+    expect(result).toEqual({ packs: 1, subtotal: 160, gst: 0, delivery: 70, total: 230 });
+  });
 });
 
 describe("computePurchaseTotals", () => {
