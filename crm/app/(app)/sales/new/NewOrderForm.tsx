@@ -56,7 +56,9 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
   const [customerQuery, setCustomerQuery] = useState("");
 
   const [productQuery, setProductQuery] = useState("");
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [pickerProductId, setPickerProductId] = useState("");
+  const [pickerQty, setPickerQty] = useState(1);
+  const [cart, setCart] = useState<{ product: ProductOption; quantity: number }[]>([]);
 
   const [source, setSource] = useState<OrderSourceInput>("PHONE");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInput>("PENDING");
@@ -84,20 +86,32 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, productQuery]);
 
-  const cartLines = useMemo(
-    () => products.filter((p) => (quantities[p.id] ?? 0) > 0).map((p) => ({ product: p, quantity: quantities[p.id] })),
-    [products, quantities]
-  );
-
   const billLines = useMemo(
-    () => cartLines.map(({ product, quantity }) => ({ quantity, unitPrice: product.price, gstPercentage: product.gstPercentage })),
-    [cartLines]
+    () => cart.map(({ product, quantity }) => ({ quantity, unitPrice: product.price, gstPercentage: product.gstPercentage })),
+    [cart]
   );
-  const totals = computeOrderTotals(billLines);
+  const autoTotals = computeOrderTotals(billLines);
 
-  function setQty(productId: string, qty: number, stock: number) {
-    setQuantities((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(qty, stock)) }));
+  function handleAddToCart() {
+    const product = products.find((p) => p.id === pickerProductId);
+    if (!product) return;
+    setCart((prev) => {
+      const existing = prev.find((line) => line.product.id === product.id);
+      if (existing) {
+        const nextQuantity = Math.min(existing.quantity + pickerQty, product.stock);
+        return prev.map((line) => (line.product.id === product.id ? { ...line, quantity: nextQuantity } : line));
+      }
+      return [...prev, { product, quantity: Math.min(pickerQty, product.stock) }];
+    });
+    setPickerProductId("");
+    setPickerQty(1);
   }
+
+  function removeFromCart(productId: string) {
+    setCart((prev) => prev.filter((line) => line.product.id !== productId));
+  }
+
+  const pickerStock = products.find((p) => p.id === pickerProductId)?.stock ?? 1;
 
   function handleSaveOrder() {
     if (!selectedCustomer) {
@@ -186,48 +200,96 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
         </Card>
 
         <Card>
-          <h2 className="font-serif text-lg text-royal">Items</h2>
+          <h2 className="font-serif text-lg text-royal">Order Items</h2>
+          <p className="text-sm text-royal-soft">Add products to the order</p>
+
           <Input
             placeholder="Search products…"
             value={productQuery}
             onChange={(e) => setProductQuery(e.target.value)}
             className="mt-3"
           />
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {filteredProducts.map((p) => {
-              const qty = quantities[p.id] ?? 0;
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-3"
+
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Product</label>
+              <select
+                value={pickerProductId}
+                onChange={(e) => {
+                  setPickerProductId(e.target.value);
+                  setPickerQty(1);
+                }}
+                className="mt-2 w-full rounded-xl border border-royal-soft/30 bg-white px-4 py-2.5 text-sm"
+              >
+                <option value="">Select a product ({filteredProducts.length} available)</option>
+                {filteredProducts.map((p) => (
+                  <option key={p.id} value={p.id} disabled={p.stock === 0}>
+                    {p.name} — ₹{p.price}/{p.packSize} · {p.stock} in stock
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-widest text-gold-soft">Qty</label>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPickerQty((q) => Math.max(1, q - 1))}
+                  className="h-9 w-9 rounded-full border border-gold text-gold-soft"
                 >
-                  <div>
-                    <p className="font-semibold text-royal">{p.name}</p>
-                    <p className="text-xs text-royal-soft">₹{p.price} / {p.packSize} · {p.stock} in stock</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setQty(p.id, qty - 1, p.stock)}
-                      className="h-8 w-8 rounded-full border border-gold text-gold-soft"
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center text-sm">{qty}</span>
-                    <button
-                      type="button"
-                      onClick={() => setQty(p.id, qty + 1, p.stock)}
-                      disabled={qty >= p.stock}
-                      className="h-8 w-8 rounded-full border border-gold text-gold-soft disabled:opacity-40"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-            {filteredProducts.length === 0 && (
-              <p className="text-sm text-royal-soft sm:col-span-2">No flavours match “{productQuery}”.</p>
+                  −
+                </button>
+                <span className="w-8 text-center text-sm">{pickerQty}</span>
+                <button
+                  type="button"
+                  onClick={() => setPickerQty((q) => Math.min(pickerStock, q + 1))}
+                  disabled={pickerQty >= pickerStock}
+                  className="h-9 w-9 rounded-full border border-gold text-gold-soft disabled:opacity-40"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <Button type="button" onClick={handleAddToCart} disabled={!pickerProductId} className="justify-center">
+              + Add
+            </Button>
+          </div>
+
+          <div className="mt-4">
+            {cart.length === 0 ? (
+              <p className="text-sm text-royal-soft">No items added yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-widest text-gold-soft">
+                    <th className="pb-2">Item</th>
+                    <th className="pb-2 text-right">Qty</th>
+                    <th className="pb-2 text-right">Rate</th>
+                    <th className="pb-2 text-right">Amount</th>
+                    <th className="pb-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map((line) => (
+                    <tr key={line.product.id} className="border-t border-royal-soft/15">
+                      <td className="py-2">{line.product.name}</td>
+                      <td className="py-2 text-right">{line.quantity}</td>
+                      <td className="py-2 text-right">₹{line.product.price}</td>
+                      <td className="py-2 text-right">₹{line.product.price * line.quantity}</td>
+                      <td className="py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(line.product.id)}
+                          aria-label={`Remove ${line.product.name}`}
+                          className="text-royal-soft hover:text-red-600"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </Card>
