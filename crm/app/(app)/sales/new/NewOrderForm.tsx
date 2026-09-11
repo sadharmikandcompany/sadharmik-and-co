@@ -58,7 +58,7 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
   const [productQuery, setProductQuery] = useState("");
   const [pickerProductId, setPickerProductId] = useState("");
   const [pickerQty, setPickerQty] = useState(1);
-  const [cart, setCart] = useState<{ product: ProductOption; quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ product: ProductOption; quantity: number; unitPrice: number }[]>([]);
 
   const [source, setSource] = useState<OrderSourceInput>("PHONE");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInput>("PENDING");
@@ -91,7 +91,7 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
   }, [products, productQuery]);
 
   const billLines = useMemo(
-    () => cart.map(({ product, quantity }) => ({ quantity, unitPrice: product.price, gstPercentage: product.gstPercentage })),
+    () => cart.map(({ quantity, unitPrice, product }) => ({ quantity, unitPrice, gstPercentage: product.gstPercentage })),
     [cart]
   );
   const autoTotals = computeOrderTotals(billLines);
@@ -105,10 +105,12 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     setCart((prev) => {
       const existing = prev.find((line) => line.product.id === product.id);
       if (existing) {
+        // Adding a product that's already in the cart just bumps its
+        // quantity — the rate the staff may have already edited stays put.
         const nextQuantity = Math.min(existing.quantity + pickerQty, product.stock);
         return prev.map((line) => (line.product.id === product.id ? { ...line, quantity: nextQuantity } : line));
       }
-      return [...prev, { product, quantity: Math.min(pickerQty, product.stock) }];
+      return [...prev, { product, quantity: Math.min(pickerQty, product.stock), unitPrice: product.price }];
     });
     setPickerProductId("");
     setPickerQty(1);
@@ -116,6 +118,10 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
 
   function removeFromCart(productId: string) {
     setCart((prev) => prev.filter((line) => line.product.id !== productId));
+  }
+
+  function updateCartUnitPrice(productId: string, unitPrice: number) {
+    setCart((prev) => prev.map((line) => (line.product.id === productId ? { ...line, unitPrice: Math.max(0, unitPrice) } : line)));
   }
 
   const pickerStock = products.find((p) => p.id === pickerProductId)?.stock ?? 1;
@@ -129,7 +135,7 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     startSaving(async () => {
       const result = await createOrder(
         selectedCustomer.id,
-        cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+        cart.map(({ product, quantity, unitPrice }) => ({ productId: product.id, quantity, unitPrice })),
         source,
         paymentMethod,
         notes,
@@ -284,8 +290,16 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
                     <tr key={line.product.id} className="border-t border-royal-soft/15">
                       <td className="py-2">{line.product.name}</td>
                       <td className="py-2 text-right">{line.quantity}</td>
-                      <td className="py-2 text-right">₹{line.product.price}</td>
-                      <td className="py-2 text-right">₹{line.product.price * line.quantity}</td>
+                      <td className="py-2 text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          value={line.unitPrice}
+                          onChange={(e) => updateCartUnitPrice(line.product.id, Number(e.target.value) || 0)}
+                          className="w-20 rounded-lg border border-royal-soft/30 bg-white px-2 py-1 text-right text-sm"
+                        />
+                      </td>
+                      <td className="py-2 text-right">₹{line.unitPrice * line.quantity}</td>
                       <td className="py-2 text-right">
                         <button
                           type="button"

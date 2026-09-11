@@ -8,6 +8,10 @@ import { generateOrderNumber } from "@/lib/order-number";
 export interface OrderLine {
   productId: string;
   quantity: number;
+  // Overrides the product's catalog price for this line (e.g. a one-off
+  // discount given at the counter). Omitted/undefined means "use the
+  // product's current price," matching every existing caller.
+  unitPrice?: number;
 }
 
 export interface CreateOrderResult {
@@ -41,14 +45,24 @@ export async function createOrder(
       where: { id: { in: activeLines.map((l) => l.productId) } },
     });
 
-    const billLines: BillLine[] = activeLines.map((line) => {
+    // Resolve each line once — quantity, the effective unit price (an
+    // override if the caller gave one, else the product's catalog price),
+    // and GST% — then derive both the bill totals and the OrderItem rows
+    // from this single source instead of recomputing the override twice.
+    const resolvedLines = activeLines.map((line) => {
       const product = products.find((p) => p.id === line.productId);
       if (!product) throw new Error("Unknown product in order.");
       if (line.quantity > product.stock) {
         throw new Error(`Only ${product.stock} left of ${product.name}.`);
       }
-      return { quantity: line.quantity, unitPrice: product.price, gstPercentage: product.gstPercentage };
+      const unitPrice = line.unitPrice !== undefined ? Math.max(0, Math.round(line.unitPrice)) : product.price;
+      return { productId: line.productId, quantity: line.quantity, unitPrice, gstPercentage: product.gstPercentage };
     });
+    const billLines: BillLine[] = resolvedLines.map(({ quantity, unitPrice, gstPercentage }) => ({
+      quantity,
+      unitPrice,
+      gstPercentage,
+    }));
 
     const totals = computeOrderTotals(billLines, deliveryChargeOverride);
 
@@ -77,10 +91,7 @@ export async function createOrder(
           ...(orderDate ? { orderDate } : {}),
           ...(isPriority ? { isPriority } : {}),
           items: {
-            create: activeLines.map((line) => {
-              const product = products.find((p) => p.id === line.productId)!;
-              return { productId: line.productId, quantity: line.quantity, unitPrice: product.price };
-            }),
+            create: resolvedLines.map(({ productId, quantity, unitPrice }) => ({ productId, quantity, unitPrice })),
           },
         },
       });
