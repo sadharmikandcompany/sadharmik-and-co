@@ -7,10 +7,12 @@ import { createCustomer } from "./actions";
 export function AddCustomerButton({
   nextVipNumber,
   nextMandirNumber,
+  nextShopNumber,
   onSuccess
 }: {
   nextVipNumber?: number;
   nextMandirNumber?: number;
+  nextShopNumber?: number;
   onSuccess?: (customer: any) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -248,6 +250,26 @@ export function AddCustomerButton({
                     <div style={{ display: 'none' }} className="ml-2 items-center gap-2">
                       <span className="text-sm font-semibold text-royal uppercase">Mandir #</span>
                       <Input name="mandirNumber" type="number" defaultValue={nextMandirNumber} className="w-24 text-sm" />
+                    </div>
+
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="isShop"
+                        onChange={(e) => {
+                          const el = e.target as HTMLInputElement;
+                          if (el.parentElement?.nextElementSibling) {
+                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
+                          }
+                        }}
+                      />
+                      Shop
+                    </label>
+
+                    {/* Inline Shop Number Input (Hidden by default) */}
+                    <div style={{ display: 'none' }} className="ml-2 items-center gap-2">
+                      <span className="text-sm font-semibold text-royal uppercase">Shop #</span>
+                      <Input name="shopNumber" type="number" defaultValue={nextShopNumber} className="w-24 text-sm" />
                     </div>
 
                     <label className="flex items-center gap-2">

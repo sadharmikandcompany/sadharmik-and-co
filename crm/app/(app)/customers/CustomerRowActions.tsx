@@ -20,6 +20,7 @@ interface Customer {
   billingAddress: string | null;
   isVip: boolean;
   isMandir: boolean;
+  isShop: boolean;
   isDefaulter: boolean;
   isActive: boolean;
   notes: string | null;
@@ -265,6 +266,27 @@ export function CustomerRowActions({ customer }: { customer: Customer }) {
                     <div style={{ display: customer.isMandir ? 'flex' : 'none' }} className="ml-2 items-center gap-2">
                       <span className="text-sm font-semibold text-royal">Mandir #</span>
                       <Input name="mandirNumber" type="number" placeholder="New # (optional)" className="w-32 text-sm" />
+                    </div>
+
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="isShop"
+                        defaultChecked={customer.isShop}
+                        onChange={(e) => {
+                          const el = e.target as HTMLInputElement;
+                          if (el.parentElement?.nextElementSibling) {
+                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
+                          }
+                        }}
+                      />
+                      Shop
+                    </label>
+
+                    {/* Inline Shop Number Input */}
+                    <div style={{ display: customer.isShop ? 'flex' : 'none' }} className="ml-2 items-center gap-2">
+                      <span className="text-sm font-semibold text-royal">Shop #</span>
+                      <Input name="shopNumber" type="number" placeholder="New # (optional)" className="w-32 text-sm" />
                     </div>
 
                     <label className="flex items-center gap-2">

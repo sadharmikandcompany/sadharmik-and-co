@@ -21,7 +21,7 @@ export default async function CustomersPage({
   const vipDigits = q?.replace(/\D/g, "") ?? "";
   const vipNumberQuery = vipDigits ? parseInt(vipDigits, 10) : undefined;
 
-  const [customers, maxVipCustomer, maxMandirCustomer] = await Promise.all([
+  const [customers, maxVipCustomer, maxMandirCustomer, maxShopCustomer] = await Promise.all([
     prisma.customer.findMany({
       where: q
         ? {
@@ -44,15 +44,20 @@ export default async function CustomersPage({
       orderBy: { mandirNumber: "desc" },
       select: { mandirNumber: true },
     }),
+    prisma.customer.findFirst({
+      orderBy: { shopNumber: "desc" },
+      select: { shopNumber: true },
+    }),
   ]);
   const nextVipNumber = (maxVipCustomer?.vipNumber ?? 0) + 1;
   const nextMandirNumber = (maxMandirCustomer?.mandirNumber ?? 0) + 1;
+  const nextShopNumber = (maxShopCustomer?.shopNumber ?? 0) + 1;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-serif text-3xl text-royal">Customers</h1>
-        <AddCustomerButton nextVipNumber={nextVipNumber} nextMandirNumber={nextMandirNumber} />
+        <AddCustomerButton nextVipNumber={nextVipNumber} nextMandirNumber={nextMandirNumber} nextShopNumber={nextShopNumber} />
       </div>
 
       <form className="mt-6 max-w-sm" action="/customers">
@@ -99,6 +104,7 @@ export default async function CustomersPage({
                   billingAddress: c.billingAddress,
                   isVip: c.isVip,
                   isMandir: c.isMandir,
+                  isShop: c.isShop,
                   isDefaulter: c.isDefaulter,
                   isActive: c.isActive,
                   notes: c.notes,

@@ -47,11 +47,13 @@ export function PosClient({
   customers,
   nextVipNumber,
   nextMandirNumber,
+  nextShopNumber,
 }: {
   products: ProductOption[];
   customers: CustomerOption[];
   nextVipNumber?: number;
   nextMandirNumber?: number;
+  nextShopNumber?: number;
 }) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [productQuery, setProductQuery] = useState("");
@@ -284,7 +286,12 @@ export function PosClient({
           )}
 
           <div className="mt-4">
-            <AddCustomerButton nextVipNumber={nextVipNumber} nextMandirNumber={nextMandirNumber} onSuccess={handleNewCustomer} />
+            <AddCustomerButton
+              nextVipNumber={nextVipNumber}
+              nextMandirNumber={nextMandirNumber}
+              nextShopNumber={nextShopNumber}
+              onSuccess={handleNewCustomer}
+            />
           </div>
         </Modal>
       )}
