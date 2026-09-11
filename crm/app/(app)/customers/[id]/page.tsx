@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui";
+import { customerCodeLabel, customerDisplayCode } from "@/lib/customerCode";
 
 // Always render fresh — this is live business data, never a build-time snapshot.
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function CustomerDetailPage({
     <div>
       <Link href="/customers" className="text-sm text-royal-soft hover:text-gold-soft">← All customers</Link>
       <h1 className="mt-2 font-serif text-3xl text-royal">{customer.firstName} {customer.lastName}</h1>
-      <p className="mt-1 text-sm font-mono font-bold text-gold-soft">VIP #: Sd {String(customer.vipNumber).padStart(4, '0')}</p>
+      <p className="mt-1 text-sm font-mono font-bold text-gold-soft">{customerCodeLabel(customer)}: {customerDisplayCode(customer)}</p>
       <p className="mt-1 text-sm text-royal-soft">{customer.mobilePrimary} · {customer.shippingAddress}</p>
 
       <Card className="mt-6 max-w-xs">

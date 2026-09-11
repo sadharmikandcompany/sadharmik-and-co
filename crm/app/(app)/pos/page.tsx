@@ -39,7 +39,9 @@ export default async function PosPage() {
             phone: c.mobilePrimary,
             vipNumber: c.vipNumber,
             isMandir: c.isMandir,
+            mandirNumber: c.mandirNumber,
             isShop: c.isShop,
+            shopNumber: c.shopNumber,
           }))}
           nextVipNumber={nextVipNumber}
           nextMandirNumber={nextMandirNumber}

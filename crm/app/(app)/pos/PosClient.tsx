@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { computeOrderTotals } from "@/lib/money";
 import { effectivePrice } from "@/lib/pricing";
+import { customerDisplayCode, customerSearchCode } from "@/lib/customerCode";
 import { Button, Card, Input, Modal } from "@/components/ui";
 import { createOrder, type OrderSourceInput, type PaymentMethodInput } from "@/lib/orders";
 import { AddCustomerButton } from "@/app/(app)/customers/AddCustomerButton";
@@ -25,7 +26,9 @@ interface CustomerOption {
   phone: string;
   vipNumber?: number;
   isMandir: boolean;
+  mandirNumber?: number | null;
   isShop: boolean;
+  shopNumber?: number | null;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethodInput; label: string }[] = [
@@ -103,9 +106,8 @@ export function PosClient({
     const q = customerQuery.trim().toLowerCase();
     if (q.length < 2) return [];
     const qCode = q.replace(/\s+/g, "");
-    const code = (c: CustomerOption) => (c.vipNumber ? `sd${String(c.vipNumber).padStart(4, "0")}` : "");
     return customerList.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || code(c).includes(qCode)
+      (c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || customerSearchCode(c).includes(qCode)
     );
   }, [customerList, customerQuery]);
 
@@ -124,7 +126,16 @@ export function PosClient({
     setShowCheckoutModal(true);
   }
 
-  function handleNewCustomer(customer: { id: string; name: string; phone: string; vipNumber?: number | null; isMandir: boolean; isShop: boolean }) {
+  function handleNewCustomer(customer: {
+    id: string;
+    name: string;
+    phone: string;
+    vipNumber?: number | null;
+    isMandir: boolean;
+    mandirNumber?: number | null;
+    isShop: boolean;
+    shopNumber?: number | null;
+  }) {
     const c = { ...customer, vipNumber: customer.vipNumber ?? undefined };
     setCustomerList((prev) => [...prev, c]);
     chooseCustomer(c);
@@ -275,7 +286,7 @@ export function PosClient({
                     className="flex w-full items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-2.5 text-left text-sm hover:border-gold"
                   >
                     <span className="font-medium text-royal">
-                      {c.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(c.vipNumber).padStart(4, '0')}</span>}
+                      {customerDisplayCode(c) && <span className="text-gold-soft font-mono mr-2">{customerDisplayCode(c)}</span>}
                       {c.name}
                     </span>
                     <span className="text-royal-soft">{c.phone}</span>
@@ -304,7 +315,7 @@ export function PosClient({
         >
           <div className="rounded-xl border border-royal-soft/15 px-4 py-3">
             <p className="font-semibold text-royal">
-              {selectedCustomer.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(selectedCustomer.vipNumber).padStart(4, '0')}</span>}
+              {customerDisplayCode(selectedCustomer) && <span className="text-gold-soft font-mono mr-2">{customerDisplayCode(selectedCustomer)}</span>}
               {selectedCustomer.name}
             </p>
             <p className="text-sm text-royal-soft">{selectedCustomer.phone}</p>

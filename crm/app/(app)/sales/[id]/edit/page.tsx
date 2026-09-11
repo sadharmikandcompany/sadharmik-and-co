@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { customerDisplayCode } from "@/lib/customerCode";
 import { EditOrderForm } from "./EditOrderForm";
 
 // Always render fresh — this is live business data, never a build-time snapshot.
@@ -33,7 +34,7 @@ export default async function EditOrderPage({
       </Link>
       <h1 className="mt-2 font-serif text-3xl text-royal">Edit Order · {order.orderNumber}</h1>
       <p className="mt-1 text-sm text-royal-soft">
-        {order.customer.firstName} {order.customer.lastName} · Sd {String(order.customer.vipNumber).padStart(4, "0")} ·{" "}
+        {order.customer.firstName} {order.customer.lastName} · {customerDisplayCode(order.customer)} ·{" "}
         {order.customer.mobilePrimary}
       </p>
 

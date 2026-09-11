@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, Calendar, Download, Plus, EyeOff, Globe, AlertCircle, DollarSign, Users, FileText, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button, Input } from "@/components/ui";
+import { customerDisplayCode, customerSearchCode } from "@/lib/customerCode";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
 const PAGE_SIZE = 25;
@@ -20,6 +21,10 @@ interface OrderRow {
   amountPaid: number;
   customerName: string;
   customerVipNumber: number;
+  customerIsMandir: boolean;
+  customerMandirNumber: number | null;
+  customerIsShop: boolean;
+  customerShopNumber: number | null;
   customerPhone: string;
   customerAddress: string;
   deliveryPartnerName?: string | null;
@@ -61,7 +66,13 @@ export function SalesClient({ orders, deliveryPartners }: { orders: OrderRow[]; 
   const filteredOrders = orders.filter((order) => {
     const q = searchQuery.toLowerCase();
     const qCode = q.replace(/\s+/g, "");
-    const customerCode = order.customerVipNumber ? `sd${String(order.customerVipNumber).padStart(4, "0")}` : "";
+    const customerCode = customerSearchCode({
+      vipNumber: order.customerVipNumber,
+      isMandir: order.customerIsMandir,
+      mandirNumber: order.customerMandirNumber,
+      isShop: order.customerIsShop,
+      shopNumber: order.customerShopNumber,
+    });
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(q) ||
       order.customerName.toLowerCase().includes(q) ||
@@ -249,7 +260,13 @@ export function SalesClient({ orders, deliveryPartners }: { orders: OrderRow[]; 
                       <span className="font-medium text-gray-900">{order.customerName}</span>
                       {order.customerVipNumber && (
                         <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 border border-gray-200">
-                          {order.customerVipNumber}
+                          {customerDisplayCode({
+                            vipNumber: order.customerVipNumber,
+                            isMandir: order.customerIsMandir,
+                            mandirNumber: order.customerMandirNumber,
+                            isShop: order.customerIsShop,
+                            shopNumber: order.customerShopNumber,
+                          })}
                         </span>
                       )}
                     </div>

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeOrderTotals } from "@/lib/money";
 import { effectivePrice } from "@/lib/pricing";
+import { customerDisplayCode, customerSearchCode } from "@/lib/customerCode";
 import { Button, Card, Input } from "@/components/ui";
 import {
   createOrder,
@@ -29,13 +30,9 @@ interface CustomerOption {
   phone: string;
   vipNumber?: number;
   isMandir: boolean;
+  mandirNumber?: number | null;
   isShop: boolean;
-}
-
-// "Sd0001"-style code so staff can search by the customer's printed code,
-// not just name/phone.
-function customerCode(vipNumber?: number) {
-  return vipNumber ? `sd${String(vipNumber).padStart(4, "0")}` : "";
+  shopNumber?: number | null;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethodInput; label: string }[] = [
@@ -85,7 +82,7 @@ export function NewOrderForm({ nextVipNumber, nextMandirNumber, nextShopNumber, 
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.phone.toLowerCase().includes(q) ||
-        customerCode(c.vipNumber).includes(qCode)
+        customerSearchCode(c).includes(qCode)
     );
   }, [customerList, customerQuery]);
 
@@ -205,7 +202,7 @@ export function NewOrderForm({ nextVipNumber, nextMandirNumber, nextShopNumber, 
                         className="flex w-full items-center justify-between rounded-xl border border-royal-soft/15 px-4 py-2.5 text-left text-sm hover:border-gold"
                       >
                         <span className="font-medium text-royal">
-                          {c.vipNumber && <span className="text-gold-soft font-mono mr-2">Sd {String(c.vipNumber).padStart(4, "0")}</span>}
+                          {customerDisplayCode(c) && <span className="text-gold-soft font-mono mr-2">{customerDisplayCode(c)}</span>}
                           {c.name}
                         </span>
                         <span className="text-royal-soft">{c.phone}</span>

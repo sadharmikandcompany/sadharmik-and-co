@@ -78,7 +78,9 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
       phone: createdCustomer.mobilePrimary,
       vipNumber: createdCustomer.vipNumber,
       isMandir: createdCustomer.isMandir,
-      isShop: createdCustomer.isShop
+      mandirNumber: createdCustomer.mandirNumber,
+      isShop: createdCustomer.isShop,
+      shopNumber: createdCustomer.shopNumber
     }
   };
 }

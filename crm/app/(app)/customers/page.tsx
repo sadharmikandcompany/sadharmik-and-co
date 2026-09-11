@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Input, Table } from "@/components/ui";
+import { customerDisplayCode } from "@/lib/customerCode";
 import { AddCustomerButton } from "./AddCustomerButton";
 
 import { CustomerRowActions } from "./CustomerRowActions";
@@ -78,7 +79,7 @@ export default async function CustomersPage({
           {customers.map((c) => (
             <tr key={c.id} className="border-b border-royal-soft/10 last:border-0">
               <td className="px-4 py-3 text-gold-soft font-mono font-bold">
-                Sd {String(c.vipNumber).padStart(4, '0')}
+                {customerDisplayCode(c)}
               </td>
               <td className="px-4 py-3">
                 <Link href={`/customers/${c.id}`} className="font-semibold text-royal hover:text-gold-soft">

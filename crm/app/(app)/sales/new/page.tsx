@@ -53,7 +53,9 @@ export default async function NewOrderPage() {
             phone: c.mobilePrimary,
             vipNumber: c.vipNumber,
             isMandir: c.isMandir,
+            mandirNumber: c.mandirNumber,
             isShop: c.isShop,
+            shopNumber: c.shopNumber,
           }))}
         />
       </div>
