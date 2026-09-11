@@ -13,6 +13,11 @@ model Product {
   name          String      @unique
   packSize      String
   price         Int
+  // Optional per-tier overrides for Mandir/Shop customers (see
+  // Customer.isMandir / Customer.isShop). null means "no special price
+  // set for this tier — use the regular `price`."
+  mandirPrice   Int?
+  shopPrice     Int?
   gstPercentage Int         @default(0)
   stock         Int         @default(0)
   isActive      Boolean     @default(true)
