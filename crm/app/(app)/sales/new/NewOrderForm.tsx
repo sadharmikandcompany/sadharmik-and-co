@@ -124,6 +124,14 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
     setCart((prev) => prev.map((line) => (line.product.id === productId ? { ...line, unitPrice: Math.max(0, unitPrice) } : line)));
   }
 
+  function updateCartQuantity(productId: string, quantity: number) {
+    setCart((prev) =>
+      prev.map((line) =>
+        line.product.id === productId ? { ...line, quantity: Math.max(1, Math.min(quantity, line.product.stock)) } : line
+      )
+    );
+  }
+
   const pickerStock = products.find((p) => p.id === pickerProductId)?.stock ?? 1;
 
   function handleSaveOrder() {
@@ -289,7 +297,16 @@ export function NewOrderForm({ nextVipNumber, products, customers }: { nextVipNu
                   {cart.map((line) => (
                     <tr key={line.product.id} className="border-t border-royal-soft/15">
                       <td className="py-2">{line.product.name}</td>
-                      <td className="py-2 text-right">{line.quantity}</td>
+                      <td className="py-2 text-right">
+                        <input
+                          type="number"
+                          min={1}
+                          max={line.product.stock}
+                          value={line.quantity}
+                          onChange={(e) => updateCartQuantity(line.product.id, Number(e.target.value) || 1)}
+                          className="w-16 rounded-lg border border-royal-soft/30 bg-white px-2 py-1 text-right text-sm"
+                        />
+                      </td>
                       <td className="py-2 text-right">
                         <input
                           type="number"
