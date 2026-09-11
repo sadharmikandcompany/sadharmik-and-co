@@ -26,7 +26,10 @@ export async function createOrder(
   source: OrderSourceInput = "WALK_IN",
   paymentMethod: PaymentMethodInput = "CASH",
   notes?: string,
-  amountPaid?: number
+  amountPaid?: number,
+  deliveryChargeOverride?: number,
+  orderDate?: Date,
+  isPriority?: boolean
 ): Promise<CreateOrderResult> {
   if (!customerId) return { ok: false, error: "Select a customer first." };
 
@@ -47,7 +50,7 @@ export async function createOrder(
       return { quantity: line.quantity, unitPrice: product.price, gstPercentage: product.gstPercentage };
     });
 
-    const totals = computeOrderTotals(billLines);
+    const totals = computeOrderTotals(billLines, deliveryChargeOverride);
 
     const todayPrefix = generateOrderNumber(new Date(), 0).slice(0, -3); // "SDK" + YYMMDD
     const lastToday = await prisma.order.findFirst({
@@ -71,6 +74,8 @@ export async function createOrder(
           deliveryCharge: totals.delivery,
           total: totals.total,
           amountPaid: amountPaid ?? (paymentMethod === "PENDING" ? 0 : totals.total),
+          ...(orderDate ? { orderDate } : {}),
+          ...(isPriority ? { isPriority } : {}),
           items: {
             create: activeLines.map((line) => {
               const product = products.find((p) => p.id === line.productId)!;
