@@ -6,9 +6,11 @@ import { createCustomer } from "./actions";
 
 export function AddCustomerButton({
   nextVipNumber,
+  nextMandirNumber,
   onSuccess
 }: {
   nextVipNumber?: number;
+  nextMandirNumber?: number;
   onSuccess?: (customer: any) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -229,8 +231,25 @@ export function AddCustomerButton({
                     </div>
 
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isMandir" /> Mandir/Temple
+                      <input
+                        type="checkbox"
+                        name="isMandir"
+                        onChange={(e) => {
+                          const el = e.target as HTMLInputElement;
+                          if (el.parentElement?.nextElementSibling) {
+                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
+                          }
+                        }}
+                      />
+                      Mandir/Temple
                     </label>
+
+                    {/* Inline Mandir Number Input (Hidden by default) */}
+                    <div style={{ display: 'none' }} className="ml-2 items-center gap-2">
+                      <span className="text-sm font-semibold text-royal uppercase">Mandir #</span>
+                      <Input name="mandirNumber" type="number" defaultValue={nextMandirNumber} className="w-24 text-sm" />
+                    </div>
+
                     <label className="flex items-center gap-2">
                       <input type="checkbox" name="isDefaulter" /> Defaulter
                     </label>

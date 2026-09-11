@@ -5,16 +5,21 @@ import { NewOrderForm } from "./NewOrderForm";
 export const dynamic = "force-dynamic";
 
 export default async function NewOrderPage() {
-  const [products, customers, maxVipCustomer] = await Promise.all([
+  const [products, customers, maxVipCustomer, maxMandirCustomer] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ where: { isActive: true }, orderBy: { firstName: "asc" } }),
     prisma.customer.findFirst({
       orderBy: { vipNumber: 'desc' },
       select: { vipNumber: true }
+    }),
+    prisma.customer.findFirst({
+      orderBy: { mandirNumber: 'desc' },
+      select: { mandirNumber: true }
     })
   ]);
 
   const nextVipNumber = (maxVipCustomer?.vipNumber || 0) + 1;
+  const nextMandirNumber = (maxMandirCustomer?.mandirNumber || 0) + 1;
 
   return (
     <div>
@@ -25,6 +30,7 @@ export default async function NewOrderPage() {
       <div className="mt-6">
         <NewOrderForm
           nextVipNumber={nextVipNumber}
+          nextMandirNumber={nextMandirNumber}
           products={products.map((p) => ({
             id: p.id,
             name: p.name,

@@ -247,8 +247,26 @@ export function CustomerRowActions({ customer }: { customer: Customer }) {
                     </div>
 
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isMandir" defaultChecked={customer.isMandir} /> Mandir/Temple
+                      <input
+                        type="checkbox"
+                        name="isMandir"
+                        defaultChecked={customer.isMandir}
+                        onChange={(e) => {
+                          const el = e.target as HTMLInputElement;
+                          if (el.parentElement?.nextElementSibling) {
+                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
+                          }
+                        }}
+                      />
+                      Mandir/Temple
                     </label>
+
+                    {/* Inline Mandir Number Input */}
+                    <div style={{ display: customer.isMandir ? 'flex' : 'none' }} className="ml-2 items-center gap-2">
+                      <span className="text-sm font-semibold text-royal">Mandir #</span>
+                      <Input name="mandirNumber" type="number" placeholder="New # (optional)" className="w-32 text-sm" />
+                    </div>
+
                     <label className="flex items-center gap-2">
                       <input type="checkbox" name="isDefaulter" defaultChecked={customer.isDefaulter} /> Defaulter
                     </label>

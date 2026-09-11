@@ -40,6 +40,8 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
   const isActive = formData.get("isActive") !== "false"; // default to true
   const vipNumberStr = formData.get("vipNumber")?.toString().trim();
   const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
+  const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
+  const mandirNumber = mandirNumberStr ? parseInt(mandirNumberStr, 10) : undefined;
 
   const notes = String(formData.get("notes") ?? "").trim();
 
@@ -55,6 +57,7 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
         mobileSecondary1, mobileSecondary2, companyName, gstNumber, panNumber,
         shippingAddress, billingAddress, isVip, isMandir, isDefaulter, isActive,
         ...(vipNumber && !isNaN(vipNumber) && isVip ? { vipNumber } : {}),
+        ...(mandirNumber && !isNaN(mandirNumber) && isMandir ? { mandirNumber } : {}),
         notes: notes || null
       },
     });
@@ -96,6 +99,8 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
   const isActive = formData.get("isActive") !== "false";
   const vipNumberStr = formData.get("vipNumber")?.toString().trim();
   const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
+  const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
+  const mandirNumber = mandirNumberStr ? parseInt(mandirNumberStr, 10) : undefined;
 
   const notes = String(formData.get("notes") ?? "").trim();
 
@@ -111,6 +116,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
         mobileSecondary1, mobileSecondary2, companyName, gstNumber, panNumber,
         shippingAddress, billingAddress, isVip, isMandir, isDefaulter, isActive,
         ...(vipNumber && !isNaN(vipNumber) && isVip ? { vipNumber } : {}),
+        ...(mandirNumber && !isNaN(mandirNumber) && isMandir ? { mandirNumber } : {}),
         notes: notes || null
       },
     });

@@ -21,7 +21,7 @@ export default async function CustomersPage({
   const vipDigits = q?.replace(/\D/g, "") ?? "";
   const vipNumberQuery = vipDigits ? parseInt(vipDigits, 10) : undefined;
 
-  const [customers, maxVipCustomer] = await Promise.all([
+  const [customers, maxVipCustomer, maxMandirCustomer] = await Promise.all([
     prisma.customer.findMany({
       where: q
         ? {
@@ -40,14 +40,19 @@ export default async function CustomersPage({
       orderBy: { vipNumber: "desc" },
       select: { vipNumber: true },
     }),
+    prisma.customer.findFirst({
+      orderBy: { mandirNumber: "desc" },
+      select: { mandirNumber: true },
+    }),
   ]);
   const nextVipNumber = (maxVipCustomer?.vipNumber ?? 0) + 1;
+  const nextMandirNumber = (maxMandirCustomer?.mandirNumber ?? 0) + 1;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-serif text-3xl text-royal">Customers</h1>
-        <AddCustomerButton nextVipNumber={nextVipNumber} />
+        <AddCustomerButton nextVipNumber={nextVipNumber} nextMandirNumber={nextMandirNumber} />
       </div>
 
       <form className="mt-6 max-w-sm" action="/customers">

@@ -5,12 +5,14 @@ import { PosClient } from "./PosClient";
 export const dynamic = "force-dynamic";
 
 export default async function PosPage() {
-  const [products, customers, maxVipCustomer] = await Promise.all([
+  const [products, customers, maxVipCustomer, maxMandirCustomer] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.customer.findMany({ where: { isActive: true }, orderBy: { firstName: "asc" } }),
     prisma.customer.findFirst({ orderBy: { vipNumber: "desc" }, select: { vipNumber: true } }),
+    prisma.customer.findFirst({ orderBy: { mandirNumber: "desc" }, select: { mandirNumber: true } }),
   ]);
   const nextVipNumber = (maxVipCustomer?.vipNumber ?? 0) + 1;
+  const nextMandirNumber = (maxMandirCustomer?.mandirNumber ?? 0) + 1;
 
   return (
     <div>
@@ -38,6 +40,7 @@ export default async function PosPage() {
             isShop: c.isShop,
           }))}
           nextVipNumber={nextVipNumber}
+          nextMandirNumber={nextMandirNumber}
         />
       </div>
     </div>
