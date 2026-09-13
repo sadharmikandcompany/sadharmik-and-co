@@ -35,7 +35,8 @@ export default async function CustomersPage({
             ],
           }
         : { isActive: true },
-      orderBy: { firstName: "asc" },
+      // Highest VIP # (most recently assigned) at the top.
+      orderBy: { vipNumber: "desc" },
     }),
     prisma.customer.findFirst({
       orderBy: { mandirNumber: "desc" },
