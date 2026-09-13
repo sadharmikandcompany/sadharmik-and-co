@@ -93,12 +93,16 @@ export async function deleteOrder(formData: FormData) {
     });
     if (!order) throw new Error("Order not found.");
 
-    // 2. Restore stock for each item
-    for (const item of order.items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.quantity } },
-      });
+    // 2. Restore stock for each item — unless this order was already
+    // cancelled, in which case cancelOrder already returned it. Doing it
+    // again here would double-credit the inventory.
+    if (order.status !== "CANCELLED") {
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
     }
 
     // 3. Delete order items
@@ -163,9 +167,20 @@ export async function updateOrder(
       if (!existing) throw new Error("Order not found.");
       customerId = existing.customerId;
 
-      // Restore stock for the order's current lines before applying the new ones.
-      for (const item of existing.items) {
-        await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+      // A cancelled order doesn't hold any reserved stock (cancelOrder
+      // already returned it), and an order being saved as CANCELLED here
+      // shouldn't end up holding any either — otherwise cancelling via this
+      // form's status dropdown behaves inconsistently with the dedicated
+      // "Cancel Order" button, which frees the stock.
+      const wasCancelled = existing.status === "CANCELLED";
+      const willBeCancelled = fields.status === "CANCELLED";
+
+      // Restore stock for the order's current lines before applying the new
+      // ones — but only if this order was actually holding it.
+      if (!wasCancelled) {
+        for (const item of existing.items) {
+          await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
+        }
       }
       await tx.orderItem.deleteMany({ where: { orderId } });
 
@@ -183,14 +198,18 @@ export async function updateOrder(
       });
       const totals = computeOrderTotals(billLines);
 
-      for (const line of activeLines) {
-        const result = await tx.product.updateMany({
-          where: { id: line.productId, stock: { gte: line.quantity } },
-          data: { stock: { decrement: line.quantity } },
-        });
-        if (result.count === 0) {
-          const product = products.find((p) => p.id === line.productId);
-          throw new Error(`Only ${product?.stock ?? 0} left of ${product?.name ?? "an item"}.`);
+      // Reserve stock for the new lines — but only if the order will
+      // actually hold it once saved (i.e. it isn't being cancelled here).
+      if (!willBeCancelled) {
+        for (const line of activeLines) {
+          const result = await tx.product.updateMany({
+            where: { id: line.productId, stock: { gte: line.quantity } },
+            data: { stock: { decrement: line.quantity } },
+          });
+          if (result.count === 0) {
+            const product = products.find((p) => p.id === line.productId);
+            throw new Error(`Only ${product?.stock ?? 0} left of ${product?.name ?? "an item"}.`);
+          }
         }
       }
 
