@@ -5,12 +5,10 @@ import { Button, Input, Modal } from "@/components/ui";
 import { createCustomer } from "./actions";
 
 export function AddCustomerButton({
-  nextVipNumber,
   nextMandirNumber,
   nextShopNumber,
   onSuccess
 }: {
-  nextVipNumber?: number;
   nextMandirNumber?: number;
   nextShopNumber?: number;
   onSuccess?: (customer: any) => void;
@@ -213,24 +211,9 @@ export function AddCustomerButton({
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap gap-6">
                     <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        name="isVip"
-                        onChange={(e) => {
-                          const el = e.target as HTMLInputElement;
-                          if (el.parentElement?.nextElementSibling) {
-                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'flex' : 'none';
-                          }
-                        }}
-                      />
+                      <input type="checkbox" name="isVip" />
                       VIP Customer
                     </label>
-
-                    {/* Inline VIP Number Input (Hidden by default) */}
-                    <div style={{ display: 'none' }} className="ml-2 items-center gap-2">
-                      <span className="text-sm font-semibold text-royal uppercase">Sd</span>
-                      <Input name="vipNumber" type="number" defaultValue={nextVipNumber} className="w-24 text-sm" />
-                    </div>
 
                     <label className="flex items-center gap-2">
                       <input

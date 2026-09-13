@@ -48,13 +48,11 @@ const ORDER_SOURCES: { value: OrderSourceInput; label: string }[] = [
 export function PosClient({
   products,
   customers,
-  nextVipNumber,
   nextMandirNumber,
   nextShopNumber,
 }: {
   products: ProductOption[];
   customers: CustomerOption[];
-  nextVipNumber?: number;
   nextMandirNumber?: number;
   nextShopNumber?: number;
 }) {
@@ -298,7 +296,6 @@ export function PosClient({
 
           <div className="mt-4">
             <AddCustomerButton
-              nextVipNumber={nextVipNumber}
               nextMandirNumber={nextMandirNumber}
               nextShopNumber={nextShopNumber}
               onSuccess={handleNewCustomer}

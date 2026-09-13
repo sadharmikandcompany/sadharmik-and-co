@@ -50,7 +50,7 @@ const ORDER_SOURCES: { value: OrderSourceInput; label: string }[] = [
   { value: "WEBSITE", label: "Website" },
 ];
 
-export function NewOrderForm({ nextVipNumber, nextMandirNumber, nextShopNumber, products, customers }: { nextVipNumber?: number, nextMandirNumber?: number, nextShopNumber?: number, products: ProductOption[]; customers: CustomerOption[] }) {
+export function NewOrderForm({ nextMandirNumber, nextShopNumber, products, customers }: { nextMandirNumber?: number, nextShopNumber?: number, products: ProductOption[]; customers: CustomerOption[] }) {
   const router = useRouter();
 
   const [customerList, setCustomerList] = useState(customers);
@@ -213,7 +213,6 @@ export function NewOrderForm({ nextVipNumber, nextMandirNumber, nextShopNumber, 
               )}
               <div className="mt-3">
                 <AddCustomerButton 
-                  nextVipNumber={nextVipNumber}
                   nextMandirNumber={nextMandirNumber}
                   nextShopNumber={nextShopNumber}
                   onSuccess={(customer) => {

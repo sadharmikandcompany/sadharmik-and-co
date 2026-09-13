@@ -226,26 +226,9 @@ export function CustomerRowActions({ customer }: { customer: Customer }) {
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap gap-6">
                     <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        name="isVip"
-                        defaultChecked={customer.isVip}
-                        onChange={(e) => {
-                          const el = e.target as HTMLInputElement;
-                          if (el.parentElement?.nextElementSibling) {
-                            (el.parentElement.nextElementSibling as HTMLElement).style.display = el.checked ? 'block' : 'none';
-                          }
-                        }}
-                      />
+                      <input type="checkbox" name="isVip" defaultChecked={customer.isVip} />
                       VIP Customer
                     </label>
-
-                    {/* Inline VIP Number Input */}
-                    <div style={{ display: customer.isVip ? 'flex' : 'none' }} className="ml-2 items-center gap-2">
-                      <span className="text-sm font-semibold text-royal">Sd</span>
-                      {/* Note: we don't pass the old VIP number directly since the user might want to edit it or leave it alone. We can pass it if we add it to the interface. But for now they can leave empty to ignore. */}
-                      <Input name="vipNumber" type="number" placeholder="New # (optional)" className="w-32 text-sm" />
-                    </div>
 
                     <label className="flex items-center gap-2">
                       <input

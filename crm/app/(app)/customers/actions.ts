@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export interface CreateCustomerResult {
@@ -18,6 +19,30 @@ function revalidateCustomerPages() {
   revalidatePath("/customers");
   revalidatePath("/pos");
   revalidatePath("/sales/new");
+}
+
+const UNIQUE_FIELD_LABELS: Record<string, string> = {
+  mandirNumber: "Mandir number",
+  shopNumber: "Shop number",
+  mobilePrimary: "mobile number",
+};
+
+// The Mandir/Shop number inputs are pre-filled with a "next available"
+// suggestion computed when the page loaded. If the form is reused for a
+// second customer without a page reload (or two people are entering data
+// at once), that suggestion can go stale and collide with a number someone
+// else already took — surface a clear, actionable message instead of a raw
+// Prisma error dump.
+function friendlyCustomerError(err: unknown, fallback: string): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    const target = err.meta?.target;
+    const fields = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+    const labels = fields.map((f) => UNIQUE_FIELD_LABELS[f] ?? f);
+    if (labels.length > 0) {
+      return `That ${labels.join(" / ")} is already in use by another customer — please choose a different one.`;
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
 }
 
 export async function createCustomer(formData: FormData): Promise<CreateCustomerResult> {
@@ -42,8 +67,6 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
   // entirely when unchecked (browsers never send "false") — match that
   // directly instead of testing for the string "false", which never occurs.
   const isActive = formData.get("isActive") === "true";
-  const vipNumberStr = formData.get("vipNumber")?.toString().trim();
-  const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
   const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
   const mandirNumber = mandirNumberStr ? parseInt(mandirNumberStr, 10) : undefined;
   const shopNumberStr = formData.get("shopNumber")?.toString().trim();
@@ -62,14 +85,18 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
         firstName, lastName, email, mobilePrimary, whatsapp,
         mobileSecondary1, mobileSecondary2, companyName, gstNumber, panNumber,
         shippingAddress, billingAddress, isVip, isMandir, isShop, isDefaulter, isActive,
-        ...(vipNumber && !isNaN(vipNumber) && isVip ? { vipNumber } : {}),
+        // vipNumber is intentionally never set here — every customer gets one
+        // automatically (Customer.vipNumber's database default), regardless
+        // of isVip. Letting the form supply one caused duplicate-number
+        // crashes (see git history) since the "next" number it showed was
+        // just a stale suggestion from whenever the page last loaded.
         ...(mandirNumber && !isNaN(mandirNumber) && isMandir ? { mandirNumber } : {}),
         ...(shopNumber && !isNaN(shopNumber) && isShop ? { shopNumber } : {}),
         notes: notes || null
       },
     });
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not add customer." };
+    return { ok: false, error: friendlyCustomerError(err, "Could not add customer.") };
   }
 
   revalidateCustomerPages();
@@ -111,8 +138,6 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
   // always true, so editing a soft-deleted customer silently reactivated
   // them and unchecking "Active" here did nothing.
   const isActive = formData.get("isActive") === "true";
-  const vipNumberStr = formData.get("vipNumber")?.toString().trim();
-  const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
   const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
   const mandirNumber = mandirNumberStr ? parseInt(mandirNumberStr, 10) : undefined;
   const shopNumberStr = formData.get("shopNumber")?.toString().trim();
@@ -131,14 +156,15 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
         firstName, lastName, email, mobilePrimary, whatsapp,
         mobileSecondary1, mobileSecondary2, companyName, gstNumber, panNumber,
         shippingAddress, billingAddress, isVip, isMandir, isShop, isDefaulter, isActive,
-        ...(vipNumber && !isNaN(vipNumber) && isVip ? { vipNumber } : {}),
+        // vipNumber is never edited — it's assigned once at creation and
+        // stays fixed; see the matching comment in createCustomer.
         ...(mandirNumber && !isNaN(mandirNumber) && isMandir ? { mandirNumber } : {}),
         ...(shopNumber && !isNaN(shopNumber) && isShop ? { shopNumber } : {}),
         notes: notes || null
       },
     });
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not update customer." };
+    return { ok: false, error: friendlyCustomerError(err, "Could not update customer.") };
   }
 
   revalidateCustomerPages();

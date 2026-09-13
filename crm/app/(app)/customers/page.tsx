@@ -22,7 +22,7 @@ export default async function CustomersPage({
   const vipDigits = q?.replace(/\D/g, "") ?? "";
   const vipNumberQuery = vipDigits ? parseInt(vipDigits, 10) : undefined;
 
-  const [customers, maxVipCustomer, maxMandirCustomer, maxShopCustomer] = await Promise.all([
+  const [customers, maxMandirCustomer, maxShopCustomer] = await Promise.all([
     prisma.customer.findMany({
       where: q
         ? {
@@ -38,10 +38,6 @@ export default async function CustomersPage({
       orderBy: { firstName: "asc" },
     }),
     prisma.customer.findFirst({
-      orderBy: { vipNumber: "desc" },
-      select: { vipNumber: true },
-    }),
-    prisma.customer.findFirst({
       orderBy: { mandirNumber: "desc" },
       select: { mandirNumber: true },
     }),
@@ -50,7 +46,6 @@ export default async function CustomersPage({
       select: { shopNumber: true },
     }),
   ]);
-  const nextVipNumber = (maxVipCustomer?.vipNumber ?? 0) + 1;
   const nextMandirNumber = (maxMandirCustomer?.mandirNumber ?? 0) + 1;
   const nextShopNumber = (maxShopCustomer?.shopNumber ?? 0) + 1;
 
@@ -58,7 +53,7 @@ export default async function CustomersPage({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-serif text-3xl text-royal">Customers</h1>
-        <AddCustomerButton nextVipNumber={nextVipNumber} nextMandirNumber={nextMandirNumber} nextShopNumber={nextShopNumber} />
+        <AddCustomerButton nextMandirNumber={nextMandirNumber} nextShopNumber={nextShopNumber} />
       </div>
 
       <form className="mt-6 max-w-sm" action="/customers">
