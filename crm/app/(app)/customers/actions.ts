@@ -38,7 +38,10 @@ export async function createCustomer(formData: FormData): Promise<CreateCustomer
   const isMandir = formData.get("isMandir") === "on";
   const isShop = formData.get("isShop") === "on";
   const isDefaulter = formData.get("isDefaulter") === "on";
-  const isActive = formData.get("isActive") !== "false"; // default to true
+  // The Active checkbox submits value="true" when checked and is omitted
+  // entirely when unchecked (browsers never send "false") — match that
+  // directly instead of testing for the string "false", which never occurs.
+  const isActive = formData.get("isActive") === "true";
   const vipNumberStr = formData.get("vipNumber")?.toString().trim();
   const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
   const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
@@ -103,7 +106,11 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
   const isMandir = formData.get("isMandir") === "on";
   const isShop = formData.get("isShop") === "on";
   const isDefaulter = formData.get("isDefaulter") === "on";
-  const isActive = formData.get("isActive") !== "false";
+  // Same mismatch as createCustomer: the checkbox sends value="true" when
+  // checked, never the string "false" — testing for "false" made this
+  // always true, so editing a soft-deleted customer silently reactivated
+  // them and unchecking "Active" here did nothing.
+  const isActive = formData.get("isActive") === "true";
   const vipNumberStr = formData.get("vipNumber")?.toString().trim();
   const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
   const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
