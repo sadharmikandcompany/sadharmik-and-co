@@ -22,6 +22,7 @@ function revalidateCustomerPages() {
 }
 
 const UNIQUE_FIELD_LABELS: Record<string, string> = {
+  vipNumber: "VIP number",
   mandirNumber: "Mandir number",
   shopNumber: "Shop number",
   mobilePrimary: "mobile number",
@@ -138,6 +139,13 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
   // always true, so editing a soft-deleted customer silently reactivated
   // them and unchecking "Active" here did nothing.
   const isActive = formData.get("isActive") === "true";
+  // Unlike the Add form's old "next VIP number" suggestion (removed — it
+  // caused duplicate-number crashes), this edit field shows and edits only
+  // this one customer's own current number, so there's no shared stale
+  // value to collide with. A genuine collision with someone else's number
+  // still gets caught below and turned into a clear message.
+  const vipNumberStr = formData.get("vipNumber")?.toString().trim();
+  const vipNumber = vipNumberStr ? parseInt(vipNumberStr, 10) : undefined;
   const mandirNumberStr = formData.get("mandirNumber")?.toString().trim();
   const mandirNumber = mandirNumberStr ? parseInt(mandirNumberStr, 10) : undefined;
   const shopNumberStr = formData.get("shopNumber")?.toString().trim();
@@ -148,6 +156,9 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
   if (!firstName || !lastName || !mobilePrimary || !shippingAddress) {
     return { ok: false, error: "First Name, Last Name, Primary Mobile, and Shipping Address are required." };
   }
+  if (vipNumber !== undefined && (isNaN(vipNumber) || vipNumber < 1)) {
+    return { ok: false, error: "VIP # must be a positive number." };
+  }
 
   try {
     await prisma.customer.update({
@@ -156,8 +167,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cr
         firstName, lastName, email, mobilePrimary, whatsapp,
         mobileSecondary1, mobileSecondary2, companyName, gstNumber, panNumber,
         shippingAddress, billingAddress, isVip, isMandir, isShop, isDefaulter, isActive,
-        // vipNumber is never edited — it's assigned once at creation and
-        // stays fixed; see the matching comment in createCustomer.
+        ...(vipNumber !== undefined ? { vipNumber } : {}),
         ...(mandirNumber && !isNaN(mandirNumber) && isMandir ? { mandirNumber } : {}),
         ...(shopNumber && !isNaN(shopNumber) && isShop ? { shopNumber } : {}),
         notes: notes || null

@@ -86,6 +86,7 @@ export default async function CustomersPage({
               <td className="px-4 py-3">
                 <CustomerRowActions customer={{
                   id: c.id,
+                  vipNumber: c.vipNumber,
                   firstName: c.firstName,
                   lastName: c.lastName,
                   email: c.email,

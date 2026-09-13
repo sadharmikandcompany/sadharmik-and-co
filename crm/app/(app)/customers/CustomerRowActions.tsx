@@ -6,6 +6,7 @@ import { updateCustomer, deleteCustomer } from "./actions";
 
 interface Customer {
   id: string;
+  vipNumber: number;
   firstName: string;
   lastName: string;
   email: string | null;
@@ -118,6 +119,11 @@ export function CustomerRowActions({ customer }: { customer: Customer }) {
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Email (Optional)</label>
                     <Input name="email" type="email" defaultValue={customer.email || ""} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold mb-1 block">VIP # (Sd)</label>
+                    <Input name="vipNumber" type="number" min="1" defaultValue={customer.vipNumber} />
+                    <p className="mt-1 text-[11px] text-gray-500">Only change this to correct a mistake or match an existing record — it must be unique.</p>
                   </div>
                 </div>
               </section>
