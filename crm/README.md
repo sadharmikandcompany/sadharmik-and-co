@@ -1,78 +1,36 @@
-# Sadharmik & Co. — Internal CRM
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+ 
+## Getting Started
 
-A private, local back-office app for managing customers, products, orders
-(POS), sales, and purchases. Not linked to or visible from the public
-`index.html` site — this is for the owner/staff only.
-
-## First-time setup
-
-```bash
-cd crm
-npm install
-cp .env.example .env
-```
-
-Edit `.env` and set a real `CRM_USERNAME` and `CRM_PASSWORD` (this is the
-login), and a random `CRM_SESSION_SECRET` (any long random string — used to
-sign the login session, not something you need to remember).
-
-```bash
-npx prisma migrate dev --name init
-npx prisma db seed
-```
-
-## Running it
+First, run the development server: 
 
 ```bash
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-Open `http://localhost:3000`, log in with the username/password from `.env`.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Running the tests
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-```bash
-npm test
-```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Data model
+## Learn More
 
-See `prisma/schema.prisma` for the full data model: Product (item master),
-Customer, Supplier, Order/OrderItem, Purchase/PurchaseItem.
+To learn more about Next.js, take a look at the following resources:
 
-## Pages
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-- `/dashboard` — sales stats, low-stock alerts, recent orders
-- `/customers` — list, search, add; click a row for order history
-- `/products` — item master (add/edit flavour, price, stock)
-- `/pos` — build a bill and save it as an order (this is the order-creation
-  screen)
-- `/sales` — order register with status/date filters
-- `/purchases` — suppliers + raw-material purchase register
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Delivery rider API
+## Deploy on Vercel
 
-`/api/rider/*` is a separate, token-authenticated API for the Sadharmik
-Delivery Android app (not the browser session used by the rest of the CRM).
-A rider is a `User` row with `role: DELIVERY_PARTNER` — create one from
-`/users`, then assign them to orders from an order's detail page
-(`/sales/<id>`).
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Requires `RIDER_TOKEN_SECRET` in `.env` (see `.env.example`) — a long random
-string, separate from `CRM_SESSION_SECRET`.
-
-Routes: `POST /api/rider/login`, `GET /api/rider/me`,
-`GET /api/rider/orders?status=pending|in_progress|complete|failed|rescheduled`,
-`GET /api/rider/orders/:id`, `POST /api/rider/orders/:id/pickup`,
-`POST /api/rider/orders/:id/deliver`, `POST /api/rider/orders/:id/fail`,
-`POST /api/rider/orders/:id/reschedule`, `GET /api/rider/dashboard`,
-`GET /api/rider/balance`, `GET /api/rider/expenses` + `POST
-/api/rider/expenses`, `GET /api/rider/delivery-sheet?filter=today|all`. All
-except `login` require `Authorization: Bearer <token>`.
-
-An order's lifecycle is now `OUT_FOR_DELIVERY → PICKED_UP →
-DELIVERED / FAILED / RESCHEDULED` — a rider must mark an order "Picked Up"
-before they can mark it Delivered, Failed, or Reschedule it (previously this
-was a single `OUT_FOR_DELIVERY → DELIVERED/FAILED` step).
-
-See `delivery-app/README.md` for the Android app itself.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
