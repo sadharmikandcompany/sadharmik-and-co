@@ -136,17 +136,13 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="bg-[#1c1c1c] hover:bg-[#1c1c1c] rounded-none p-0! h-12 group-data-[collapsible=icon]:size-12! overflow-hidden">
-              <Link href={getRoleBasedRedirectPath(role)} className="flex h-full w-full items-center justify-center">
-                <img
-                  src="/logo3.png"
-                  alt="Sadharmik & Company"
-                  className="h-full w-full px-3 py-1.5 object-contain group-data-[collapsible=icon]:hidden"
-                />
-                <img
-                  src="/logo.webp"
-                  alt="Sadharmik & Company"
-                  className="hidden h-full w-full object-contain group-data-[collapsible=icon]:block"
-                />
+              <Link href={getRoleBasedRedirectPath(role)} className="flex h-full w-full items-center justify-center px-3 group-data-[collapsible=icon]:px-0">
+                <span className="font-serif text-base font-semibold tracking-tight text-amber-400 group-data-[collapsible=icon]:hidden">
+                  Sadharmik &amp; Co.
+                </span>
+                <span className="hidden font-serif text-lg font-bold text-amber-400 group-data-[collapsible=icon]:block">
+                  S&amp;C
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
