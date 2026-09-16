@@ -14,7 +14,7 @@ const EASEBUZZ_PAY_URL = EASEBUZZ_ENV === 'prod'
   : 'https://testpay.easebuzz.in/pay';
 
 // Callback URL for CRM payments (use CRM domain)
-const CALLBACK_BASE_URL = process.env.EASEBUZZ_CALLBACK_URL || 'https://crm.kalapurna.in';
+const CALLBACK_BASE_URL = process.env.EASEBUZZ_CALLBACK_URL || 'https://crm.sadharmikandcompany.com';
 
 interface GeneratePaymentLinkRequest {
   orderId: string;
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
     const txnid = body.orderNumber.replace(/[^a-zA-Z0-9_|\-\/]/g, '').substring(0, 40);
 
     // Sanitize inputs
-    const productinfo = (body.productInfo || 'Kalapurna Order').replace(/[^a-zA-Z0-9\s\-|]/g, '').trim().substring(0, 45) || 'Order';
+    const productinfo = (body.productInfo || 'Sadharmik & Company Order').replace(/[^a-zA-Z0-9\s\-|]/g, '').trim().substring(0, 45) || 'Order';
     const firstname = body.customerName.replace(/[^a-zA-Z0-9&\-._\s()/,@]/g, '').substring(0, 150) || 'Customer';
     const phone = body.customerPhone.replace(/\D/g, '').substring(0, 20);
-    const email = body.customerEmail || `${phone}@kalapurna.in`;
+    const email = body.customerEmail || `${phone}@sadharmikandcompany.com`;
 
     // Format amount
     const amountStr = body.amount.toFixed(2);

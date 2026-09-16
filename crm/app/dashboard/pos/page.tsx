@@ -570,11 +570,11 @@ export default function POSPage() {
 
       // Store address for POS orders (in-store pickup)
       const storeAddress = {
-        building_name: "Kalapurna Ghee",
-        street_area: "Dadar",
-        city: "Mumbai",
+        building_name: "G2, Mahadev Nagar - A CHS Ltd, Nr Bank of Maharashtra, B P Road, Nr Mahadev Mandir",
+        street_area: "Bhayandar (East)",
+        city: "Bhayandar (East)",
         state: "Maharashtra",
-        pincode: "400014",
+        pincode: "101105",
       }
 
       // Create order and items via API route (handles retailer invoice prefix)

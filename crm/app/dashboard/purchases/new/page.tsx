@@ -473,7 +473,7 @@ export default function NewPurchasePage() {
   }
   // Directional word-overlap score: "how much of the Tally description's own
   // words are found in this candidate's name". Deliberately NOT symmetric —
-  // catalog/stock names carry brand-prefix noise ("Kalapurna Natural A2 Desi
+  // catalog/stock names carry brand-prefix noise ("Sadharmik & Company Natural A2 Desi
   // ...") that a plain Tally line ("10 COW GHEE 15 LTR TIN") never has, so
   // penalizing candidates for extra (brand) words would wrongly tank every
   // real match. Scored against the description's own token count instead.

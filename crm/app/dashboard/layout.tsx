@@ -55,7 +55,7 @@ export default function DashboardLayout({
           <SidebarTrigger className="-ml-1.5" />
           <Separator orientation="vertical" className="h-full" />
           <h1 className="text-base font-semibold tracking-tight">
-            Kalapurna Portal
+            Sadharmik & Company Portal
           </h1>
           <div className="ml-auto flex items-center gap-1.5">
             <HeaderSearch role={role} />

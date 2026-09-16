@@ -63,7 +63,7 @@ export default function NotFound() {
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full sm:flex-1" size="lg">
-                <a href="tel:+917770008880">
+                <a href="tel:+918777600400">
                   <Phone className="mr-2 h-4 w-4" />
                   Contact Support
                 </a>
@@ -75,17 +75,17 @@ export default function NotFound() {
               <p className="text-xs sm:text-sm text-muted-foreground">
                 Need help? Contact us at{' '}
                 <a
-                  href="mailto:info@kalapurna.in"
+                  href="mailto:info@sadharmikandcompany.com"
                   className="text-primary hover:underline font-medium"
                 >
-                  info@kalapurna.in
+                  info@sadharmikandcompany.com
                 </a>
                 {' '}or call{' '}
                 <a
-                  href="tel:+917770008880"
+                  href="tel:+918777600400"
                   className="text-primary hover:underline font-medium"
                 >
-                  +91-7770008880
+                  +91-8777600400
                 </a>
               </p>
             </div>

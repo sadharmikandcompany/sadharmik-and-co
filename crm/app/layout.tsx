@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kalapurna Portal - Supply Chain Management",
-  description: "Supply Chain Management Portal for Kalapurna",
+  title: "Sadharmik & Company Portal - Supply Chain Management",
+  description: "Supply Chain Management Portal for Sadharmik & Company",
 };
 
 export default function RootLayout({

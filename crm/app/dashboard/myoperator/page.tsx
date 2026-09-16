@@ -850,7 +850,7 @@ export default function MyOperatorPage() {
       ? order.invoice_number_gst
       : order.invoice_number_non_gst;
 
-    const orderUrl = `https://crm.kalapurna.in/order/${order.order_number}`;
+    const orderUrl = `https://crm.sadharmikandcompany.com/order/${order.order_number}`;
 
     const message = `*INVOICE - ${invoiceNumber || order.order_number}*\n\n` +
       `Dear ${customerData.customer.first_name} ${customerData.customer.last_name},\n\n` +
@@ -861,7 +861,7 @@ export default function MyOperatorPage() {
       `Total Amount: ${formatCurrency(order.total_amount)}\n` +
       `Payment Status: ${order.payment_status}\n\n` +
       `View your complete order details and invoice here:\n${orderUrl}\n\n` +
-      `Thank you for shopping with Kalapurna!`;
+      `Thank you for shopping with Sadharmik & Company!`;
 
     let phoneNum = customerData.customer.mobile_primary.replace(/\D/g, '');
     if (phoneNum.length === 10) {
@@ -2545,11 +2545,9 @@ export default function MyOperatorPage() {
                 </TableHeader>
                 <TableBody>
                   {[
-                    { ext: '10', name: 'Ronit Mehta', role: 'Owner', phone: '+919967693914', email: 'kalapurnaindia@gmail.com' },
-                    { ext: '11', name: 'Bhumi', role: 'Call agent', phone: '+919137576124', email: 'Bhumi@kalapurna.in' },
-                    { ext: '12', name: 'Zeel', role: 'Manager', phone: '+917977261801', email: 'Zeel@kalapurna.in' },
-                    { ext: '13', name: 'Roshni', role: 'Call agent', phone: '+917506086065', email: 'Roshni@kalapurna.in' },
-                    { ext: '14', name: 'Agent5', role: 'Call agent', phone: '+918898398468', email: 'Agent5@kalapurna.in' },
+                    // Cleared of the previous business's real staff — add
+                    // Sadharmik & Co's own agents here once MyOperator is set up.
+                    { ext: '00', name: 'Admin', role: 'Admin', phone: '', email: 'admin@sadharmikandco.com' },
                   ].map((agent) => {
                     const isYou = agentConfig?.extension === agent.ext;
                     return (

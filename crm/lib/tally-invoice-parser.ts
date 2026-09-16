@@ -1,4 +1,4 @@
-// Parses text extracted from a Tally-generated "TAX INVOICE" PDF (Kalapurna's
+// Parses text extracted from a Tally-generated "TAX INVOICE" PDF (Sadharmik & Company's
 // sales invoice template) into structured fields for the Order from Factory
 // auto-fill feature. Built against a real sample invoice (KP-190/2026-27);
 // designed to degrade gracefully (return null/empty rather than throw) since

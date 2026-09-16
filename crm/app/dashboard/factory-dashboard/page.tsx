@@ -641,9 +641,9 @@ export default function FactoryDashboardPage() {
             byProduct.set(it.product_name, (byProduct.get(it.product_name) || 0) + litres)
           }
         })
-        // Trim "Kalapurna " brand prefix for chart legibility.
+        // Trim "Sadharmik & Company " brand prefix for chart legibility.
         const cleaned = Array.from(byProduct.entries()).map(([name, litres]) => ({
-          product: name.replace(/^Kalapurna\s+/i, ""),
+          product: name.replace(/^Sadharmik & Company\s+/i, ""),
           litres,
         }))
         cleaned.sort((a, b) => b.litres - a.litres)

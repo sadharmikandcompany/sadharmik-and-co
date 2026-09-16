@@ -133,7 +133,7 @@ export default function NewCreditNotePage() {
     fetchCatalog()
   }, [])
 
-  // Kalapurna's own factory/manufacturing registration is in Gujarat (see the
+  // Sadharmik & Company's own factory/manufacturing registration is in Gujarat (see the
   // COMPANY constant on the credit note print page) — a credit note created
   // under the Factory role is being issued from that Gujarat GSTIN, so it
   // should default to Gujarat instead of the generic Maharashtra default.

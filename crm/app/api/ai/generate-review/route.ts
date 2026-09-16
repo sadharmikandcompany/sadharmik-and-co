@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const prompt = `You are writing a single realistic product review for an Indian D2C food brand (Kalapurna — cold-pressed oils, organic foods).
+  const prompt = `You are writing a single realistic product review for an Indian D2C food brand (Sadharmik & Company — cold-pressed oils, organic foods).
 
 Product: ${productName}
 Star rating to match in tone: ${rating}/5

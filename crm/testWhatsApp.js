@@ -69,12 +69,12 @@ async function testDirectTemplateMessage() {
   const templateName = 'order_7'; // Using the new utility template
   // Template ID: 1131448395802886
   // Template Type: Utility
-  // Template Text: Hi {{1}}, Your order {{2}} has been successfully placed with Kalapurna. Your Code {{3}} Thank You
+  // Template Text: Hi {{1}}, Your order {{2}} has been successfully placed with Sadharmik & Company. Your Code {{3}} Thank You
 
   // Parameters for the template
   const parameters = {
     "1": "Test Customer",  // {{1}} - Customer name
-    "2": "https://crm.kalapurna.in/dashboard",  // {{2}} - Link
+    "2": "https://crm.sadharmikandcompany.com/dashboard",  // {{2}} - Link
     "3": "ABC123"          // {{3}} - Code
   };
 

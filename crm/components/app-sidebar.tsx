@@ -139,12 +139,12 @@ export function AppSidebar() {
               <Link href={getRoleBasedRedirectPath(role)} className="flex h-full w-full items-center justify-center">
                 <img
                   src="/logo3.png"
-                  alt="Kalapurna"
+                  alt="Sadharmik & Company"
                   className="h-full w-full px-3 py-1.5 object-contain group-data-[collapsible=icon]:hidden"
                 />
                 <img
                   src="/logo.webp"
-                  alt="Kalapurna"
+                  alt="Sadharmik & Company"
                   className="hidden h-full w-full object-contain group-data-[collapsible=icon]:block"
                 />
               </Link>

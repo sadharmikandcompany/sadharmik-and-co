@@ -849,7 +849,7 @@ export default function OrdersPage() {
               customerName: customerName,
               customerPhone: customerData.mobile_primary,
               customerEmail: customerData.email || undefined,
-              productInfo: 'Kalapurna Order',
+              productInfo: 'Sadharmik & Company Order',
             }),
           })
 
@@ -1392,7 +1392,7 @@ export default function OrdersPage() {
                     customerName: customerName,
                     customerPhone: customerData.mobile_primary,
                     customerEmail: customerData.email || undefined,
-                    productInfo: 'Kalapurna Order',
+                    productInfo: 'Sadharmik & Company Order',
                   }),
                 })
 

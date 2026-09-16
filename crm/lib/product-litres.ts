@@ -13,8 +13,8 @@ export function parseLitresFromName(name: string, qty: number): number {
 
 export type ProductCategory = "ghee" | "oil" | "other"
 
-// Bifurcates a bill's litres by product family — e.g. "Kalapurna Cold Press
-// Ground Nut Oil Bottle - 1 LTR" → oil, "Kalapurna Natural A2 Desi Cow Ghee
+// Bifurcates a bill's litres by product family — e.g. "Sadharmik & Company Cold Press
+// Ground Nut Oil Bottle - 1 LTR" → oil, "Sadharmik & Company Natural A2 Desi Cow Ghee
 // Bottle - 5 LTR" → ghee. Word-boundary match so "boil" etc. never false-hits.
 export function categorizeProduct(name: string): ProductCategory {
   if (!name) return "other"

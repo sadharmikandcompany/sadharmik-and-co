@@ -1167,7 +1167,7 @@ export default function SupportDashboardPage() {
       });
 
       // Construct the order URL
-      const orderUrl = `https://crm.kalapurna.in/order/${order.order_number}`;
+      const orderUrl = `https://crm.sadharmikandcompany.com/order/${order.order_number}`;
 
       const message = `*INVOICE - ${invoiceNumber || order.order_number}*\n\n` +
         `Dear ${customerData.customer.first_name} ${customerData.customer.last_name},\n\n` +
@@ -1178,7 +1178,7 @@ export default function SupportDashboardPage() {
         `Total Amount: ₹${order.total_amount.toFixed(2)}\n` +
         `Payment Status: ${order.payment_status}\n\n` +
         `View your complete order details and invoice here:\n${orderUrl}\n\n` +
-        `Thank you for shopping with Kalapurna!`;
+        `Thank you for shopping with Sadharmik & Company!`;
 
       // Format phone number - remove any non-digit characters and add country code if needed
       let phoneNumber = customerData.customer.mobile_primary.replace(/\D/g, '');

@@ -384,7 +384,7 @@ export default function ProfitAndLossPage() {
                 <BookOpen className="h-5 w-5" />
               </div>
               <div className="text-left">
-                <h2 className="text-base md:text-lg font-bold uppercase tracking-wide">Kalapurna</h2>
+                <h2 className="text-base md:text-lg font-bold uppercase tracking-wide">Sadharmik & Company</h2>
                 <p className="text-sm font-semibold text-primary">Trading Account</p>
               </div>
             </div>

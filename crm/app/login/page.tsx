@@ -106,7 +106,7 @@ export default function LoginPage() {
             <div className="h-12 w-12 rounded-xl bg-primary-foreground/10 backdrop-blur-sm flex items-center justify-center border border-primary-foreground/20">
               <Package className="h-7 w-7" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Kalapurna</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Sadharmik & Company</h1>
           </div>
 
           <div className="max-w-md space-y-6">
@@ -153,7 +153,7 @@ export default function LoginPage() {
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
               <Package className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold">Kalapurna</h1>
+            <h1 className="text-2xl font-bold">Sadharmik & Company</h1>
           </div>
 
           <Card className="border-2 shadow-lg">

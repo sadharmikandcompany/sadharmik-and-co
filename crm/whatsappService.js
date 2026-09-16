@@ -158,7 +158,7 @@ class WhatsAppService {
     ).join(', ') || '';
 
     // Construct the full order URL
-    const orderUrl = `https://crm.kalapurna.in/order/${orderData.order_number}`;
+    const orderUrl = `https://crm.sadharmikandcompany.com/order/${orderData.order_number}`;
 
     // Extract OTP from order number (last 3 digits)
     // Order number format: ORD-1762784788015
@@ -166,7 +166,7 @@ class WhatsAppService {
     const otp = orderNumberDigits.slice(-3); // Last 3 digits
 
     // Prepare parameters based on template "order_7"
-    // Template: Hi {{1}}, Your order {{2}} has been successfully placed with Kalapurna. Your Code {{3}} Thank You
+    // Template: Hi {{1}}, Your order {{2}} has been successfully placed with Sadharmik & Company. Your Code {{3}} Thank You
     const parameters = {
       "1": customerData.fname || customerData.name || 'Customer',
       "2": orderUrl,  // Send full URL

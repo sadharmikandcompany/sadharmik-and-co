@@ -27,7 +27,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // TODO: Get email from authenticated user session
     // For now, using a test email - replace with actual auth
-    const email = 'zeel@kalapurna.in'; // Replace with: auth.user.email
+    const email = 'zeel@sadharmikandcompany.com'; // Replace with: auth.user.email
     setUserEmail(email);
     fetchAgentConfig(email);
   }, []);

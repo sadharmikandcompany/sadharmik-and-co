@@ -9,9 +9,9 @@
  * the next request.
  */
 
-// Sadharmik & Co's own keys go in the GEMINI_API_KEYS env var (comma-separated)
-// — this pool was Kalapurna's own hardcoded keys and has been cleared out
-// rather than carried over into a different business's deployment.
+// Sadharmik & Company's own keys go in the GEMINI_API_KEYS env var
+// (comma-separated) — this pool used to hold the previous business's
+// hardcoded keys and has been cleared out rather than carried over.
 const HARDCODED_KEY_POOL: string[] = []
 
 export const GEMINI_KEY_POOL: string[] = (() => {

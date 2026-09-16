@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url"
 import { parseTallyInvoiceText } from "@/lib/tally-invoice-parser"
 import { GEMINI_KEY_POOL, callGeminiWithPool } from "@/lib/gemini-keys"
 
-// Kalapurna's own sales invoice always prints from the same fixed Tally
+// Sadharmik & Company's own sales invoice always prints from the same fixed Tally
 // template, so a PDF (extractable text) is parsed with the exact regex
 // parser tuned to that layout — precise, and free. A screenshot has no
 // extractable text, so it falls back to Gemini vision instead, producing
@@ -12,7 +12,7 @@ import { GEMINI_KEY_POOL, callGeminiWithPool } from "@/lib/gemini-keys"
 // matching logic needs no changes for either source.
 const VISION_MODEL = "gemini-2.5-flash"
 
-const VISION_PROMPT = `You are reading a screenshot of Kalapurna's own Tally-generated "TAX INVOICE" (a sales invoice this company issued to a buyer). Extract the following. If a field isn't clearly visible or you're not confident, leave it as an empty string / 0 — NEVER guess or invent a number.
+const VISION_PROMPT = `You are reading a screenshot of Sadharmik & Company's own Tally-generated "TAX INVOICE" (a sales invoice this company issued to a buyer). Extract the following. If a field isn't clearly visible or you're not confident, leave it as an empty string / 0 — NEVER guess or invent a number.
 
 - invoiceNumber: the "Invoice No." value (e.g. "KP-190/2026-27").
 - invoiceDate: the "Dated" value near dispatch details, converted to ISO "YYYY-MM-DD" (e.g. "26-Jul-26" -> "2026-07-26"; assume 20xx for 2-digit years).

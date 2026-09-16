@@ -20,11 +20,11 @@ import { toast } from "sonner"
 import { useUserRole } from "@/hooks/use-user-role"
 
 // Roles that create their own sales/purchases and so have their own GST
-// liability, separate from both Kalapurna's company registration and the
+// liability, separate from both Sadharmik & Company's company registration and the
 // factory's registration.
 const PERSONAL_VIEW_ROLES = ["main_distributor", "sub_distributor", "retailer"]
 
-// The factory (Gujarat) and Kalapurna Ghee the company (Maharashtra) are two
+// The factory (Gujarat) and Sadharmik & Company the company (Maharashtra) are two
 // separate GST registrations — their figures must never be combined.
 type ViewMode = "company" | "factory" | "personal"
 
@@ -326,7 +326,7 @@ export default function GstPayablePage() {
               ? "Output GST minus Input Tax Credit on your own sales and purchases, for the selected period"
               : viewMode === "factory"
                 ? "Output GST minus Input Tax Credit on the factory's own sales and purchases, for the selected period"
-                : "Output GST minus Input Tax Credit on Kalapurna Ghee's company-wide sales, for the selected period"}
+                : "Output GST minus Input Tax Credit on Sadharmik & Company's company-wide sales, for the selected period"}
           </p>
         </div>
       </div>

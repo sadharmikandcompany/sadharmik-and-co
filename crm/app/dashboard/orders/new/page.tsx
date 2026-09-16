@@ -1138,8 +1138,8 @@ export default function NewOrderPage() {
     const customer = customers.find((c) => c.id === selectedCustomer)
 
     // Seller state: if a distributor/retailer is logged in creating their own sale,
-    // GST is charged under THEIR registration, not Kalapurna's. Admin/staff-created
-    // orders fall back to Kalapurna Ghee's own registration (Maharashtra).
+    // GST is charged under THEIR registration, not Sadharmik & Company's. Admin/staff-created
+    // orders fall back to Sadharmik & Company's own registration (Maharashtra).
     const companyState =
       (sellerEntityType === "distributor" || sellerEntityType === "retailer") &&
       sellerEntityDetails?.shipping_state

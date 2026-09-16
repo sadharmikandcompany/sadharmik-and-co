@@ -1,6 +1,6 @@
 # E-Way Bill Integration Documentation
 
-Complete documentation for the E-Way Bill integration with Kalapurna Supply Chain Management System.
+Complete documentation for the E-Way Bill integration with Sadharmik & Company Supply Chain Management System.
 
 ---
 
@@ -75,7 +75,7 @@ EWAYBILL_PASSWORD=your_password
 
 # Company Details
 COMPANY_GSTIN=29AABCU9603R1ZM
-COMPANY_NAME=Kalapurna
+COMPANY_NAME=Sadharmik & Company
 COMPANY_ADDRESS_LINE1=123 Main Street
 COMPANY_CITY=Bangalore
 COMPANY_STATE_CODE=29

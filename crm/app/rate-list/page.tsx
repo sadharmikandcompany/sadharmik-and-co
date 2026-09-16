@@ -249,7 +249,7 @@ export default function RateListPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Kalapurna Rate List
+                Sadharmik & Company Rate List
               </h1>
               <p className="text-sm text-green-100">
                 Check current product prices for your area

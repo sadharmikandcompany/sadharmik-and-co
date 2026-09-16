@@ -168,7 +168,7 @@ export default function InactiveCustomersPage() {
     const phone = (customer.whatsapp_number || customer.mobile_primary).replace(/\D/g, "")
     const phoneWithCountry = phone.startsWith("91") ? phone : `91${phone}`
     const message = encodeURIComponent(
-      `Namaste ${customer.customer_name} ji,\n\nIt has been ${customer.days_since_last_order} days since your last order with Kalapurna. Is there a problem?\n\nWe would love to serve you again. Please let us know if you need anything.\n\nThank you!`
+      `Namaste ${customer.customer_name} ji,\n\nIt has been ${customer.days_since_last_order} days since your last order with Sadharmik & Company. Is there a problem?\n\nWe would love to serve you again. Please let us know if you need anything.\n\nThank you!`
     )
     return `https://wa.me/${phoneWithCountry}?text=${message}`
   }

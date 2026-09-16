@@ -4,7 +4,7 @@ import { GEMINI_KEY_POOL, callGeminiWithPool } from "@/lib/gemini-keys"
 export const runtime = "nodejs"
 
 // Unlike the Order-from-Factory Tally PDF parser (a regex parser tuned to
-// Kalapurna's own fixed sales-invoice template), purchase bills come from
+// Sadharmik & Company's own fixed sales-invoice template), purchase bills come from
 // many different vendors, each with their own Tally layout, and arrive as a
 // screenshot (image) rather than extractable PDF text. A vision model is the
 // only approach flexible enough to handle that — a rigid regex parser would

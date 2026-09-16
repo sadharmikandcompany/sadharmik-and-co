@@ -416,7 +416,7 @@ function OrderPage() {
           customerName: `${customer.first_name} ${customer.last_name}`.trim(),
           customerPhone: customer.mobile_primary,
           customerEmail: customer.email || undefined,
-          productInfo: 'Kalapurna Order',
+          productInfo: 'Sadharmik & Company Order',
         }),
       });
 

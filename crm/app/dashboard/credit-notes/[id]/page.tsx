@@ -14,10 +14,10 @@ import autoTable from "jspdf-autotable"
 
 // Company details
 const COMPANY = {
-  name: "Kalapurna Private Limited",
+  name: "Sadharmik & Company Private Limited",
   address: "Plot No. 20 Survey No. 495 Bhuj Nagor Road Bhuj",
   phone: "8097474222",
-  email: "info@kalapurna.com",
+  email: "info@sadharmikandcompany.com",
   gstin: "24AALCK8835H1Z6",
   state: "Gujarat",
   bankName: "Saraswat Bank",

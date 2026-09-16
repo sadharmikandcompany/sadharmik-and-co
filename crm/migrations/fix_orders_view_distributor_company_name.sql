@@ -1,7 +1,7 @@
 -- The orders_v view's computed customer_name used the distributor's personal
 -- name (d.name, e.g. "Bhavya Gandhi") for distributor orders instead of their
 -- registered business name — shows up as "Bhavya Gandhi (Distributor)" in
--- Orders v2 when it should read "KALAPURNA GHEE (Distributor)". Falls back to
+-- Orders v2 when it should read "SADHARMIK & COMPANY (Distributor)". Falls back to
 -- the person's name if the distributor has no company_name on file.
 -- Re-running the full view definition from migrations/create_orders_view_for_ssr.sql
 -- with only that one CASE branch changed.

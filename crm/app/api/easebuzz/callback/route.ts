@@ -9,7 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // CRM domain for order page redirect
 const CRM_DOMAIN = process.env.NEXT_PUBLIC_VERCEL_URL
   ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  : 'https://crm.kalapurna.in';
+  : 'https://crm.sadharmikandcompany.com';
 
 // Handle POST callback from Easebuzz after payment (success or failure)
 export async function POST(request: NextRequest) {

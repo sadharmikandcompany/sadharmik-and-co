@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const otp = orderNumberDigits.slice(-3) // Last 3 digits
 
     // Construct the full order URL
-    const orderUrl = `https://crm.kalapurna.in/order/${orderNumber}`
+    const orderUrl = `https://crm.sadharmikandcompany.com/order/${orderNumber}`
 
     const config = getMyOperatorConfig()
 

@@ -23,12 +23,12 @@ const COMMANDS = {
 
 // Default Company Info (fallback)
 const DEFAULT_COMPANY_INFO = {
-  name: "Rajlok Enterprises",
-  address: "Shop001 Kalapurna Ghee Near zakhadei Mandir, GOkhale Road",
-  city: "Dadar West",
-  pincode: "400028",
-  phone: "8097474222",
-  gst: "27DABPG1499H1ZM",
+  name: "Sadharmik & Company",
+  address: "G2, Mahadev Nagar - A CHS Ltd, Nr Bank of Maharashtra, B P Road, Nr Mahadev Mandir",
+  city: "Bhayandar (East)",
+  pincode: "101105",
+  phone: "8777600400",
+  gst: "",
 }
 
 interface CompanyInfo {

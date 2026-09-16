@@ -7,7 +7,9 @@ import { getMyOperatorConfig, getUsers } from '@/lib/services/myoperator';
  * Uses hardcoded mapping from MyOperator dashboard + live API lookup for user IDs.
  */
 
-// Agent mapping from MyOperator dashboard (screenshot data)
+// Agent mapping from MyOperator dashboard (screenshot data).
+// Cleared of the previous business's real staff — fill in Sadharmik & Co's
+// own agents (email → MyOperator extension/phone) once MyOperator is set up.
 const MYOPERATOR_AGENTS: Record<string, {
   name: string;
   role: string;
@@ -16,42 +18,12 @@ const MYOPERATOR_AGENTS: Record<string, {
   userId?: string;
   showAllAgents?: boolean;
 }> = {
-  'shashankphatkure@gmail.com': {
-    name: 'Shashank',
+  'admin@sadharmikandco.com': {
+    name: 'Admin',
     role: 'Admin',
     extension: '00',
     phone: '',
     showAllAgents: true,
-  },
-  'kalapurnaindia@gmail.com': {
-    name: 'Ronit Mehta',
-    role: 'Owner',
-    extension: '10',
-    phone: '+919967693914',
-  },
-  'bhumi@kalapurna.in': {
-    name: 'Bhumi',
-    role: 'Call agent',
-    extension: '11',
-    phone: '+919137576124',
-  },
-  'zeel@kalapurna.in': {
-    name: 'Zeel',
-    role: 'Manager',
-    extension: '12',
-    phone: '+917977261801',
-  },
-  'roshni@kalapurna.in': {
-    name: 'Roshni',
-    role: 'Call agent',
-    extension: '13',
-    phone: '+917506086065',
-  },
-  'agent5@kalapurna.in': {
-    name: 'Agent5',
-    role: 'Call agent',
-    extension: '14',
-    phone: '+918898398468',
   },
 };
 

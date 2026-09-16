@@ -25,7 +25,7 @@ export interface EWayBillFromPurchase {
 export function getCompanyDetails() {
   return {
     gstin: process.env.COMPANY_GSTIN || '',
-    tradeName: process.env.COMPANY_NAME || 'Kalapurna',
+    tradeName: process.env.COMPANY_NAME || 'Sadharmik & Company',
     address1: process.env.COMPANY_ADDRESS_LINE1 || '',
     address2: process.env.COMPANY_ADDRESS_LINE2 || '',
     place: process.env.COMPANY_CITY || '',

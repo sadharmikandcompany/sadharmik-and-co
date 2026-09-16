@@ -10,8 +10,8 @@ The real-time webhook system is now live and receiving events from Ozonetel!
 - **Endpoint:** `https://subscription.ozonetel.com/events/subscribe`
 - **Status:** Successfully registered
 - **Subscriptions Active:**
-  - Call Events: `https://crm.kalapurna.in/api/webhooks/ozonetel/realtime`
-  - Agent Events: `https://crm.kalapurna.in/api/webhooks/ozonetel/realtime`
+  - Call Events: `https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
+  - Agent Events: `https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
 
 ### 2. Real-Time Webhook Receiving Events ✅
 - **Endpoint:** `/api/webhooks/ozonetel/realtime`
@@ -25,7 +25,7 @@ The real-time webhook system is now live and receiving events from Ozonetel!
 {
   "eventType": "Call",
   "eventTime": "YYYY-MM-DD HH:MM:SS",
-  "username": "kalapurna_ghee",
+  "username": "sadharmik_co",
   "data": {
     "action": "Calling | Answered | Disconnect",
     "call_type": "Manual | Inbound | Progressive",
@@ -46,7 +46,7 @@ The real-time webhook system is now live and receiving events from Ozonetel!
 {
   "eventType": "Agent",
   "eventTime": "2025-10-18 17:07:43",
-  "username": "kalapurna_ghee",
+  "username": "sadharmik_co",
   "data": {
     "action": "incall",
     "agentUniqeId": 279820,
@@ -100,7 +100,7 @@ The real-time webhook system is now live and receiving events from Ozonetel!
 
 ```env
 ✅ OZONETEL_API_KEY=KKde941153250ded860f294c283d3c70eb
-✅ OZONETEL_USERNAME=kalapurna_ghee
+✅ OZONETEL_USERNAME=sadharmik_co
 ✅ OZONETEL_DOMAIN=in1-ccaas-api.ozonetel.com
 ✅ OZONETEL_SUBSCRIPTION_DOMAIN=subscription.ozonetel.com
 ✅ OZONETEL_KOOKOO_ID=OZNTLWA:917770008880
@@ -137,7 +137,7 @@ ALTER TABLE live_calls ADD CONSTRAINT live_calls_call_id_unique UNIQUE (call_id)
 ### Make a Test Call:
 1. Call your Ozonetel number
 2. Watch Vercel logs at `/api/webhooks/ozonetel/realtime`
-3. Check dashboard at `https://crm.kalapurna.in/dashboard/support`
+3. Check dashboard at `https://crm.sadharmikandcompany.com/dashboard/support`
 
 ### Expected Behavior:
 - ✅ Orange "LIVE CALL RINGING!" alert appears within 3 seconds
@@ -149,7 +149,7 @@ ALTER TABLE live_calls ADD CONSTRAINT live_calls_call_id_unique UNIQUE (call_id)
 
 ### Check Current Subscriptions:
 ```bash
-curl https://crm.kalapurna.in/api/ozonetel/subscribe
+curl https://crm.sadharmikandcompany.com/api/ozonetel/subscribe
 ```
 
 Expected response:
@@ -157,15 +157,15 @@ Expected response:
 {
   "success": true,
   "subscriptions": {
-    "agentEventsURL": "https://crm.kalapurna.in/api/webhooks/ozonetel/realtime",
-    "callEventsURL": "https://crm.kalapurna.in/api/webhooks/ozonetel/realtime"
+    "agentEventsURL": "https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime",
+    "callEventsURL": "https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime"
   }
 }
 ```
 
 ### Re-register Webhooks (if needed):
 ```bash
-curl -X POST https://crm.kalapurna.in/api/ozonetel/subscribe \
+curl -X POST https://crm.sadharmikandcompany.com/api/ozonetel/subscribe \
   -H "Content-Type: application/json" \
   -d '{"eventTypes": ["Call", "Agent"]}'
 ```

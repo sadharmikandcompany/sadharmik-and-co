@@ -1410,7 +1410,7 @@ FOR INSERT WITH CHECK (
 
 ## License & Credits
 
-**Project:** Kalapurna Supply Chain Management System
+**Project:** Sadharmik & Company Supply Chain Management System
 **Module:** Multi-Warehouse Stock Management
 **Built with:** Next.js, Supabase, shadcn/ui
 **Date:** November 2025

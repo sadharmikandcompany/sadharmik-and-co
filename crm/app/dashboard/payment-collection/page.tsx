@@ -125,7 +125,7 @@ export default function PaymentCollectionPage() {
     const phone = (payment.whatsapp_number || payment.mobile_primary).replace(/\D/g, "")
     const phoneWithCountry = phone.startsWith("91") ? phone : `91${phone}`
     const message = encodeURIComponent(
-      `Namaste ${payment.customer_name} ji,\n\nThis is a reminder from Kalapurna. Your payment of ₹${payment.balance_amount.toFixed(2)} for order ${payment.order_number} is still pending.\n\nIf you have already made the payment, please confirm.\n\nThank you!`
+      `Namaste ${payment.customer_name} ji,\n\nThis is a reminder from Sadharmik & Company. Your payment of ₹${payment.balance_amount.toFixed(2)} for order ${payment.order_number} is still pending.\n\nIf you have already made the payment, please confirm.\n\nThank you!`
     )
     return `https://wa.me/${phoneWithCountry}?text=${message}`
   }
@@ -134,7 +134,7 @@ export default function PaymentCollectionPage() {
     const phone = (customer.whatsapp_number || customer.mobile_primary).replace(/\D/g, "")
     const phoneWithCountry = phone.startsWith("91") ? phone : `91${phone}`
     const message = encodeURIComponent(
-      `Namaste ${customer.customer_name} ji,\n\nThis is a reminder from Kalapurna. Your total outstanding payment of ₹${customer.total_balance.toFixed(2)} is still pending.\n\nIf you have already made the payment, please confirm.\n\nThank you!`
+      `Namaste ${customer.customer_name} ji,\n\nThis is a reminder from Sadharmik & Company. Your total outstanding payment of ₹${customer.total_balance.toFixed(2)} is still pending.\n\nIf you have already made the payment, please confirm.\n\nThank you!`
     )
     return `https://wa.me/${phoneWithCountry}?text=${message}`
   }

@@ -24,41 +24,41 @@ interface CompanyInfo {
   branch: string;
 }
 
-// The factory (Kalapurna Private Limited, Gujarat) is the actual seller on
-// every "Order from Factory" invoice — never the buying distributor, even
-// when that distributor's own serviceable_pincodes happen to match the
-// shipping pincode. Details verified against a real Tally sales invoice
-// (KP-190/2026-27); bank details are the factory's own HDFC account.
+// TODO(manufacturing-unit phase): this used to be the previous business's
+// real Gujarat factory (its own GST/bank details, since removed). Sadharmik
+// & Company doesn't have a separate factory entity yet — replace this with
+// real details once that's set up. Until then it mirrors DEFAULT_COMPANY_INFO
+// so "Order from Factory" invoices don't print blank/wrong seller info.
 export const FACTORY_COMPANY_INFO: CompanyInfo = {
-  name: 'Kalapurna Private Limited',
-  address: 'Plot No. 20, Survey No. 495, Bhuj Nagor Road, Opp. Kotwal Oil Mill, Near Railway Crossing',
-  city: 'Bhuj-Kuchchh',
-  pincode: '',
-  phone: '',
-  email: 'kalapurnapvtlimited@gmail.com',
-  gst: '24AALCK8835H1Z6',
-  state: '24-Gujarat',
-  bankName: 'HDFC Bank',
-  accountNumber: '99907770008880',
-  ifscCode: 'HDFC0001118',
+  name: 'Sadharmik & Company',
+  address: 'G2, Mahadev Nagar - A CHS Ltd, Nr Bank of Maharashtra, B P Road, Nr Mahadev Mandir',
+  city: 'Bhayandar (East)',
+  pincode: '101105',
+  phone: '8777600400',
+  email: 'info@sadharmikandcompany.com',
+  gst: '',
+  state: '27-Maharashtra',
+  bankName: '',
+  accountNumber: '',
+  ifscCode: '',
   branch: '',
 };
 
 // Default company details (can be moved to config)
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  name: 'Rajlok Enterprises',
-  address: 'Shop001 Kalapurna Ghee Near zakhadei Mandir, GOkhale Road',
-  city: 'Dadar West',
-  pincode: '400028',
-  phone: '8097474222',
-  email: 'rajlokenterprises151@gmail.com',
-  gst: '27DABPG1499H1ZM',
+  name: 'Sadharmik & Company',
+  address: 'G2, Mahadev Nagar - A CHS Ltd, Nr Bank of Maharashtra, B P Road, Nr Mahadev Mandir',
+  city: 'Bhayandar (East)',
+  pincode: '101105',
+  phone: '8777600400',
+  email: 'info@sadharmikandcompany.com',
+  gst: '',
   state: '27-Maharashtra',
-  // Bank details
-  bankName: 'Saraswat bank',
-  accountNumber: '610000000056857',
-  ifscCode: 'SRCB0000471',
-  branch: 'Portuguese Church'
+  // Bank details intentionally left blank for now.
+  bankName: '',
+  accountNumber: '',
+  ifscCode: '',
+  branch: ''
 };
 
 interface OrderInvoiceData {

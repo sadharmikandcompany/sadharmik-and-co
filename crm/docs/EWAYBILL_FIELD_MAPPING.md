@@ -390,7 +390,7 @@ const ewaybill = {
   docNo: 'INV-GST-001',
   docDate: '31/10/2025',
   fromGstin: '29AABCU9603R1ZM', // Company GSTIN
-  fromTrdName: 'Kalapurna',
+  fromTrdName: 'Sadharmik & Company',
   // ... from address
   toGstin: '27AABCU9603R1ZM',
   toTrdName: 'ABC Corp',

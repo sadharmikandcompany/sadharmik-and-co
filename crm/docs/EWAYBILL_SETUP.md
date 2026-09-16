@@ -425,6 +425,6 @@ https://api.mastergst.com/ewaybillapi/v1.03
 
 ## License
 
-This integration is part of the Kalapurna Supply Chain Management System.
+This integration is part of the Sadharmik & Company Supply Chain Management System.
 
 For any questions or issues, contact the development team.
