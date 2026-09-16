@@ -56,9 +56,12 @@
   .brand small{display:block;font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-2);}
 
   /* hero */
-  .hero{padding:44px 0 30px;text-align:center;background:var(--royal-deep);color:var(--cream);}
-  .hero h1{font-size:2.2rem;color:var(--ivory);margin-top:10px;}
-  .hero h1 em{color:var(--gold-2);font-style:italic;}
+  .hero{padding:46px 0 36px;text-align:center;color:var(--ink);
+    background-color:var(--paper);
+    background-image:radial-gradient(rgba(13,42,87,.14) 1px, transparent 1px);
+    background-size:18px 18px;}
+  .hero h1{font-size:2.15rem;color:var(--royal);margin-top:10px;}
+  .hero h1 em{color:var(--gold-soft);font-style:italic;}
 
   /* connect row */
   .connect{padding:26px 0 6px;text-align:center;}
@@ -77,17 +80,21 @@
   .social-row .item{width:70px;}
   .soon{font-size:.6rem;letter-spacing:.06em;color:var(--gold-soft);display:block;}
 
-  /* tiles */
-  .tiles{padding:34px 0 10px;}
-  .tile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
-  .tile{background:var(--paper-2);border:1px solid rgba(12,31,68,.10);border-radius:16px;
-    padding:22px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;
-    transition:transform .25s var(--ease),box-shadow .25s var(--ease);}
-  .tile:hover{transform:translateY(-4px);box-shadow:0 20px 36px -20px rgba(12,31,68,.3);}
-  .tile .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;
-    background:linear-gradient(160deg,var(--royal-soft),var(--royal));color:var(--gold-2);}
-  .tile .ic svg{width:22px;height:22px;}
-  .tile span{font-size:.82rem;font-weight:600;color:var(--ink);}
+  /* reviews */
+  .reviews{padding:36px 0 10px;}
+  .reviews > .wrap > .eyebrow{display:block;text-align:center;margin-bottom:16px;}
+  .review-card{background:var(--paper-2);border:1px solid rgba(12,31,68,.10);border-radius:20px;
+    padding:34px 24px;text-align:center;box-shadow:0 24px 46px -26px rgba(12,31,68,.28);}
+  .stars{display:flex;justify-content:center;gap:6px;margin-bottom:16px;}
+  .stars svg{width:26px;height:26px;color:var(--gold);}
+  .rating-text{font-size:.98rem;color:var(--ink-soft);margin-bottom:22px;}
+  .rating-text strong{font-family:"Cormorant Garamond",serif;font-size:1.7rem;color:var(--royal);margin-right:5px;}
+  .btn-review{display:inline-flex;align-items:center;gap:8px;
+    background:linear-gradient(160deg,var(--gold-2),var(--gold) 70%);
+    color:#23170a;font-weight:700;font-size:.92rem;padding:.9em 1.9em;border-radius:999px;
+    box-shadow:0 14px 30px -12px rgba(201,162,75,.6);transition:transform .25s var(--ease),box-shadow .25s var(--ease);}
+  .btn-review:hover{transform:translateY(-3px);box-shadow:0 20px 40px -12px rgba(201,162,75,.7);}
+  .btn-review svg{width:18px;height:18px;}
 
   /* divider */
   .divider{text-align:center;padding:36px 0 6px;}
@@ -183,28 +190,21 @@
   </div>
 </section>
 
-<section class="tiles">
+<section class="reviews">
   <div class="wrap">
-    <div class="tile-grid">
-      <a class="tile" href="#">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
-        <span>Product Photos</span>
-      </a>
-      <a class="tile" href="#">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6M10 2v6.5L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 8.5V2"/></svg></span>
-        <span>Lab Test</span>
-      </a>
-      <a class="tile" href="#">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M9 13.5 7 22l5-3 5 3-2-8.5"/></svg></span>
-        <span>Licenses</span>
-      </a>
-      <a class="tile" href="#">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-        <span>Shop Locator</span>
-      </a>
-      <a class="tile" href="https://g.page/r/Ca00VKksCiVWECE/review" target="_blank" rel="noopener" style="grid-column:1 / -1;max-width:calc(50% - 7px);margin:0 auto;">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg></span>
-        <span>Reviews</span>
+    <span class="eyebrow">Customer Love</span>
+    <div class="review-card">
+      <div class="stars" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+      </div>
+      <p class="rating-text">Loved by our customers — see what they say on Google</p>
+      <a class="btn-review" href="https://g.page/r/Ca00VKksCiVWECE/review" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>
+        Rate Us on Google
       </a>
     </div>
   </div>
