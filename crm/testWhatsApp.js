@@ -74,7 +74,7 @@ async function testDirectTemplateMessage() {
   // Parameters for the template
   const parameters = {
     "1": "Test Customer",  // {{1}} - Customer name
-    "2": "https://crm.sadharmikandcompany.com/dashboard",  // {{2}} - Link
+    "2": "https://sadharmikandcompany.com/dashboard",  // {{2}} - Link
     "3": "ABC123"          // {{3}} - Code
   };
 

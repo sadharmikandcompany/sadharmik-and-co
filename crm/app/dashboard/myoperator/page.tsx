@@ -850,7 +850,7 @@ export default function MyOperatorPage() {
       ? order.invoice_number_gst
       : order.invoice_number_non_gst;
 
-    const orderUrl = `https://crm.sadharmikandcompany.com/order/${order.order_number}`;
+    const orderUrl = `https://sadharmikandcompany.com/order/${order.order_number}`;
 
     const message = `*INVOICE - ${invoiceNumber || order.order_number}*\n\n` +
       `Dear ${customerData.customer.first_name} ${customerData.customer.last_name},\n\n` +
@@ -1278,7 +1278,7 @@ export default function MyOperatorPage() {
                               {customerData.customer.is_vip && (
                                 <Badge className="gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400">
                                   <span className="size-1.5 rounded-full bg-amber-500" />
-                                  VIP
+                                  Sd
                                 </Badge>
                               )}
                               {customerData.customer.is_defaulter && (
@@ -1413,7 +1413,7 @@ export default function MyOperatorPage() {
                         </div>
                         {customerData.customer.vip_number && (
                           <div className="space-y-0.5">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">VIP Number</p>
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Sd Number</p>
                             <Badge variant="outline" className="font-mono">
                               {customerData.customer.vip_number}
                             </Badge>

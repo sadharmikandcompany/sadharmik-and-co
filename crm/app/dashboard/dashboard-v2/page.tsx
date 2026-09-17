@@ -1092,7 +1092,7 @@ export default function DashboardV2Page() {
               color: "text-emerald-600",
             },
             {
-              label: "VIP",
+              label: "Sd",
               value: formatNumber(stats.vipCustomers),
               color: "text-amber-600",
             },

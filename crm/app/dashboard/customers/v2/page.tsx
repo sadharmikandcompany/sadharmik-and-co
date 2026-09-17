@@ -628,12 +628,12 @@ function CustomerForm({
                 onChange={(e) => setFormData({ ...formData, is_vip: e.target.checked })}
                 className="h-4 w-4"
               />
-              <span className="text-sm">VIP Customer</span>
+              <span className="text-sm">Sd Customer</span>
             </label>
             {formData.is_vip && (
               <div className="flex-1 max-w-xs">
                 <Input
-                  placeholder="VIP Number"
+                  placeholder="Sd Number"
                   value={formData.vip_number || ""}
                   onChange={(e) => setFormData({ ...formData, vip_number: e.target.value || null })}
                   className="h-9"
@@ -823,7 +823,7 @@ export default function CustomersV2Page() {
         )
       }
 
-      // Server-side VIP filter
+      // Server-side Sd filter
       if (filterVip === "vip") {
         query = query.eq("is_vip", true)
       } else if (filterVip === "non-vip") {
@@ -1611,8 +1611,8 @@ export default function CustomersV2Page() {
         "Company": customer.company_name || "",
         "GST Number": customer.gst_number || "",
         "PAN Number": customer.pan_card_number || "",
-        "VIP": customer.is_vip ? "Yes" : "No",
-        "VIP Number": customer.vip_number || "",
+        "Sd": customer.is_vip ? "Yes" : "No",
+        "Sd Number": customer.vip_number || "",
         "Defaulter": customer.is_defaulter ? "Yes" : "No",
         "Mandir": customer.is_mandir ? "Yes" : "No",
         "Active": customer.is_active ? "Yes" : "No",
@@ -1650,7 +1650,7 @@ export default function CustomersV2Page() {
 
   const hasActiveFilters = filterVip !== "all" || filterDefaulter !== "all" || filterMinSpend !== "" || filterMaxSpend !== "" || searchQuery !== "" || filterRole !== "customer"
 
-  // Customer-only filters (VIP / Defaulter / spend) only apply when viewing customers
+  // Customer-only filters (Sd / Defaulter / spend) only apply when viewing customers
   const showCustomerFilters = filterRole === "all" || filterRole === "customer"
 
   const filteredCustomers = customers
@@ -1691,8 +1691,8 @@ export default function CustomersV2Page() {
     "Company": customer.company_name || "",
     "GST Number": customer.gst_number || "",
     "PAN Number": customer.pan_card_number || "",
-    "VIP": customer.is_vip ? "Yes" : "No",
-    "VIP Number": customer.vip_number || "",
+    "Sd": customer.is_vip ? "Yes" : "No",
+    "Sd Number": customer.vip_number || "",
     "Defaulter": customer.is_defaulter ? "Yes" : "No",
     "Mandir": customer.is_mandir ? "Yes" : "No",
     "Active": customer.is_active ? "Yes" : "No",
@@ -1916,7 +1916,7 @@ export default function CustomersV2Page() {
             <div className="relative">
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Search by name, phone, email, VIP #, address..."
+                placeholder="Search by name, phone, email, Sd #, address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-9 pl-8 pr-8"
@@ -1934,7 +1934,7 @@ export default function CustomersV2Page() {
 
             {/* Filter bar: two tidy rows */}
             <div className="flex flex-col gap-2">
-              {/* Row 1: Role / VIP / Defaulter */}
+              {/* Row 1: Role / Sd / Defaulter */}
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={filterRole} onValueChange={setFilterRole}>
                   <SelectTrigger className="h-8 min-w-[130px] flex-1 text-xs">
@@ -1954,12 +1954,12 @@ export default function CustomersV2Page() {
                   <>
                     <Select value={filterVip} onValueChange={setFilterVip}>
                       <SelectTrigger className="h-8 min-w-[120px] flex-1 text-xs">
-                        <SelectValue placeholder="VIP" />
+                        <SelectValue placeholder="Sd" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Customers</SelectItem>
-                        <SelectItem value="vip">VIP Only</SelectItem>
-                        <SelectItem value="non-vip">Non-VIP</SelectItem>
+                        <SelectItem value="vip">Sd Only</SelectItem>
+                        <SelectItem value="non-vip">Non-Sd</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -2092,7 +2092,7 @@ export default function CustomersV2Page() {
                               </span>
                             )}
                             {entity.is_vip && (
-                              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 shrink-0">VIP</span>
+                              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 shrink-0">Sd</span>
                             )}
                             {entity.is_defaulter && (
                               <span className="text-[9px] font-bold text-red-600 dark:text-red-400 shrink-0">DFL</span>
@@ -2183,7 +2183,7 @@ export default function CustomersV2Page() {
                     >
                       <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
-                    {selectedCustomer.is_vip && <Badge variant="default">VIP</Badge>}
+                    {selectedCustomer.is_vip && <Badge variant="default">Sd</Badge>}
                     {selectedCustomer.is_defaulter && <Badge variant="destructive">Defaulter</Badge>}
                     {selectedCustomer.is_mandir && <Badge variant="secondary">Mandir</Badge>}
                     {!selectedCustomer.is_active && <Badge variant="outline">Inactive</Badge>}

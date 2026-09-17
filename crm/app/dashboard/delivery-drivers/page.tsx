@@ -878,7 +878,7 @@ export default function MyDeliveriesPage() {
                           {assignment.customer_name}
                           {assignment.customer_vip_number && (
                             <Badge variant="outline" className="text-xs font-mono ml-1">
-                              VIP {assignment.customer_vip_number}
+                              Sd {assignment.customer_vip_number}
                             </Badge>
                           )}
                         </div>
@@ -1013,7 +1013,7 @@ export default function MyDeliveriesPage() {
                               <span className="truncate">{assignment.customer_name}</span>
                               {assignment.customer_vip_number && (
                                 <Badge variant="outline" className="text-xs font-mono ml-1">
-                                  VIP {assignment.customer_vip_number}
+                                  Sd {assignment.customer_vip_number}
                                 </Badge>
                               )}
                             </div>
@@ -1183,7 +1183,7 @@ export default function MyDeliveriesPage() {
                       {selectedAssignment.customer_name}
                       {selectedAssignment.customer_vip_number && (
                         <Badge variant="outline" className="text-xs font-mono">
-                          VIP {selectedAssignment.customer_vip_number}
+                          Sd {selectedAssignment.customer_vip_number}
                         </Badge>
                       )}
                     </div>

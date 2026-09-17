@@ -943,7 +943,7 @@ export default function DashboardPage() {
                 </CardAction>
               </CardHeader>
               <CardContent className="text-xs text-muted-foreground">
-                {stats.vipCustomers} VIP customers
+                {stats.vipCustomers} Sd customers
               </CardContent>
             </Card>
           </Link>

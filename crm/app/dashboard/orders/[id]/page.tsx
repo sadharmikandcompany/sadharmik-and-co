@@ -541,7 +541,7 @@ export default function OrderDetailPage() {
               )}
               <div className="flex gap-1 mt-2">
                 {customer?.is_vip && (
-                  <Badge variant="default" className="text-xs">VIP</Badge>
+                  <Badge variant="default" className="text-xs">Sd</Badge>
                 )}
                 {customer?.is_mandir && (
                   <Badge variant="secondary" className="text-xs">Mandir</Badge>

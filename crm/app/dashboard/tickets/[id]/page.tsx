@@ -704,7 +704,7 @@ export default function TicketDetailPage() {
                     {customer.is_vip && (
                       <Badge className="gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400">
                         <Award className="h-3 w-3" />
-                        VIP {customer.vip_number}
+                        Sd {customer.vip_number}
                       </Badge>
                     )}
                   </div>

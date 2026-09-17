@@ -963,7 +963,7 @@ export default function POSPage() {
                         {selectedCustomer.is_vip && (
                           <Badge variant="default" className="h-4 px-1 text-[0.625rem] shrink-0">
                             <Award className="h-2.5 w-2.5 mr-0.5" />
-                            VIP
+                            Sd
                           </Badge>
                         )}
                       </div>
@@ -1068,7 +1068,7 @@ export default function POSPage() {
                       <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[500px] p-0" align="end">
                         <Command shouldFilter={false}>
                           <CommandInput
-                            placeholder="Search by name, phone, VIP number..."
+                            placeholder="Search by name, phone, Sd number..."
                             onValueChange={setCustomerSearchTerm}
                           />
                           <CommandList>
@@ -1108,7 +1108,7 @@ export default function POSPage() {
                                       {customer.is_vip && (
                                         <Badge variant="default" className="ml-auto text-xs">
                                           <Award className="h-3 w-3 mr-1" />
-                                          VIP {customer.vip_number}
+                                          Sd {customer.vip_number}
                                         </Badge>
                                       )}
                                     </div>
@@ -1264,7 +1264,7 @@ export default function POSPage() {
                         {selectedCustomer.is_vip && (
                           <Badge variant="default" className="h-4 px-1 text-[0.625rem] shrink-0">
                             <Award className="h-2.5 w-2.5 mr-0.5" />
-                            VIP
+                            Sd
                           </Badge>
                         )}
                       </div>

@@ -421,7 +421,7 @@ export default function CustomersPage() {
 
   const getNextVipNumber = async (): Promise<string> => {
     try {
-      // Fetch VIP numbers starting with "10" (10000-10999 range) - only ~252 records
+      // Fetch Sd numbers starting with "10" (10000-10999 range) - only ~252 records
       const { data: highVipData, error: highVipError } = await supabase
         .from("customers")
         .select("vip_number")
@@ -440,7 +440,7 @@ export default function CustomersPage() {
         }
       }
 
-      // Fallback: fetch VIP numbers starting with "9" (9000-9999 range)
+      // Fallback: fetch Sd numbers starting with "9" (9000-9999 range)
       const { data: fallbackData, error: fallbackError } = await supabase
         .from("customers")
         .select("vip_number")
@@ -448,7 +448,7 @@ export default function CustomersPage() {
         .like("vip_number", "9%")
 
       if (fallbackError) {
-        console.error("Error fetching VIP numbers:", fallbackError)
+        console.error("Error fetching Sd numbers:", fallbackError)
         throw fallbackError
       }
 
@@ -468,7 +468,7 @@ export default function CustomersPage() {
 
       return (vipNumbers[0] + 1).toString()
     } catch (error) {
-      console.error("Error generating VIP number:", error)
+      console.error("Error generating Sd number:", error)
       // Return a fallback number if there's an error
       return Date.now().toString().slice(-4)
     }
@@ -476,15 +476,15 @@ export default function CustomersPage() {
 
   const handleVipToggle = async (checked: boolean) => {
     if (checked && !formData.vip_number) {
-      // Auto-generate VIP number when VIP is checked and no VIP number exists
+      // Auto-generate Sd number when Sd is checked and no Sd number exists
       setGeneratingVipNumber(true)
       try {
         const nextVipNumber = await getNextVipNumber()
         setFormData({ ...formData, is_vip: true, vip_number: nextVipNumber })
-        toast.success(`VIP number ${nextVipNumber} assigned automatically`)
+        toast.success(`Sd number ${nextVipNumber} assigned automatically`)
       } catch (error) {
-        console.error("Error generating VIP number:", error)
-        toast.error("Failed to generate VIP number. Please enter manually.")
+        console.error("Error generating Sd number:", error)
+        toast.error("Failed to generate Sd number. Please enter manually.")
         setFormData({ ...formData, is_vip: true })
       } finally {
         setGeneratingVipNumber(false)
@@ -1153,7 +1153,7 @@ export default function CustomersPage() {
     'City': customer.shipping_city,
     'State': customer.shipping_state,
     'Pincode': customer.shipping_pincode,
-    'VIP': customer.is_vip ? 'Yes' : 'No',
+    'Sd': customer.is_vip ? 'Yes' : 'No',
     'Mandir': customer.is_mandir ? 'Yes' : 'No',
     'Defaulter': customer.is_defaulter ? 'Yes' : 'No',
     'Active': customer.is_active ? 'Yes' : 'No'
@@ -1166,7 +1166,7 @@ export default function CustomersPage() {
     { header: 'Phone', dataKey: 'Primary Mobile' },
     { header: 'Company', dataKey: 'Company' },
     { header: 'City', dataKey: 'City' },
-    { header: 'VIP', dataKey: 'VIP' },
+    { header: 'Sd', dataKey: 'Sd' },
     { header: 'Active', dataKey: 'Active' }
   ]
 
@@ -1232,7 +1232,7 @@ export default function CustomersPage() {
           <div className="mt-4 flex gap-4 items-center justify-between flex-wrap">
             <div className="relative max-w-sm">
               <Input
-                placeholder="Search by name, phone, email, VIP #, address..."
+                placeholder="Search by name, phone, email, Sd #, address..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pr-20"
@@ -1274,7 +1274,7 @@ export default function CustomersPage() {
                 onClick={() => setFilterVip(filterVip === true ? null : true)}
                 className="whitespace-nowrap"
               >
-                VIP
+                Sd
                 {filterVip === true && <span className="ml-1">✓</span>}
               </Button>
 
@@ -1317,7 +1317,7 @@ export default function CustomersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>VIP #</TableHead>
+                  <TableHead>Sd #</TableHead>
                   <TableHead>Contact Numbers</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1467,7 +1467,7 @@ export default function CustomersPage() {
                             {customer.is_active ? "Active" : "Inactive"}
                           </Badge>
                           {customer.is_vip && (
-                            <Badge variant="default">VIP</Badge>
+                            <Badge variant="default">Sd</Badge>
                           )}
                           {customer.is_mandir && (
                             <Badge variant="outline">Mandir</Badge>
@@ -2098,21 +2098,21 @@ export default function CustomersPage() {
                       disabled={generatingVipNumber}
                       className="h-4 w-4"
                     />
-                    <span className="text-sm">VIP Customer</span>
+                    <span className="text-sm">Sd Customer</span>
                     {generatingVipNumber && (
-                      <span className="text-xs text-muted-foreground">(Generating VIP number...)</span>
+                      <span className="text-xs text-muted-foreground">(Generating Sd number...)</span>
                     )}
                   </label>
                   {formData.is_vip && (
                     <div className="flex-1 max-w-xs">
                       <Input
-                        placeholder="VIP Number (auto-generated)"
+                        placeholder="Sd Number (auto-generated)"
                         value={formData.vip_number}
                         onChange={(e) =>
                           setFormData({ ...formData, vip_number: e.target.value })
                         }
                         className="h-9"
-                        title="VIP number is auto-generated. You can edit it if needed."
+                        title="Sd number is auto-generated. You can edit it if needed."
                       />
                     </div>
                   )}

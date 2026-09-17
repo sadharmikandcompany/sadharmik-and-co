@@ -1865,7 +1865,7 @@ export default function ProductsPage() {
                               </span>
                               {sale.customer_is_vip && (
                                 <Badge variant="outline" className="ml-1 text-amber-600 border-amber-600 text-xs">
-                                  VIP{sale.customer_vip_number ? ` #${sale.customer_vip_number}` : ""}
+                                  Sd{sale.customer_vip_number ? ` #${sale.customer_vip_number}` : ""}
                                 </Badge>
                               )}
                             </div>

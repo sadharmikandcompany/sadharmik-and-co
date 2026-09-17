@@ -840,7 +840,7 @@ export default function SupportTicketsPage() {
                           {getSelectedCustomer()?.is_vip && (
                             <Badge variant="default" className="ml-2">
                               <Award className="h-3 w-3 mr-1" />
-                              VIP
+                              Sd
                             </Badge>
                           )}
                         </div>
@@ -853,7 +853,7 @@ export default function SupportTicketsPage() {
                   <PopoverContent className="w-[500px] p-0" align="start">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Search by name, phone, email, VIP number..."
+                        placeholder="Search by name, phone, email, Sd number..."
                         onValueChange={(value) => {
                           setCustomerSearchTerm(value)
                         }}
@@ -881,7 +881,7 @@ export default function SupportTicketsPage() {
                                   {customer.is_vip && (
                                     <Badge variant="default" className="ml-auto">
                                       <Award className="h-3 w-3 mr-1" />
-                                      VIP {customer.vip_number?.trim()}
+                                      Sd {customer.vip_number?.trim()}
                                     </Badge>
                                   )}
                                 </div>

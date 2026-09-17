@@ -111,7 +111,7 @@ export function generateDeliveryRoutePDF(data: DeliveryRouteData) {
     }
     const phoneDisplay = phoneNumbers.filter(Boolean).join("\n")
 
-    // Build customer name with VIP number if available
+    // Build customer name with Sd number if available
     const customerNameDisplay = order.customerVipNumber
       ? `${order.customerName} (${order.customerVipNumber})`
       : order.customerName

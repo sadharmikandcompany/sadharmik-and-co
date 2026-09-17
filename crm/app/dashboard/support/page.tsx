@@ -604,23 +604,23 @@ export default function SupportDashboardPage() {
 
   const getNextVipNumber = async (): Promise<string> => {
     try {
-      // Fetch all VIP numbers from the database
+      // Fetch all Sd numbers from the database
       const { data, error } = await supabase
         .from("customers")
         .select("vip_number")
         .not("vip_number", "is", null);
 
       if (error) {
-        console.error("Error fetching VIP numbers:", error);
+        console.error("Error fetching Sd numbers:", error);
         throw error;
       }
 
       if (!data || data.length === 0) {
-        // No VIP numbers exist, start from 1000
+        // No Sd numbers exist, start from 1000
         return "1000";
       }
 
-      // Convert all VIP numbers to integers and find the highest
+      // Convert all Sd numbers to integers and find the highest
       const vipNumbers = data
         .map(item => parseInt(item.vip_number, 10))
         .filter(num => !isNaN(num));
@@ -634,7 +634,7 @@ export default function SupportDashboardPage() {
       const nextNumber = highestVipNumber + 1;
       return nextNumber.toString();
     } catch (error) {
-      console.error("Error generating VIP number:", error);
+      console.error("Error generating Sd number:", error);
       // Return a fallback number if there's an error
       return Date.now().toString().slice(-4);
     }
@@ -642,15 +642,15 @@ export default function SupportDashboardPage() {
 
   const handleVipToggle = async (checked: boolean) => {
     if (checked && !formData.vip_number) {
-      // Auto-generate VIP number when VIP is checked and no VIP number exists
+      // Auto-generate Sd number when Sd is checked and no Sd number exists
       setGeneratingVipNumber(true);
       try {
         const nextVipNumber = await getNextVipNumber();
         setFormData({ ...formData, is_vip: true, vip_number: nextVipNumber });
-        toast.success(`VIP number ${nextVipNumber} assigned automatically`);
+        toast.success(`Sd number ${nextVipNumber} assigned automatically`);
       } catch (error) {
-        console.error("Error generating VIP number:", error);
-        toast.error("Failed to generate VIP number. Please enter manually.");
+        console.error("Error generating Sd number:", error);
+        toast.error("Failed to generate Sd number. Please enter manually.");
         setFormData({ ...formData, is_vip: true });
       } finally {
         setGeneratingVipNumber(false);
@@ -1167,7 +1167,7 @@ export default function SupportDashboardPage() {
       });
 
       // Construct the order URL
-      const orderUrl = `https://crm.sadharmikandcompany.com/order/${order.order_number}`;
+      const orderUrl = `https://sadharmikandcompany.com/order/${order.order_number}`;
 
       const message = `*INVOICE - ${invoiceNumber || order.order_number}*\n\n` +
         `Dear ${customerData.customer.first_name} ${customerData.customer.last_name},\n\n` +
@@ -1868,7 +1868,7 @@ export default function SupportDashboardPage() {
             <Search className="h-4 w-4 text-muted-foreground" />
             Customer Lookup
           </CardTitle>
-          <CardDescription>Search by phone, name, VIP number, or address</CardDescription>
+          <CardDescription>Search by phone, name, Sd number, or address</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="search-dropdown-container relative">
@@ -1878,7 +1878,7 @@ export default function SupportDashboardPage() {
                   <Search className="h-4 w-4" />
                 </InputGroupAddon>
                 <InputGroupInput
-                  placeholder="Search by phone, name, VIP number, address..."
+                  placeholder="Search by phone, name, Sd number, address..."
                   value={phoneNumber}
                   onChange={(e) => {
                     setPhoneNumber(e.target.value);
@@ -1960,7 +1960,7 @@ export default function SupportDashboardPage() {
                               {customer.first_name} {customer.last_name}
                             </span>
                             {customer.is_vip && (
-                              <Badge variant="secondary" className="text-[10px]">VIP</Badge>
+                              <Badge variant="secondary" className="text-[10px]">Sd</Badge>
                             )}
                             {customer.vip_number && (
                               <span className="font-mono text-[10px] text-muted-foreground">
@@ -2081,7 +2081,7 @@ export default function SupportDashboardPage() {
                     </>
                   )}
                   {customerData.customer.is_vip && (
-                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">VIP</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">Sd</Badge>
                   )}
                   {customerData.customer.is_defaulter && (
                     <Badge className="bg-red-100 text-red-800 text-xs">Defaulter</Badge>
@@ -2250,7 +2250,7 @@ export default function SupportDashboardPage() {
                 </div>
                 {customerData.customer.vip_number && (
                   <div>
-                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">VIP Number</p>
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">Sd Number</p>
                     <Badge variant="outline" className="font-mono text-base sm:text-lg mt-1">
                       {customerData.customer.vip_number}
                     </Badge>
@@ -3309,19 +3309,19 @@ export default function SupportDashboardPage() {
                       disabled={generatingVipNumber}
                       className="h-4 w-4"
                     />
-                    <span className="text-sm">VIP Customer</span>
+                    <span className="text-sm">Sd Customer</span>
                     {generatingVipNumber && (
-                      <span className="text-xs text-muted-foreground">(Generating VIP number...)</span>
+                      <span className="text-xs text-muted-foreground">(Generating Sd number...)</span>
                     )}
                   </label>
                   {formData.is_vip && (
                     <div className="flex-1 max-w-xs">
                       <Input
-                        placeholder="VIP Number (auto-generated)"
+                        placeholder="Sd Number (auto-generated)"
                         value={formData.vip_number}
                         onChange={(e) => setFormData({ ...formData, vip_number: e.target.value })}
                         className="h-9"
-                        title="VIP number is auto-generated. You can edit it if needed."
+                        title="Sd number is auto-generated. You can edit it if needed."
                       />
                     </div>
                   )}

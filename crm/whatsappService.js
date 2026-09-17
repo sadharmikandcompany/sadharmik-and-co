@@ -158,7 +158,7 @@ class WhatsAppService {
     ).join(', ') || '';
 
     // Construct the full order URL
-    const orderUrl = `https://crm.sadharmikandcompany.com/order/${orderData.order_number}`;
+    const orderUrl = `https://sadharmikandcompany.com/order/${orderData.order_number}`;
 
     // Extract OTP from order number (last 3 digits)
     // Order number format: ORD-1762784788015

@@ -172,7 +172,7 @@ function generateReceiptData(orderData: ThermalPrintRequest["orders"][0]): strin
 
   const customerName = `${customer.first_name} ${customer.last_name}`
   if (customer.vip_number) {
-    receipt += `${customerName} (VIP: ${customer.vip_number})\n`
+    receipt += `${customerName} (Sd: ${customer.vip_number})\n`
   } else {
     receipt += `${customerName}\n`
   }

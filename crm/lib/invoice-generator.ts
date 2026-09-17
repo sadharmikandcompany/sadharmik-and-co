@@ -938,7 +938,7 @@ export async function generateThermalReceipt(data: OrderInvoiceData, customerNam
   const vipNumber = data.customer.vip_number;
 
   if (vipNumber) {
-    doc.text(`${custName} (VIP: ${vipNumber})`, margin, yPos);
+    doc.text(`${custName} (Sd: ${vipNumber})`, margin, yPos);
   } else {
     doc.text(custName, margin, yPos);
   }
@@ -1336,7 +1336,7 @@ export async function generateBulkThermalReceipts(invoicesData: Array<{ data: Or
     const vipNumber = data.customer.vip_number;
 
     if (vipNumber) {
-      doc.text(`${custName} (VIP: ${vipNumber})`, margin, yPos);
+      doc.text(`${custName} (Sd: ${vipNumber})`, margin, yPos);
     } else {
       doc.text(custName, margin, yPos);
     }
@@ -1704,7 +1704,7 @@ export function generateCustomerLedger(data: CustomerLedgerData): void {
   }
 
   if (data.customer.vip_number) {
-    customerDetails += `\nVIP #: ${data.customer.vip_number}`;
+    customerDetails += `\nSd #: ${data.customer.vip_number}`;
   }
 
   autoTable(doc, {

@@ -783,7 +783,7 @@ export function OrdersTable({
     "Created By": order.created_by_agent_name || "",
     Customer: order.customer_name || "Unknown",
     Phone: order.customer_phone || "",
-    "VIP Number": order.customer_vip_number || "",
+    "Sd Number": order.customer_vip_number || "",
     Address: order.customer_full_address || "",
     "Shipping Address": order.shipping_full_address || `${order.shipping_city}, ${order.shipping_state}`,
     Pincode: order.shipping_pincode || "",
@@ -802,7 +802,7 @@ export function OrdersTable({
   const exportColumns = [
     { header: "Order #", dataKey: "Order Number" }, { header: "Source", dataKey: "Source" },
     { header: "Customer", dataKey: "Customer" }, { header: "Phone", dataKey: "Phone" },
-    { header: "VIP", dataKey: "VIP Number" }, { header: "Address", dataKey: "Address" },
+    { header: "Sd", dataKey: "Sd Number" }, { header: "Address", dataKey: "Address" },
     { header: "Shipping", dataKey: "Shipping Address" }, { header: "Pincode", dataKey: "Pincode" },
     { header: "Distributor", dataKey: "Distributor" }, { header: "Items", dataKey: "Items" },
     { header: "Qty", dataKey: "Total Qty" }, { header: "Subtotal", dataKey: "Subtotal" },

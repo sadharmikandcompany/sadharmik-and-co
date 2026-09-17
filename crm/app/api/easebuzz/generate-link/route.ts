@@ -14,7 +14,7 @@ const EASEBUZZ_PAY_URL = EASEBUZZ_ENV === 'prod'
   : 'https://testpay.easebuzz.in/pay';
 
 // Callback URL for CRM payments (use CRM domain)
-const CALLBACK_BASE_URL = process.env.EASEBUZZ_CALLBACK_URL || 'https://crm.sadharmikandcompany.com';
+const CALLBACK_BASE_URL = process.env.EASEBUZZ_CALLBACK_URL || 'https://sadharmikandcompany.com';
 
 interface GeneratePaymentLinkRequest {
   orderId: string;

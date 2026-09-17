@@ -2163,7 +2163,7 @@ export default function ReconciliationPage() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       className="pl-8"
-                      placeholder="Order, invoice, name, phone, VIP..."
+                      placeholder="Order, invoice, name, phone, Sd..."
                       value={txnOrderSearch}
                       onChange={e => { setTxnOrderSearch(e.target.value); searchOrders(e.target.value) }}
                     />
@@ -2276,7 +2276,7 @@ export default function ReconciliationPage() {
                                 {order.customer_name ? (
                                   <div>
                                     <div className="text-xs font-medium truncate max-w-[140px]">{order.customer_name}</div>
-                                    <div className="text-[10px] text-muted-foreground">{order.customer_phone}{order.customer_vip ? ` | VIP: ${order.customer_vip}` : ""}</div>
+                                    <div className="text-[10px] text-muted-foreground">{order.customer_phone}{order.customer_vip ? ` | Sd: ${order.customer_vip}` : ""}</div>
                                   </div>
                                 ) : <span className="text-xs text-muted-foreground">-</span>}
                               </TableCell>

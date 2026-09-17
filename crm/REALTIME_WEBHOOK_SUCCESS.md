@@ -10,8 +10,8 @@ The real-time webhook system is now live and receiving events from Ozonetel!
 - **Endpoint:** `https://subscription.ozonetel.com/events/subscribe`
 - **Status:** Successfully registered
 - **Subscriptions Active:**
-  - Call Events: `https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
-  - Agent Events: `https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
+  - Call Events: `https://sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
+  - Agent Events: `https://sadharmikandcompany.com/api/webhooks/ozonetel/realtime`
 
 ### 2. Real-Time Webhook Receiving Events ✅
 - **Endpoint:** `/api/webhooks/ozonetel/realtime`
@@ -137,7 +137,7 @@ ALTER TABLE live_calls ADD CONSTRAINT live_calls_call_id_unique UNIQUE (call_id)
 ### Make a Test Call:
 1. Call your Ozonetel number
 2. Watch Vercel logs at `/api/webhooks/ozonetel/realtime`
-3. Check dashboard at `https://crm.sadharmikandcompany.com/dashboard/support`
+3. Check dashboard at `https://sadharmikandcompany.com/dashboard/support`
 
 ### Expected Behavior:
 - ✅ Orange "LIVE CALL RINGING!" alert appears within 3 seconds
@@ -149,7 +149,7 @@ ALTER TABLE live_calls ADD CONSTRAINT live_calls_call_id_unique UNIQUE (call_id)
 
 ### Check Current Subscriptions:
 ```bash
-curl https://crm.sadharmikandcompany.com/api/ozonetel/subscribe
+curl https://sadharmikandcompany.com/api/ozonetel/subscribe
 ```
 
 Expected response:
@@ -157,15 +157,15 @@ Expected response:
 {
   "success": true,
   "subscriptions": {
-    "agentEventsURL": "https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime",
-    "callEventsURL": "https://crm.sadharmikandcompany.com/api/webhooks/ozonetel/realtime"
+    "agentEventsURL": "https://sadharmikandcompany.com/api/webhooks/ozonetel/realtime",
+    "callEventsURL": "https://sadharmikandcompany.com/api/webhooks/ozonetel/realtime"
   }
 }
 ```
 
 ### Re-register Webhooks (if needed):
 ```bash
-curl -X POST https://crm.sadharmikandcompany.com/api/ozonetel/subscribe \
+curl -X POST https://sadharmikandcompany.com/api/ozonetel/subscribe \
   -H "Content-Type: application/json" \
   -d '{"eventTypes": ["Call", "Agent"]}'
 ```
