@@ -616,8 +616,8 @@ export default function SupportDashboardPage() {
       }
 
       if (!data || data.length === 0) {
-        // No Sd numbers exist, start from 1000
-        return "1000";
+        // No Sd numbers exist, start from 1
+        return "1";
       }
 
       // Convert all Sd numbers to integers and find the highest
@@ -626,7 +626,7 @@ export default function SupportDashboardPage() {
         .filter(num => !isNaN(num));
 
       if (vipNumbers.length === 0) {
-        return "1000";
+        return "1";
       }
 
       const highestVipNumber = Math.max(...vipNumbers);

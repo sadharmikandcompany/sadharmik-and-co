@@ -430,53 +430,30 @@ export default function CustomersPage() {
     }
   }
 
+  // Plain "highest existing + 1, starting at 1" — same as Mandir/Shop below.
+  // The old 9000/10000-range special-casing was for staying compatible with
+  // Kalapurna's real historical VIP data; Sadharmik & Co's Sd numbers have
+  // no such legacy to match, so they just start clean from 1.
   const getNextVipNumber = async (): Promise<string> => {
     try {
-      // Fetch Sd numbers starting with "10" (10000-10999 range) - only ~252 records
-      const { data: highVipData, error: highVipError } = await supabase
+      const { data, error } = await supabase
         .from("customers")
         .select("vip_number")
         .not("vip_number", "is", null)
-        .like("vip_number", "10%")
 
-      if (!highVipError && highVipData && highVipData.length > 0) {
-        // Convert to integers and find max
-        const vipNumbers = highVipData
-          .map(item => parseInt(item.vip_number || "0", 10))
-          .filter(num => !isNaN(num) && num >= 10000)
-          .sort((a, b) => b - a)
-
-        if (vipNumbers.length > 0) {
-          return (vipNumbers[0] + 1).toString()
-        }
+      if (error) {
+        console.error("Error fetching Sd numbers:", error)
+        throw error
       }
 
-      // Fallback: fetch Sd numbers starting with "9" (9000-9999 range)
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from("customers")
-        .select("vip_number")
-        .not("vip_number", "is", null)
-        .like("vip_number", "9%")
+      if (!data || data.length === 0) return "1"
 
-      if (fallbackError) {
-        console.error("Error fetching Sd numbers:", fallbackError)
-        throw fallbackError
-      }
-
-      if (!fallbackData || fallbackData.length === 0) {
-        return "1000"
-      }
-
-      // Convert to integers and find max
-      const vipNumbers = fallbackData
+      const vipNumbers = data
         .map(item => parseInt(item.vip_number || "0", 10))
         .filter(num => !isNaN(num))
         .sort((a, b) => b - a)
 
-      if (vipNumbers.length === 0) {
-        return "1000"
-      }
-
+      if (vipNumbers.length === 0) return "1"
       return (vipNumbers[0] + 1).toString()
     } catch (error) {
       console.error("Error generating Sd number:", error)

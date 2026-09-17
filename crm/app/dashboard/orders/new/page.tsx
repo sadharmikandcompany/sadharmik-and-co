@@ -1248,8 +1248,8 @@ export default function NewOrderPage() {
       }
 
       if (!data || data.length === 0) {
-        // No Sd numbers exist, start from 1000
-        return "1000"
+        // No Sd numbers exist, start from 1
+        return "1"
       }
 
       // Convert Sd numbers to integers, sort numerically, and get the highest
@@ -1259,8 +1259,8 @@ export default function NewOrderPage() {
         .sort((a, b) => b - a)
 
       if (vipNumbers.length === 0) {
-        // No valid numeric Sd numbers found, start from 1000
-        return "1000"
+        // No valid numeric Sd numbers found, start from 1
+        return "1"
       }
 
       const highestVipNumber = vipNumbers[0]
