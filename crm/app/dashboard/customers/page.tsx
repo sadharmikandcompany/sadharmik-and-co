@@ -211,6 +211,39 @@ type Order = {
   assigned_to_delivery_at: string | null
 }
 
+// Structured fields win whenever any are filled in — a customer can have a
+// stray one-line full_address (e.g. just an area name) sitting alongside a
+// fully filled-in structured address, and the detailed one must be what's
+// actually shown, not silently overridden by the shorter text.
+function getCustomerDisplayAddress(customer: Pick<Customer,
+  "full_address" | "shipping_room_number" | "shipping_floor" | "shipping_wing" |
+  "shipping_flat_number" | "shipping_floor_wing" | "shipping_building_name" |
+  "shipping_street_area" | "shipping_landmark" | "shipping_city" | "shipping_state" | "shipping_pincode"
+>): string {
+  const hasStructured = Boolean(
+    customer.shipping_building_name || customer.shipping_street_area ||
+    customer.shipping_city || customer.shipping_pincode
+  )
+
+  if (hasStructured) {
+    const parts: string[] = []
+    if (customer.shipping_room_number) parts.push(`Room: ${customer.shipping_room_number}`)
+    if (customer.shipping_floor) parts.push(`Floor: ${customer.shipping_floor}`)
+    if (customer.shipping_wing) parts.push(`Wing: ${customer.shipping_wing}`)
+    if (customer.shipping_flat_number) parts.push(`Flat: ${customer.shipping_flat_number}`)
+    if (customer.shipping_floor_wing) parts.push(customer.shipping_floor_wing)
+    if (customer.shipping_building_name) parts.push(customer.shipping_building_name)
+    if (customer.shipping_street_area) parts.push(customer.shipping_street_area)
+    if (customer.shipping_landmark) parts.push(`Near ${customer.shipping_landmark}`)
+    if (customer.shipping_city) parts.push(customer.shipping_city)
+    if (customer.shipping_state) parts.push(customer.shipping_state)
+    if (customer.shipping_pincode) parts.push(customer.shipping_pincode)
+    return parts.join(", ")
+  }
+
+  return customer.full_address || ""
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -767,31 +800,8 @@ export default function CustomersPage() {
   }
 
   const handleOpenMap = (customer: Customer) => {
-    // Build the destination address from full_address or structured fields
-    let destinationAddress = ''
-
-    if (customer.full_address && customer.full_address.trim() !== '' && customer.full_address !== 'Not Provided') {
-      // Use full address if available
-      destinationAddress = customer.full_address
-    } else {
-      // Build from structured fields
-      const addressParts = [
-        customer.shipping_room_number,
-        customer.shipping_floor,
-        customer.shipping_wing,
-        customer.shipping_flat_number,
-        customer.shipping_floor_wing,
-        customer.shipping_building_name,
-        customer.shipping_street_area,
-        customer.shipping_landmark,
-        customer.shipping_city,
-        customer.shipping_state,
-        customer.shipping_pincode,
-        customer.shipping_country
-      ].filter(part => part && part.trim() !== '' && part !== 'Not Provided')
-
-      destinationAddress = addressParts.join(', ')
-    }
+    // Structured fields win whenever any are filled in (see getCustomerDisplayAddress)
+    const destinationAddress = getCustomerDisplayAddress(customer)
 
     if (!destinationAddress) {
       toast.error('No address available for this customer')
@@ -1241,7 +1251,7 @@ export default function CustomersPage() {
     'WhatsApp': customer.whatsapp_number || '',
     'Company': customer.company_name || '',
     'GST Number': customer.gst_number || '',
-    'Full Address': customer.full_address || '',
+    'Full Address': getCustomerDisplayAddress(customer),
     'City': customer.shipping_city,
     'State': customer.shipping_state,
     'Pincode': customer.shipping_pincode,
@@ -1433,14 +1443,14 @@ export default function CustomersPage() {
                           >
                             {customer.first_name} {customer.last_name}
                           </button>
-                          {customer.full_address && (
+                          {getCustomerDisplayAddress(customer) && (
                             <div className="group flex items-start gap-2">
                               <span className="text-xs text-muted-foreground break-words line-clamp-2 flex-1">
-                                {customer.full_address}
+                                {getCustomerDisplayAddress(customer)}
                               </span>
                               <button
                                 onClick={() => {
-                                  navigator.clipboard.writeText(customer.full_address || '')
+                                  navigator.clipboard.writeText(getCustomerDisplayAddress(customer))
                                   toast.success("Address copied to clipboard")
                                 }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"

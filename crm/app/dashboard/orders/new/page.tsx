@@ -862,11 +862,16 @@ export default function NewOrderPage() {
     const customer = customers.find(c => c.id === selectedCustomer)
     if (!customer) return
 
-    // Auto-select the best available address option
-    if (customer.full_address) {
-      setShippingAddressOption("full_address")
-    } else if (customer.shipping_building_name || customer.shipping_street_area || customer.shipping_city || customer.shipping_pincode) {
+    // Auto-select the best available address option. Structured fields win
+    // whenever any are filled in — they're the more precise, deliberately
+    // entered option, and a customer can have a stray one-line full_address
+    // (e.g. just an area name) sitting alongside a fully filled-in
+    // structured address, in which case the detailed one must be the one
+    // actually used, not silently overridden by the shorter text.
+    if (customer.shipping_building_name || customer.shipping_street_area || customer.shipping_city || customer.shipping_pincode) {
       setShippingAddressOption("customer_structured")
+    } else if (customer.full_address) {
+      setShippingAddressOption("full_address")
     } else {
       setShippingAddressOption("custom")
     }
