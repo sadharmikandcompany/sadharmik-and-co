@@ -168,7 +168,8 @@ export async function POST(request: Request) {
     const { data: nextInvoiceNumber, error: invoiceError } = await supabaseAdmin.rpc('get_next_invoice_number', {
       is_gst: false,
       dist_code: null,
-      force_kp: false
+      force_kp: false,
+      p_is_mandir: false
     })
     
     if (!invoiceError && nextInvoiceNumber) {

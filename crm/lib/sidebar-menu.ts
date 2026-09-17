@@ -100,7 +100,6 @@ export const menuGroups: MenuGroup[] = [
   {
     label: "Sales & Orders",
     items: [
-      { title: "Orders", url: "/dashboard/orders", icon: ShoppingCart, roles: ["admin", "warehouse", "customer_support", "factories", "main_distributor", "retailer", "sub_distributor"] },
       { title: "Actual Physical Stock", url: "/dashboard/orders/actual-stock", icon: Package, roles: ["admin", "factories"] },
       { title: "Orders V2", url: "/dashboard/orders-v2", icon: LayoutDashboard, roles: ["admin", "warehouse", "customer_support", "factories", "main_distributor", "sub_distributor"] },
       { title: "Point of Sale", url: "/dashboard/pos", icon: CreditCard, roles: ["admin", "retailer"] },

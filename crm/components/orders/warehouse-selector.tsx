@@ -107,7 +107,19 @@ export function WarehouseSelector({
             setAutoDetectedId(matched.id)
             onWarehouseSelect(matched.id)
           } else {
-            setAutoDetectedId(null)
+            const primary = warehousesArray.find((w: Godown) => w.is_primary)
+            if (primary) {
+              setAutoDetectedId(primary.id)
+              onWarehouseSelect(primary.id)
+            } else {
+              setAutoDetectedId(null)
+            }
+          }
+        } else if (warehousesArray.length > 0) {
+          const primary = warehousesArray.find((w: Godown) => w.is_primary)
+          if (primary) {
+            setAutoDetectedId(primary.id)
+            onWarehouseSelect(primary.id)
           }
         }
       } catch (error) {
@@ -240,7 +252,13 @@ export function WarehouseSelector({
         setAutoDetectedId(pincodeMatchedWarehouse.id)
         onWarehouseSelect(pincodeMatchedWarehouse.id)
       } else {
-        setAutoDetectedId(null)
+        const primaryWarehouse = warehouses.find((w) => w.is_primary)
+        if (primaryWarehouse) {
+          setAutoDetectedId(primaryWarehouse.id)
+          onWarehouseSelect(primaryWarehouse.id)
+        } else {
+          setAutoDetectedId(null)
+        }
       }
     }
   }, [paymentMethod, warehouses, selectedProducts, warehouseStock, shippingPincode])

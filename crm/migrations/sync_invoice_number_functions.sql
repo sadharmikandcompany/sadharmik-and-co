@@ -34,7 +34,7 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.get_next_invoice_number(is_gst boolean, dist_code text DEFAULT NULL::text, force_kp boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION public.get_next_invoice_number(is_gst boolean, dist_code text DEFAULT NULL::text, force_kp boolean DEFAULT false, p_is_mandir boolean DEFAULT false)
  RETURNS text
  LANGUAGE plpgsql
 AS $function$
@@ -174,12 +174,19 @@ AS $function$
         END IF;
       END LOOP;
 
-    -- Non-GST invoice without distributor code (default): A prefix, no change
+    -- Non-GST invoice without distributor code (default): Man or shop prefix
     ELSE
-      SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM 2) AS INTEGER))
-      INTO max_existing
-      FROM orders
-      WHERE invoice_number_non_gst ~ '^A[0-9]+$';
+      IF p_is_mandir THEN
+        SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM 4) AS INTEGER))
+        INTO max_existing
+        FROM orders
+        WHERE invoice_number_non_gst ~ '^Man[0-9]+$';
+      ELSE
+        SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM 5) AS INTEGER))
+        INTO max_existing
+        FROM orders
+        WHERE invoice_number_non_gst ~ '^shop[0-9]+$';
+      END IF;
 
       IF max_existing IS NOT NULL THEN
         next_num := max_existing + 1;
@@ -188,7 +195,12 @@ AS $function$
       END IF;
 
       LOOP
-        invoice_num := 'A' || next_num::TEXT;
+        IF p_is_mandir THEN
+          invoice_num := 'Man' || next_num::TEXT;
+        ELSE
+          invoice_num := 'shop' || next_num::TEXT;
+        END IF;
+        
         EXIT WHEN NOT EXISTS (SELECT 1 FROM orders WHERE invoice_number_non_gst = invoice_num);
         next_num := next_num + 1;
         attempt := attempt + 1;

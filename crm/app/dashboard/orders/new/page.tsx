@@ -1808,7 +1808,8 @@ export default function NewOrderPage() {
         const { data: nextInvoiceNumber, error: invoiceError } = await supabase.rpc('get_next_invoice_number', {
           is_gst: isGstInvoice,
           dist_code: distCode,
-          force_kp: false
+          force_kp: false,
+          p_is_mandir: customer?.is_mandir || false
         })
 
         if (!invoiceError && nextInvoiceNumber) {
