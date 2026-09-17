@@ -509,7 +509,6 @@ export default function OrdersReportPage() {
                   <SelectItem value="processing">Processing</SelectItem>
                   <SelectItem value="shipped">Shipped</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
@@ -523,7 +522,7 @@ export default function OrdersReportPage() {
                   <SelectItem value="all">All Payment</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="completed">Paid</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
