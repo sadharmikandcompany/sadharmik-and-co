@@ -1419,7 +1419,7 @@ export default function CustomersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Sd #</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Contact Numbers</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1463,10 +1463,24 @@ export default function CustomersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {customer.vip_number ? (
-                          <Badge className="font-mono bg-green-700 text-white hover:bg-green-800">
-                            Sd{customer.vip_number}
-                          </Badge>
+                        {customer.vip_number || customer.mandir_number || customer.shop_number ? (
+                          <div className="flex flex-wrap gap-1">
+                            {customer.vip_number && (
+                              <Badge className="font-mono bg-green-700 text-white hover:bg-green-800">
+                                Sd{customer.vip_number}
+                              </Badge>
+                            )}
+                            {customer.mandir_number && (
+                              <Badge className="font-mono bg-amber-700 text-white hover:bg-amber-800">
+                                Man{customer.mandir_number}
+                              </Badge>
+                            )}
+                            {customer.shop_number && (
+                              <Badge className="font-mono bg-blue-700 text-white hover:bg-blue-800">
+                                Shop{customer.shop_number}
+                              </Badge>
+                            )}
+                          </div>
                         ) : (
                           "-"
                         )}
