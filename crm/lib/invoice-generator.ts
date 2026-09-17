@@ -8,6 +8,12 @@ import QRCode from 'qrcode';
 import { formatCurrency, formatDate } from './export-utils';
 import { numberToWords } from './number-to-words';
 
+// The QR code on thermal receipts is labeled "Scan QR code with any UPI app"
+// but currently just links to the order's tracking page, not a real UPI
+// payment link — there's no payment gateway wired up yet. Disabled until one
+// exists, rather than showing a QR that doesn't actually take a payment.
+const PAYMENT_QR_ENABLED = false;
+
 // Company details type
 interface CompanyInfo {
   name: string;
@@ -1179,7 +1185,7 @@ export async function generateThermalReceipt(data: OrderInvoiceData, customerNam
   yPos += 4;
 
   // ==================== PAYMENT QR CODE (for pending payments) ====================
-  if (paymentQrUrl && data.order.payment_status.toLowerCase() === 'pending') {
+  if (PAYMENT_QR_ENABLED && paymentQrUrl && data.order.payment_status.toLowerCase() === 'pending') {
     try {
       // Generate QR code as data URL
       const qrDataUrl = await QRCode.toDataURL(paymentQrUrl, {
@@ -1577,7 +1583,7 @@ export async function generateBulkThermalReceipts(invoicesData: Array<{ data: Or
     yPos += 4;
 
     // ==================== PAYMENT QR CODE (for pending payments) ====================
-    if (paymentQrUrl && data.order.payment_status.toLowerCase() === 'pending') {
+    if (PAYMENT_QR_ENABLED && paymentQrUrl && data.order.payment_status.toLowerCase() === 'pending') {
       try {
         // Generate QR code as data URL
         const qrDataUrl = await QRCode.toDataURL(paymentQrUrl, {
