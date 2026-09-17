@@ -1455,7 +1455,7 @@ export default function CustomersPage() {
                       <TableCell>
                         {customer.vip_number ? (
                           <Badge className="font-mono bg-green-700 text-white hover:bg-green-800">
-                            {customer.vip_number}
+                            Sd{customer.vip_number}
                           </Badge>
                         ) : (
                           "-"
@@ -2196,14 +2196,17 @@ export default function CustomersPage() {
                     )}
                   </label>
                   {formData.is_vip && (
-                    <div className="flex-1 max-w-xs">
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Sd
+                      </span>
                       <Input
-                        placeholder="Sd Number (auto-generated)"
+                        placeholder="Number"
                         value={formData.vip_number}
                         onChange={(e) =>
                           setFormData({ ...formData, vip_number: e.target.value })
                         }
-                        className="h-9"
+                        className="h-9 rounded-l-none"
                         title="Sd number is auto-generated. You can edit it if needed."
                       />
                     </div>
@@ -2224,14 +2227,17 @@ export default function CustomersPage() {
                     )}
                   </label>
                   {formData.is_mandir && (
-                    <div className="flex-1 max-w-xs">
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Man
+                      </span>
                       <Input
-                        placeholder="Mandir Number (auto-generated)"
+                        placeholder="Number"
                         value={formData.mandir_number}
                         onChange={(e) =>
                           setFormData({ ...formData, mandir_number: e.target.value })
                         }
-                        className="h-9"
+                        className="h-9 rounded-l-none"
                         title="Mandir number is auto-generated. You can edit it if needed."
                       />
                     </div>
@@ -2252,14 +2258,17 @@ export default function CustomersPage() {
                     )}
                   </label>
                   {formData.is_shop && (
-                    <div className="flex-1 max-w-xs">
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Shop
+                      </span>
                       <Input
-                        placeholder="Shop Number (auto-generated)"
+                        placeholder="Number"
                         value={formData.shop_number}
                         onChange={(e) =>
                           setFormData({ ...formData, shop_number: e.target.value })
                         }
-                        className="h-9"
+                        className="h-9 rounded-l-none"
                         title="Shop number is auto-generated. You can edit it if needed."
                       />
                     </div>
