@@ -34,7 +34,7 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.get_next_invoice_number(is_gst boolean, dist_code text DEFAULT NULL::text, force_kp boolean DEFAULT false, p_is_mandir boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION public.get_next_invoice_number(is_gst boolean, dist_code text DEFAULT NULL::text, force_kp boolean DEFAULT false, p_is_mandir boolean DEFAULT false, p_is_shop boolean DEFAULT false)
  RETURNS text
  LANGUAGE plpgsql
 AS $function$
@@ -46,6 +46,7 @@ AS $function$
     attempt INTEGER := 0;
     fy_suffix TEXT;
     fy_start_year INTEGER;
+    prefix TEXT;
   BEGIN
     IF dist_code = '' THEN
       dist_code := NULL;
@@ -174,19 +175,23 @@ AS $function$
         END IF;
       END LOOP;
 
-    -- Non-GST invoice without distributor code (default): Man or shop prefix
+    -- Non-GST invoice without distributor code (default): Mandir -> "Man",
+    -- Shop -> "shop", everyone else (regular customers) -> plain "A" prefix
+    -- starting from 1. A customer that is neither Mandir nor Shop must fall
+    -- through to "A" here — it must never silently reuse the Shop prefix.
     ELSE
       IF p_is_mandir THEN
-        SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM 4) AS INTEGER))
-        INTO max_existing
-        FROM orders
-        WHERE invoice_number_non_gst ~ '^Man[0-9]+$';
+        prefix := 'Man';
+      ELSIF p_is_shop THEN
+        prefix := 'shop';
       ELSE
-        SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM 5) AS INTEGER))
-        INTO max_existing
-        FROM orders
-        WHERE invoice_number_non_gst ~ '^shop[0-9]+$';
+        prefix := 'A';
       END IF;
+
+      SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM LENGTH(prefix) + 1) AS INTEGER))
+      INTO max_existing
+      FROM orders
+      WHERE invoice_number_non_gst ~ ('^' || prefix || '[0-9]+$');
 
       IF max_existing IS NOT NULL THEN
         next_num := max_existing + 1;
@@ -195,12 +200,7 @@ AS $function$
       END IF;
 
       LOOP
-        IF p_is_mandir THEN
-          invoice_num := 'Man' || next_num::TEXT;
-        ELSE
-          invoice_num := 'shop' || next_num::TEXT;
-        END IF;
-        
+        invoice_num := prefix || next_num::TEXT;
         EXIT WHEN NOT EXISTS (SELECT 1 FROM orders WHERE invoice_number_non_gst = invoice_num);
         next_num := next_num + 1;
         attempt := attempt + 1;

@@ -164,12 +164,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Could not place the order." }, { status: 500, headers: CORS_HEADERS })
     }
 
-    // Auto-generate invoice number
+    // Auto-generate invoice number. Website checkouts are always guest/plain
+    // retail orders — never Mandir or Shop tier — so both flags stay false
+    // and this always lands on the plain "A" prefix.
     const { data: nextInvoiceNumber, error: invoiceError } = await supabaseAdmin.rpc('get_next_invoice_number', {
       is_gst: false,
       dist_code: null,
       force_kp: false,
-      p_is_mandir: false
+      p_is_mandir: false,
+      p_is_shop: false
     })
     
     if (!invoiceError && nextInvoiceNumber) {

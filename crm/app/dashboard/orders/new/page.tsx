@@ -139,6 +139,7 @@ type Customer = {
   billing_state: string | null
   is_vip: boolean
   is_mandir: boolean
+  is_shop: boolean
   is_defaulter: boolean
   vip_number: string | null
   entity_type?: "customer" | "distributor" | "subdistributor" | "retailer"
@@ -756,6 +757,7 @@ export default function NewOrderPage() {
           billing_state: dist.shipping_state,
           is_vip: false,
           is_mandir: false,
+          is_shop: false,
           is_defaulter: false,
           vip_number: null,
           entity_type: dist.parent_id ? "subdistributor" : "distributor",
@@ -794,6 +796,7 @@ export default function NewOrderPage() {
         billing_state: ret.shipping_state || null,
         is_vip: false,
         is_mandir: false,
+        is_shop: false,
         is_defaulter: false,
         vip_number: null,
         entity_type: "retailer" as const,
@@ -1809,7 +1812,8 @@ export default function NewOrderPage() {
           is_gst: isGstInvoice,
           dist_code: distCode,
           force_kp: false,
-          p_is_mandir: customer?.is_mandir || false
+          p_is_mandir: customer?.is_mandir || false,
+          p_is_shop: customer?.is_shop || false
         })
 
         if (!invoiceError && nextInvoiceNumber) {
