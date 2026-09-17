@@ -21,6 +21,19 @@ function getSupabaseAdmin() {
   })
 }
 
+// The website (sadharmikandcompany.com) fetches this cross-origin from the
+// CRM's own domain, so every response needs CORS headers or the browser
+// blocks the JS from ever reading it.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin()
@@ -34,7 +47,7 @@ export async function GET() {
 
     if (error) {
       console.error("Error fetching public products:", error)
-      return NextResponse.json({ ok: false, products: [] }, { status: 500 })
+      return NextResponse.json({ ok: false, products: [] }, { status: 500, headers: CORS_HEADERS })
     }
 
     const products = (data || []).map((p) => ({
@@ -47,10 +60,10 @@ export async function GET() {
 
     return NextResponse.json(
       { ok: true, products },
-      { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } }
+      { headers: { ...CORS_HEADERS, "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } }
     )
   } catch (error) {
     console.error("Error in public-products route:", error)
-    return NextResponse.json({ ok: false, products: [] }, { status: 500 })
+    return NextResponse.json({ ok: false, products: [] }, { status: 500, headers: CORS_HEADERS })
   }
 }
