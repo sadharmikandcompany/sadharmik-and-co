@@ -108,6 +108,7 @@ export function AppSidebar() {
     if (!role) return []
     const query = searchQuery.trim().toLowerCase()
     return menuGroups
+      .filter(group => !group.hidden)
       .map(group => ({
         ...group,
         items: group.items.filter(item => {

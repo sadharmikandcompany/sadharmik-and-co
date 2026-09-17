@@ -62,6 +62,9 @@ export type MenuItem = {
 export type MenuGroup = {
   label: string
   items: MenuItem[]
+  // Hides the whole group from the sidebar without deleting its items —
+  // flip back to false/omit to bring it back.
+  hidden?: boolean
 }
 
 export const menuGroups: MenuGroup[] = [
@@ -84,6 +87,7 @@ export const menuGroups: MenuGroup[] = [
   },
   {
     label: "Support",
+    hidden: true,
     items: [
       { title: "Customer Support", url: "/dashboard/support", icon: Headphones, roles: ["admin", "customer_support"] },
       { title: "MyOperator", url: "/dashboard/myoperator", icon: Phone, roles: ["admin", "customer_support"] },
@@ -92,6 +96,7 @@ export const menuGroups: MenuGroup[] = [
   },
   {
     label: "Customer Engagement",
+    hidden: true,
     items: [
       { title: "Payment Collection", url: "/dashboard/payment-collection", icon: IndianRupee, roles: ["admin", "customer_support", "main_distributor"] },
       { title: "Inactive Customers", url: "/dashboard/inactive-customers", icon: UserX, roles: ["admin", "customer_support", "main_distributor"] },
