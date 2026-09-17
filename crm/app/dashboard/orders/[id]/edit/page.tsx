@@ -1299,7 +1299,6 @@ export default function EditOrderPage() {
                         <SelectContent>
                           <SelectItem value="pending">📋 Pending</SelectItem>
                           <SelectItem value="processing">⚙️ Processing</SelectItem>
-                          <SelectItem value="completed">✅ Completed</SelectItem>
                           <SelectItem value="delivered">🚚 Delivered</SelectItem>
                           <SelectItem value="cancelled">❌ Cancelled</SelectItem>
                         </SelectContent>
@@ -1320,7 +1319,6 @@ export default function EditOrderPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="pending">⏳ Pending</SelectItem>
-                          <SelectItem value="paid">✅ Paid</SelectItem>
                           <SelectItem value="completed">✅ Completed</SelectItem>
                           <SelectItem value="failed">❌ Failed</SelectItem>
                           <SelectItem value="refunded">🔄 Refunded</SelectItem>
