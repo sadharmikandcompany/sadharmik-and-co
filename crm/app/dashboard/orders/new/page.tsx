@@ -231,6 +231,9 @@ type CustomerFormData = {
   is_vip: boolean
   vip_number: string
   is_mandir: boolean
+  mandir_number: string
+  is_shop: boolean
+  shop_number: string
   is_defaulter: boolean
   is_active: boolean
 }
@@ -263,6 +266,8 @@ export default function NewOrderPage() {
   const [useSameAddress, setUseSameAddress] = useState(true)
   const [customerFormErrors, setCustomerFormErrors] = useState<Record<string, string>>({})
   const [generatingVipNumber, setGeneratingVipNumber] = useState(false)
+  const [generatingMandirNumber, setGeneratingMandirNumber] = useState(false)
+  const [generatingShopNumber, setGeneratingShopNumber] = useState(false)
 
   // New fields
   const [courierPartner, setCourierPartner] = useState<string>("")
@@ -361,6 +366,9 @@ export default function NewOrderPage() {
     is_vip: false,
     vip_number: "",
     is_mandir: false,
+    mandir_number: "",
+    is_shop: false,
+    shop_number: "",
     is_defaulter: false,
     is_active: true,
   })
@@ -1240,6 +1248,9 @@ export default function NewOrderPage() {
       is_vip: false,
       vip_number: "",
       is_mandir: false,
+      mandir_number: "",
+      is_shop: false,
+      shop_number: "",
       is_defaulter: false,
       is_active: true,
     })
@@ -1303,6 +1314,98 @@ export default function NewOrderPage() {
       }
     } else {
       setCustomerFormData({ ...customerFormData, is_vip: checked })
+    }
+  }
+
+  const getNextMandirNumber = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("mandir_number")
+        .not("mandir_number", "is", null)
+
+      if (error) {
+        console.error("Error fetching Mandir numbers:", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) return "1"
+
+      const mandirNumbers = data
+        .map(item => parseInt(item.mandir_number || "0", 10))
+        .filter(num => !isNaN(num))
+        .sort((a, b) => b - a)
+
+      if (mandirNumbers.length === 0) return "1"
+      return (mandirNumbers[0] + 1).toString()
+    } catch (error) {
+      console.error("Error generating Mandir number:", error)
+      return Date.now().toString().slice(-4)
+    }
+  }
+
+  const handleMandirToggle = async (checked: boolean) => {
+    if (checked && !customerFormData.mandir_number) {
+      setGeneratingMandirNumber(true)
+      try {
+        const nextMandirNumber = await getNextMandirNumber()
+        setCustomerFormData({ ...customerFormData, is_mandir: true, mandir_number: nextMandirNumber })
+        toast.success(`Mandir number ${nextMandirNumber} assigned automatically`)
+      } catch (error) {
+        console.error("Error generating Mandir number:", error)
+        toast.error("Failed to generate Mandir number. Please enter manually.")
+        setCustomerFormData({ ...customerFormData, is_mandir: true })
+      } finally {
+        setGeneratingMandirNumber(false)
+      }
+    } else {
+      setCustomerFormData({ ...customerFormData, is_mandir: checked })
+    }
+  }
+
+  const getNextShopNumber = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("shop_number")
+        .not("shop_number", "is", null)
+
+      if (error) {
+        console.error("Error fetching Shop numbers:", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) return "1"
+
+      const shopNumbers = data
+        .map(item => parseInt(item.shop_number || "0", 10))
+        .filter(num => !isNaN(num))
+        .sort((a, b) => b - a)
+
+      if (shopNumbers.length === 0) return "1"
+      return (shopNumbers[0] + 1).toString()
+    } catch (error) {
+      console.error("Error generating Shop number:", error)
+      return Date.now().toString().slice(-4)
+    }
+  }
+
+  const handleShopToggle = async (checked: boolean) => {
+    if (checked && !customerFormData.shop_number) {
+      setGeneratingShopNumber(true)
+      try {
+        const nextShopNumber = await getNextShopNumber()
+        setCustomerFormData({ ...customerFormData, is_shop: true, shop_number: nextShopNumber })
+        toast.success(`Shop number ${nextShopNumber} assigned automatically`)
+      } catch (error) {
+        console.error("Error generating Shop number:", error)
+        toast.error("Failed to generate Shop number. Please enter manually.")
+        setCustomerFormData({ ...customerFormData, is_shop: true })
+      } finally {
+        setGeneratingShopNumber(false)
+      }
+    } else {
+      setCustomerFormData({ ...customerFormData, is_shop: checked })
     }
   }
 
@@ -1443,6 +1546,9 @@ export default function NewOrderPage() {
         is_vip: customerFormData.is_vip,
         vip_number: customerFormData.is_vip && safeTrim(customerFormData.vip_number) ? safeTrim(customerFormData.vip_number) : null,
         is_mandir: customerFormData.is_mandir,
+        mandir_number: customerFormData.is_mandir && safeTrim(customerFormData.mandir_number) ? safeTrim(customerFormData.mandir_number) : null,
+        is_shop: customerFormData.is_shop,
+        shop_number: customerFormData.is_shop && safeTrim(customerFormData.shop_number) ? safeTrim(customerFormData.shop_number) : null,
         is_defaulter: customerFormData.is_defaulter,
         is_active: customerFormData.is_active
       }
@@ -4393,32 +4499,86 @@ export default function NewOrderPage() {
                     )}
                   </label>
                   {customerFormData.is_vip && (
-                    <div className="flex-1 max-w-xs">
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Sd
+                      </span>
                       <Input
-                        placeholder="Sd Number (auto-generated)"
+                        placeholder="Number"
                         value={customerFormData.vip_number}
                         onChange={(e) =>
                           setCustomerFormData({ ...customerFormData, vip_number: e.target.value })
                         }
-                        className="h-9"
+                        className="h-9 rounded-l-none"
                         title="Sd number is auto-generated. You can edit it if needed."
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={customerFormData.is_mandir}
+                      onChange={(e) => handleMandirToggle(e.target.checked)}
+                      disabled={generatingMandirNumber}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Mandir/Temple</span>
+                    {generatingMandirNumber && (
+                      <span className="text-xs text-muted-foreground">(Generating Mandir number...)</span>
+                    )}
+                  </label>
+                  {customerFormData.is_mandir && (
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Man
+                      </span>
+                      <Input
+                        placeholder="Number"
+                        value={customerFormData.mandir_number}
+                        onChange={(e) =>
+                          setCustomerFormData({ ...customerFormData, mandir_number: e.target.value })
+                        }
+                        className="h-9 rounded-l-none"
+                        title="Mandir number is auto-generated. You can edit it if needed."
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={customerFormData.is_shop}
+                      onChange={(e) => handleShopToggle(e.target.checked)}
+                      disabled={generatingShopNumber}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Shop</span>
+                    {generatingShopNumber && (
+                      <span className="text-xs text-muted-foreground">(Generating Shop number...)</span>
+                    )}
+                  </label>
+                  {customerFormData.is_shop && (
+                    <div className="flex-1 max-w-xs flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
+                        Shop
+                      </span>
+                      <Input
+                        placeholder="Number"
+                        value={customerFormData.shop_number}
+                        onChange={(e) =>
+                          setCustomerFormData({ ...customerFormData, shop_number: e.target.value })
+                        }
+                        className="h-9 rounded-l-none"
+                        title="Shop number is auto-generated. You can edit it if needed."
                       />
                     </div>
                   )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={customerFormData.is_mandir}
-                    onChange={(e) =>
-                      setCustomerFormData({ ...customerFormData, is_mandir: e.target.checked })
-                    }
-                    className="h-4 w-4"
-                  />
-                  <span className="text-sm">Mandir/Temple</span>
-                </label>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
