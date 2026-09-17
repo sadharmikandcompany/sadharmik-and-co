@@ -175,18 +175,14 @@ AS $function$
         END IF;
       END LOOP;
 
-    -- Non-GST invoice without distributor code (default): Mandir -> "Man",
-    -- Shop -> "shop", everyone else (regular customers) -> plain "A" prefix
-    -- starting from 1. A customer that is neither Mandir nor Shop must fall
-    -- through to "A" here — it must never silently reuse the Shop prefix.
+    -- Non-GST invoice without distributor code (default): a single "A"
+    -- sequence for every order regardless of customer tier — bill numbers
+    -- must stay one continuous series (A1, A2, A3...), not branch by
+    -- whether the customer happens to be Sd/Mandir/Shop. p_is_mandir and
+    -- p_is_shop are accepted but intentionally unused here, kept only so
+    -- existing callers don't need to change what they pass.
     ELSE
-      IF p_is_mandir THEN
-        prefix := 'Man';
-      ELSIF p_is_shop THEN
-        prefix := 'shop';
-      ELSE
-        prefix := 'A';
-      END IF;
+      prefix := 'A';
 
       SELECT MAX(CAST(SUBSTRING(invoice_number_non_gst FROM LENGTH(prefix) + 1) AS INTEGER))
       INTO max_existing
