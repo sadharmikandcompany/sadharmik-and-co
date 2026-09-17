@@ -1793,6 +1793,35 @@ export default function NewOrderPage() {
 
       if (itemsError) throw itemsError
 
+      // --- Auto-generate invoice number ---
+      try {
+        let distCode = null
+        if (isDistributorOrder || isSubdistributorOrder) {
+          const { data: distData } = await supabase
+            .from("distributors")
+            .select("code")
+            .eq("id", selectedCustomer)
+            .single()
+          if (distData) distCode = distData.code
+        }
+
+        const { data: nextInvoiceNumber, error: invoiceError } = await supabase.rpc('get_next_invoice_number', {
+          is_gst: isGstInvoice,
+          dist_code: distCode,
+          force_kp: false
+        })
+
+        if (!invoiceError && nextInvoiceNumber) {
+          const updateField = isGstInvoice ? { invoice_number_gst: nextInvoiceNumber } : { invoice_number_non_gst: nextInvoiceNumber }
+          await supabase.from("orders").update(updateField).eq("id", order.id)
+        } else {
+          console.error("Error generating invoice number:", invoiceError)
+        }
+      } catch (invoiceErr) {
+        console.error("Exception generating invoice number:", invoiceErr)
+      }
+      // ------------------------------------
+
       // Decrement product stock from warehouse for customer orders only (not for distributors, subdistributors, or retailers)
       if (isCustomerOrder) {
         console.log("Decrementing warehouse stock for customer order...")

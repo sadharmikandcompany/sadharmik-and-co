@@ -69,6 +69,7 @@ type Order = {
   created_at: string
   invoice_number_gst?: string | null
   invoice_number_non_gst?: string | null
+  invoice_number?: string | null
   is_gst_invoice?: boolean
   delivery_partner_id?: string | null
   assigned_to_delivery_at?: string | null
@@ -792,8 +793,8 @@ export function OrdersTable({
     "Order Status": order.order_status,
     "Payment Status": order.payment_status,
     "Payment Method": order.payment_method ? order.payment_method.replace(/_/g, " ") : "",
-    "Invoice GST": order.invoice_number_gst || "",
-    "Invoice Non-GST": order.invoice_number_non_gst || "",
+    "Invoice GST": order.invoice_number_gst || order.invoice_number || "",
+    "Invoice Non-GST": order.invoice_number_non_gst || order.invoice_number || "",
     "Delivery Driver": order.delivery_partner_name || "Not assigned",
     "Delivery Status": order.route_assignment_status ? order.route_assignment_status.replace(/_/g, " ") : order.delivery_partner_id ? "Assigned" : "Not assigned",
     "Order Date": format(new Date(order.order_date || order.created_at), "PPP"),
@@ -1087,7 +1088,7 @@ export function OrdersTable({
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
                                 <button onClick={(e) => { e.stopPropagation(); handleDownloadInvoice(order.id) }} className="hover:text-primary hover:underline text-left font-mono" title="Download Invoice">
-                                  {order.is_gst_invoice ? (order.invoice_number_gst || "-") : (order.invoice_number_non_gst || "-")}
+                                  {order.is_gst_invoice ? (order.invoice_number_gst || order.invoice_number || "-") : (order.invoice_number_non_gst || order.invoice_number || "-")}
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleDownloadThermalReceipt(order.id) }} className="p-1 hover:bg-muted rounded transition-colors" title="Thermal Print (80mm)">
                                   <Printer className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />

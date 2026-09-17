@@ -164,6 +164,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Could not place the order." }, { status: 500, headers: CORS_HEADERS })
     }
 
+    // Auto-generate invoice number
+    const { data: nextInvoiceNumber, error: invoiceError } = await supabaseAdmin.rpc('get_next_invoice_number', {
+      is_gst: false,
+      dist_code: null,
+      force_kp: false
+    })
+    
+    if (!invoiceError && nextInvoiceNumber) {
+      await supabaseAdmin.from("orders").update({ invoice_number_non_gst: nextInvoiceNumber }).eq("id", order.id)
+    }
+
     return NextResponse.json({ ok: true, orderNumber: order.order_number }, { headers: CORS_HEADERS })
   } catch (error) {
     console.error("Error in public-orders route:", error)
