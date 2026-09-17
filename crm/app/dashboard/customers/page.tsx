@@ -103,6 +103,9 @@ type Customer = {
   vip_number: string | null
   is_defaulter: boolean
   is_mandir: boolean
+  mandir_number: string | null
+  is_shop: boolean
+  shop_number: string | null
   full_address: string | null
   shipping_room_number: string | null
   shipping_floor: string | null
@@ -176,6 +179,9 @@ type CustomerFormData = {
   vip_number: string
   is_defaulter: boolean
   is_mandir: boolean
+  mandir_number: string
+  is_shop: boolean
+  shop_number: string
   is_active: boolean
 }
 
@@ -246,6 +252,8 @@ export default function CustomersPage() {
     outstandingBalance: 0
   })
   const [generatingVipNumber, setGeneratingVipNumber] = useState(false)
+  const [generatingMandirNumber, setGeneratingMandirNumber] = useState(false)
+  const [generatingShopNumber, setGeneratingShopNumber] = useState(false)
 
   const [formData, setFormData] = useState<CustomerFormData>({
     first_name: "",
@@ -289,6 +297,9 @@ export default function CustomersPage() {
     vip_number: "",
     is_defaulter: false,
     is_mandir: false,
+    mandir_number: "",
+    is_shop: false,
+    shop_number: "",
     is_active: true,
   })
 
@@ -491,6 +502,102 @@ export default function CustomersPage() {
       }
     } else {
       setFormData({ ...formData, is_vip: checked })
+    }
+  }
+
+  // Mandir/Shop numbers are Sadharmik & Co's own tiers (Kalapurna's data has
+  // no legacy numbering to stay compatible with), so unlike getNextVipNumber
+  // this is a plain "highest existing + 1, starting at 1" — no special
+  // 9000/10000 range handling needed.
+  const getNextMandirNumber = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("mandir_number")
+        .not("mandir_number", "is", null)
+
+      if (error) {
+        console.error("Error fetching Mandir numbers:", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) return "1"
+
+      const numbers = data
+        .map(item => parseInt(item.mandir_number || "0", 10))
+        .filter(num => !isNaN(num))
+        .sort((a, b) => b - a)
+
+      if (numbers.length === 0) return "1"
+      return (numbers[0] + 1).toString()
+    } catch (error) {
+      console.error("Error generating Mandir number:", error)
+      return Date.now().toString().slice(-4)
+    }
+  }
+
+  const handleMandirToggle = async (checked: boolean) => {
+    if (checked && !formData.mandir_number) {
+      setGeneratingMandirNumber(true)
+      try {
+        const nextMandirNumber = await getNextMandirNumber()
+        setFormData({ ...formData, is_mandir: true, mandir_number: nextMandirNumber })
+        toast.success(`Mandir number ${nextMandirNumber} assigned automatically`)
+      } catch (error) {
+        console.error("Error generating Mandir number:", error)
+        toast.error("Failed to generate Mandir number. Please enter manually.")
+        setFormData({ ...formData, is_mandir: true })
+      } finally {
+        setGeneratingMandirNumber(false)
+      }
+    } else {
+      setFormData({ ...formData, is_mandir: checked })
+    }
+  }
+
+  const getNextShopNumber = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("shop_number")
+        .not("shop_number", "is", null)
+
+      if (error) {
+        console.error("Error fetching Shop numbers:", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) return "1"
+
+      const numbers = data
+        .map(item => parseInt(item.shop_number || "0", 10))
+        .filter(num => !isNaN(num))
+        .sort((a, b) => b - a)
+
+      if (numbers.length === 0) return "1"
+      return (numbers[0] + 1).toString()
+    } catch (error) {
+      console.error("Error generating Shop number:", error)
+      return Date.now().toString().slice(-4)
+    }
+  }
+
+  const handleShopToggle = async (checked: boolean) => {
+    if (checked && !formData.shop_number) {
+      setGeneratingShopNumber(true)
+      try {
+        const nextShopNumber = await getNextShopNumber()
+        setFormData({ ...formData, is_shop: true, shop_number: nextShopNumber })
+        toast.success(`Shop number ${nextShopNumber} assigned automatically`)
+      } catch (error) {
+        console.error("Error generating Shop number:", error)
+        toast.error("Failed to generate Shop number. Please enter manually.")
+        setFormData({ ...formData, is_shop: true })
+      } finally {
+        setGeneratingShopNumber(false)
+      }
+    } else {
+      setFormData({ ...formData, is_shop: checked })
     }
   }
 
@@ -808,6 +915,9 @@ export default function CustomersPage() {
         vip_number: customer.vip_number || "",
         is_defaulter: customer.is_defaulter,
         is_mandir: customer.is_mandir,
+        mandir_number: customer.mandir_number || "",
+        is_shop: customer.is_shop,
+        shop_number: customer.shop_number || "",
         is_active: customer.is_active,
       })
     } else {
@@ -854,6 +964,9 @@ export default function CustomersPage() {
         vip_number: "",
         is_defaulter: false,
         is_mandir: false,
+        mandir_number: "",
+        is_shop: false,
+        shop_number: "",
         is_active: true,
       })
     }
@@ -1011,6 +1124,8 @@ export default function CustomersPage() {
         gst_number: formData.gst_number.trim() === "" ? null : formData.gst_number,
         pan_card_number: formData.pan_card_number.trim() === "" ? null : formData.pan_card_number.toUpperCase(),
         vip_number: formData.vip_number.trim() === "" ? null : formData.vip_number,
+        mandir_number: formData.mandir_number.trim() === "" ? null : formData.mandir_number,
+        shop_number: formData.shop_number.trim() === "" ? null : formData.shop_number,
         // Sync old fields with new fields for backward compatibility
         shipping_flat_number: formData.shipping_room_number || null,
         shipping_floor_wing: floorWing || null,
@@ -2117,19 +2232,64 @@ export default function CustomersPage() {
                     </div>
                   )}
                 </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_mandir}
+                      onChange={(e) => handleMandirToggle(e.target.checked)}
+                      disabled={generatingMandirNumber}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Mandir/Temple</span>
+                    {generatingMandirNumber && (
+                      <span className="text-xs text-muted-foreground">(Generating Mandir number...)</span>
+                    )}
+                  </label>
+                  {formData.is_mandir && (
+                    <div className="flex-1 max-w-xs">
+                      <Input
+                        placeholder="Mandir Number (auto-generated)"
+                        value={formData.mandir_number}
+                        onChange={(e) =>
+                          setFormData({ ...formData, mandir_number: e.target.value })
+                        }
+                        className="h-9"
+                        title="Mandir number is auto-generated. You can edit it if needed."
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_shop}
+                      onChange={(e) => handleShopToggle(e.target.checked)}
+                      disabled={generatingShopNumber}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm">Shop</span>
+                    {generatingShopNumber && (
+                      <span className="text-xs text-muted-foreground">(Generating Shop number...)</span>
+                    )}
+                  </label>
+                  {formData.is_shop && (
+                    <div className="flex-1 max-w-xs">
+                      <Input
+                        placeholder="Shop Number (auto-generated)"
+                        value={formData.shop_number}
+                        onChange={(e) =>
+                          setFormData({ ...formData, shop_number: e.target.value })
+                        }
+                        className="h-9"
+                        title="Shop number is auto-generated. You can edit it if needed."
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_mandir}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_mandir: e.target.checked })
-                    }
-                    className="h-4 w-4"
-                  />
-                  <span className="text-sm">Mandir/Temple</span>
-                </label>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
