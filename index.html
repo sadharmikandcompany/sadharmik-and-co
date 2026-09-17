@@ -854,10 +854,10 @@
   var WHATSAPP_NUMBER = "918777600400";
 
   // ===== CRM: where checkout submits orders so they show up in Sales/Dashboard =====
-  var CRM_API_URL = "https://sadharmikandcocrm.vercel.app/api/public-orders";
+  var CRM_API_URL = "https://crm.sadharmikandcompany.com/api/public-orders";
   // Same CRM — this is where the product cards below are loaded from, so
   // editing a flavour's price/photo/description in the CRM updates the site.
-  var PRODUCTS_API_URL = "https://sadharmikandcocrm.vercel.app/api/public-products";
+  var PRODUCTS_API_URL = "https://crm.sadharmikandcompany.com/api/public-products";
 
   document.getElementById('yr').textContent = new Date().getFullYear();
 
@@ -1032,7 +1032,7 @@
       +   '<h3>'+escapeHtml(p.name)+'</h3>'
       +   '<p class="desc">'+escapeHtml(p.description)+'</p>'
       +   '<div class="foot">'
-      +     '<span class="price">₹'+p.price+' <small>/ '+escapeHtml(p.packSize)+'</small></span>'
+      +     '<span class="price">₹'+p.price+(p.packSize ? ' <small>/ '+escapeHtml(p.packSize)+'</small>' : '')+'</span>'
       +     '<button class="add" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add to order</button>'
       +   '</div>'
       + '</div>'

@@ -96,6 +96,7 @@ type Product = {
   meta_content: string | null
   is_active: boolean
   is_featured: boolean
+  show_on_website: boolean
   created_at: string
   updated_at: string | null
 }
@@ -127,6 +128,7 @@ type ProductFormData = {
   meta_content: string
   is_active: boolean
   is_featured: boolean
+  show_on_website: boolean
 }
 
 type PincodePricingEntry = {
@@ -236,6 +238,7 @@ export default function ProductsPage() {
     meta_content: "",
     is_active: true,
     is_featured: false,
+    show_on_website: true,
   })
 
   useEffect(() => {
@@ -425,6 +428,7 @@ export default function ProductsPage() {
         meta_content: product.meta_content || "",
         is_active: product.is_active,
         is_featured: product.is_featured,
+        show_on_website: product.show_on_website,
       })
 
       // Fetch pincode pricing for this product
@@ -523,6 +527,7 @@ export default function ProductsPage() {
         meta_content: "",
         is_active: true,
         is_featured: false,
+        show_on_website: true,
       })
     }
     setDialogOpen(true)
@@ -1775,7 +1780,21 @@ export default function ProductsPage() {
                   />
                   <span className="text-sm font-medium">Featured Product</span>
                 </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.show_on_website}
+                    onChange={(e) =>
+                      setFormData({ ...formData, show_on_website: e.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium">Show on Website</span>
+                </label>
               </div>
+              <p className="text-xs text-muted-foreground">
+                "Active" controls whether this product can be ordered in the CRM/POS. "Show on Website" only controls whether it appears on the public sadharmikandcompany.com product grid — turning it off never hides it from the CRM.
+              </p>
             </div>
           </div>
           <DialogFooter className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur px-4 py-3">
