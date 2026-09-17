@@ -674,12 +674,17 @@ export default function NewOrderPage() {
       const phoneWithZero = '0' + cleanPhone
       const phoneAlternate = phoneWithoutCountryCode.startsWith('0') ? cleanPhone : phoneWithZero
 
+      // Support "SD1" / "sd 1" style searches, which should match the plain
+      // numeric vip_number ("1") since customers only ever see it as "Sd 1"
+      const sdNumberMatch = searchTerm.match(/^sd\s*-?\.?\s*(\d+)$/i)
+      const sdNumberClause = sdNumberMatch ? `,vip_number.eq.${sdNumberMatch[1]}` : ""
+
       // Search customers
       const { data: customersData, error: customersError } = await supabase
         .from("customers")
         .select("*")
         .eq("is_active", true)
-        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mobile_primary.ilike.%${searchTerm}%,mobile_secondary_1.ilike.%${searchTerm}%,mobile_secondary_2.ilike.%${searchTerm}%,whatsapp_number.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,vip_number.ilike.%${searchTerm}%,gst_number.ilike.%${searchTerm}%,pan_card_number.ilike.%${searchTerm}%,mobile_primary.ilike.%${phoneAlternate}%,mobile_secondary_1.ilike.%${phoneAlternate}%,mobile_secondary_2.ilike.%${phoneAlternate}%,whatsapp_number.ilike.%${phoneAlternate}%`)
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mobile_primary.ilike.%${searchTerm}%,mobile_secondary_1.ilike.%${searchTerm}%,mobile_secondary_2.ilike.%${searchTerm}%,whatsapp_number.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,vip_number.ilike.%${searchTerm}%,gst_number.ilike.%${searchTerm}%,pan_card_number.ilike.%${searchTerm}%,mobile_primary.ilike.%${phoneAlternate}%,mobile_secondary_1.ilike.%${phoneAlternate}%,mobile_secondary_2.ilike.%${phoneAlternate}%,whatsapp_number.ilike.%${phoneAlternate}%${sdNumberClause}`)
         .limit(50)
         .order("first_name")
 
