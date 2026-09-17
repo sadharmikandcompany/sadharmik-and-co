@@ -38,7 +38,7 @@ import {
   generateThermalReceipt, generateBulkThermalReceipts,
   FACTORY_COMPANY_INFO,
 } from "@/lib/invoice-generator"
-import { bucketLitresByCategory, parseLitresFromName, type BillLitres } from "@/lib/product-litres"
+import { totalKgForItems, kgForItem } from "@/lib/product-weight"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +138,7 @@ type DeliveryPartner = {
 
 type OrderItem = {
   id: string
+  product_id: string | null
   product_name: string
   product_sku: string | null
   quantity: number
@@ -175,27 +176,16 @@ type OrdersTableProps = {
   error?: string
 }
 
-const litreFormatter = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 })
+const kgFormatter = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 })
 
-// "Ltr" column cell — total litres on the bill, bifurcated into Ghee / Oil /
-// Other whenever a bill mixes more than one (e.g. 15L ghee + 5L oil shows as
-// two lines instead of one misleading combined "20 Ltr").
-function renderBillLitres(litres: BillLitres | undefined) {
-  if (!litres || litres.total <= 0) {
+// "Kg" column cell — total weight on the bill, from each product's own
+// net_weight_grams (set on the Products page), not a Ghee/Oil split like the
+// old liters version — khakhra doesn't have that category distinction.
+function renderBillKg(totalKg: number | undefined) {
+  if (!totalKg || totalKg <= 0) {
     return <span className="text-xs text-muted-foreground">—</span>
   }
-  const categoriesPresent = [litres.ghee, litres.oil, litres.other].filter((v) => v > 0).length
-  if (categoriesPresent <= 1) {
-    return <span className="font-medium">{litreFormatter.format(litres.total)} Ltr</span>
-  }
-  return (
-    <div className="flex flex-col text-xs">
-      <span className="font-medium text-sm">{litreFormatter.format(litres.total)} Ltr</span>
-      {litres.ghee > 0 && <span className="text-muted-foreground">Ghee {litreFormatter.format(litres.ghee)}L</span>}
-      {litres.oil > 0 && <span className="text-muted-foreground">Oil {litreFormatter.format(litres.oil)}L</span>}
-      {litres.other > 0 && <span className="text-muted-foreground">Other {litreFormatter.format(litres.other)}L</span>}
-    </div>
-  )
+  return <span className="font-medium">{kgFormatter.format(totalKg)} Kg</span>
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -221,39 +211,60 @@ export function OrdersTable({
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [assigningDriver, setAssigningDriver] = useState<string | null>(null)
 
-  // Per-bill litres (Ghee / Oil / Other), shown in the "Ltr" column — unlike
+  // Per-bill total weight (kg), shown in the "Kg" column — unlike
   // `orderItems` above (lazy, only fetched on row expand), this is fetched
   // eagerly in one batched query for every order on the current page, since
   // the column needs to show a value for every row without expanding it.
-  const [orderLitres, setOrderLitres] = useState<Record<string, BillLitres>>({})
+  const [orderKg, setOrderKg] = useState<Record<string, number>>({})
+  // product_id -> net_weight_grams, populated alongside orderKg above and
+  // reused by the expanded per-item rows below (same page of orders, so
+  // every product that can appear there is already covered).
+  const [productWeights, setProductWeights] = useState<Record<string, number | null>>({})
 
   useEffect(() => {
     const orderIds = initialOrders.map((o) => o.id)
     if (orderIds.length === 0) {
-      setOrderLitres({})
+      setOrderKg({})
       return
     }
     let cancelled = false
     supabase
       .from("order_items")
-      .select("order_id, product_name, quantity")
+      .select("order_id, product_id, quantity")
       .in("order_id", orderIds)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error("Error fetching order items for Ltr column:", error)
+      .then(async ({ data, error }) => {
+        if (cancelled || error) {
+          if (error) console.error("Error fetching order items for Kg column:", error)
           return
         }
-        const byOrder: Record<string, { product_name: string | null; quantity: number }[]> = {}
+        const byOrder: Record<string, { product_id: string | null; quantity: number }[]> = {}
+        const productIds = new Set<string>()
         ;(data || []).forEach((row: any) => {
           if (!byOrder[row.order_id]) byOrder[row.order_id] = []
-          byOrder[row.order_id].push({ product_name: row.product_name, quantity: row.quantity })
+          byOrder[row.order_id].push({ product_id: row.product_id, quantity: row.quantity })
+          if (row.product_id) productIds.add(row.product_id)
         })
-        const litresMap: Record<string, BillLitres> = {}
+
+        const { data: productsData, error: productsError } = await supabase
+          .from("products")
+          .select("id, net_weight_grams")
+          .in("id", Array.from(productIds))
+        if (cancelled) return
+        if (productsError) {
+          console.error("Error fetching product weights for Kg column:", productsError)
+          return
+        }
+        const weightByProductId: Record<string, number | null> = {}
+        ;(productsData || []).forEach((p: any) => {
+          weightByProductId[p.id] = p.net_weight_grams
+        })
+        setProductWeights(weightByProductId)
+
+        const kgMap: Record<string, number> = {}
         Object.entries(byOrder).forEach(([orderId, items]) => {
-          litresMap[orderId] = bucketLitresByCategory(items)
+          kgMap[orderId] = totalKgForItems(items, weightByProductId)
         })
-        setOrderLitres(litresMap)
+        setOrderKg(kgMap)
       })
     return () => {
       cancelled = true
@@ -1057,7 +1068,7 @@ export function OrdersTable({
                   <TableHead>Delivery Status</TableHead>
                   <TableHead>Payment Method</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Ltr</TableHead>
+                  <TableHead>Kg</TableHead>
                   <TableHead>Order Status</TableHead>
                   <TableHead>Payment Status</TableHead>
                   <TableHead className="w-[80px]">Actions</TableHead>
@@ -1174,7 +1185,7 @@ export function OrdersTable({
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">₹{order.total_amount.toFixed(2)}</TableCell>
-                          <TableCell>{renderBillLitres(orderLitres[order.id])}</TableCell>
+                          <TableCell>{renderBillKg(orderKg[order.id])}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               <Badge variant={getStatusVariant(order.order_status)}>{order.order_status}</Badge>
@@ -1309,7 +1320,7 @@ export function OrdersTable({
                                             <TableHead className="text-right">Net Amt</TableHead>
                                             <TableHead className="text-center">GST %</TableHead>
                                             <TableHead className="text-right">GST Amt</TableHead>
-                                            <TableHead className="text-right">Ltr</TableHead>
+                                            <TableHead className="text-right">Kg</TableHead>
                                             <TableHead className="text-right">Total</TableHead>
                                           </TableRow>
                                         </TableHeader>
@@ -1317,7 +1328,7 @@ export function OrdersTable({
                                           {items.map((item) => {
                                             const itemSubtotal = item.quantity * item.unit_price
                                             const netAmount = itemSubtotal - item.discount_amount
-                                            const itemLitres = parseLitresFromName(item.product_name, item.quantity)
+                                            const itemKg = kgForItem(item.product_id ? productWeights[item.product_id] : null, item.quantity)
                                             return (
                                               <TableRow key={item.id || `${order.id}-${item.product_name}-${item.quantity}`}>
                                                 <TableCell className="font-medium">
@@ -1331,7 +1342,7 @@ export function OrdersTable({
                                                 <TableCell className="text-right font-medium">₹{netAmount.toFixed(2)}</TableCell>
                                                 <TableCell className="text-center">{item.gst_percentage > 0 ? `${item.gst_percentage}%` : "-"}</TableCell>
                                                 <TableCell className="text-right">{item.gst_amount > 0 ? `₹${item.gst_amount.toFixed(2)}` : "-"}</TableCell>
-                                                <TableCell className="text-right text-muted-foreground">{itemLitres > 0 ? `${litreFormatter.format(itemLitres)} L` : "-"}</TableCell>
+                                                <TableCell className="text-right text-muted-foreground">{itemKg > 0 ? `${kgFormatter.format(itemKg)} Kg` : "-"}</TableCell>
                                                 <TableCell className="text-right font-medium">₹{item.total.toFixed(2)}</TableCell>
                                               </TableRow>
                                             )
@@ -1348,18 +1359,15 @@ export function OrdersTable({
                                         const totalItemDiscount = items.reduce((sum, i) => sum + (i.discount_amount || 0), 0)
                                         const totalDiscount = totalItemDiscount + (order.discount_amount ?? 0)
                                         const totalQty = items.reduce((sum, i) => sum + i.quantity, 0)
-                                        const billLitres = bucketLitresByCategory(items)
+                                        const billKg = totalKgForItems(items, productWeights)
                                         return (
                                           <div className="flex items-center gap-6">
                                             <div className="text-sm"><span className="text-muted-foreground">Products: </span><span className="font-medium">{items.length}</span></div>
                                             <div className="text-sm"><span className="text-muted-foreground">Qty: </span><span className="font-medium">{totalQty}</span></div>
-                                            {billLitres.total > 0 && (
+                                            {billKg > 0 && (
                                               <div className="text-sm">
-                                                <span className="text-muted-foreground">Ltr: </span>
-                                                <span className="font-medium">{litreFormatter.format(billLitres.total)} L</span>
-                                                {billLitres.ghee > 0 && billLitres.oil > 0 && (
-                                                  <span className="text-muted-foreground"> (Ghee {litreFormatter.format(billLitres.ghee)}L, Oil {litreFormatter.format(billLitres.oil)}L{billLitres.other > 0 ? `, Other ${litreFormatter.format(billLitres.other)}L` : ""})</span>
-                                                )}
+                                                <span className="text-muted-foreground">Kg: </span>
+                                                <span className="font-medium">{kgFormatter.format(billKg)} Kg</span>
                                               </div>
                                             )}
                                             <div className="text-sm"><span className="text-muted-foreground">Subtotal: </span><span className="font-medium">₹{(order.subtotal ?? calcSubtotal).toFixed(2)}</span></div>

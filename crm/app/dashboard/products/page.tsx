@@ -68,6 +68,7 @@ type Product = {
   brand: string | null
   hsn_code: string | null
   gst_percentage: number | null
+  net_weight_grams: number | null
   parent_category_id: string | null
   sub_category_id: string | null
   parent_category?: Category
@@ -106,6 +107,7 @@ type ProductFormData = {
   brand: string
   hsn_code: string
   gst_percentage: number
+  net_weight_grams: string
   parent_category_id: string | null
   sub_category_id: string | null
   stock: number
@@ -216,6 +218,7 @@ export default function ProductsPage() {
     brand: "",
     hsn_code: "",
     gst_percentage: 0,
+    net_weight_grams: "",
     parent_category_id: null,
     sub_category_id: null,
     stock: 0,
@@ -406,6 +409,7 @@ export default function ProductsPage() {
         brand: product.brand || "",
         hsn_code: product.hsn_code || "",
         gst_percentage: product.gst_percentage || 0,
+        net_weight_grams: product.net_weight_grams != null ? String(product.net_weight_grams) : "",
         parent_category_id: product.parent_category_id || null,
         sub_category_id: product.sub_category_id || null,
         stock: product.stock || 0,
@@ -505,6 +509,7 @@ export default function ProductsPage() {
         brand: "",
         hsn_code: "",
         gst_percentage: 0,
+        net_weight_grams: "",
         parent_category_id: null,
         sub_category_id: null,
         stock: 0,
@@ -630,6 +635,7 @@ export default function ProductsPage() {
     try {
       const productData = {
         ...formData,
+        net_weight_grams: formData.net_weight_grams.trim() === "" ? null : parseFloat(formData.net_weight_grams),
         images: imageUrls.filter(isValidImageUrl)
       }
 
@@ -1062,7 +1068,7 @@ export default function ProductsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="hsn_code">HSN Code</Label>
                   <Input
@@ -1097,6 +1103,21 @@ export default function ProductsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })
                     }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="net_weight_grams">Net Weight (grams)</Label>
+                  <Input
+                    id="net_weight_grams"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 500"
+                    value={formData.net_weight_grams}
+                    onChange={(e) =>
+                      setFormData({ ...formData, net_weight_grams: e.target.value })
+                    }
+                    title="Used to total up Kg on the Orders page. Leave blank if not applicable."
                   />
                 </div>
               </div>
