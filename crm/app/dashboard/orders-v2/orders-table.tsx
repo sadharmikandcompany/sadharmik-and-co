@@ -101,6 +101,8 @@ type Order = {
   customer_whatsapp?: string | null
   customer_full_address?: string
   customer_vip_number?: string | null
+  customer_mandir_number?: string | null
+  customer_shop_number?: string | null
   customer_email?: string | null
   customer_company_name?: string | null
   customer_gst_number?: string | null
@@ -796,6 +798,8 @@ export function OrdersTable({
     Customer: order.customer_name || "Unknown",
     Phone: order.customer_phone || "",
     "Sd Number": order.customer_vip_number || "",
+    "Mandir Number": order.customer_mandir_number || "",
+    "Shop Number": order.customer_shop_number || "",
     Address: order.customer_full_address || "",
     "Shipping Address": order.shipping_full_address || `${order.shipping_city}, ${order.shipping_state}`,
     Pincode: order.shipping_pincode || "",
@@ -814,7 +818,8 @@ export function OrdersTable({
   const exportColumns = [
     { header: "Order #", dataKey: "Order Number" }, { header: "Source", dataKey: "Source" },
     { header: "Customer", dataKey: "Customer" }, { header: "Phone", dataKey: "Phone" },
-    { header: "Sd", dataKey: "Sd Number" }, { header: "Address", dataKey: "Address" },
+    { header: "Sd", dataKey: "Sd Number" }, { header: "Mandir", dataKey: "Mandir Number" },
+    { header: "Shop", dataKey: "Shop Number" }, { header: "Address", dataKey: "Address" },
     { header: "Shipping", dataKey: "Shipping Address" }, { header: "Pincode", dataKey: "Pincode" },
     { header: "Distributor", dataKey: "Distributor" }, { header: "Items", dataKey: "Items" },
     { header: "Qty", dataKey: "Total Qty" }, { header: "Subtotal", dataKey: "Subtotal" },
@@ -1118,9 +1123,11 @@ export function OrdersTable({
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span>{order.customer_name}</span>
-                                {order.customer_vip_number && <Badge variant="outline" className="font-mono text-xs">{order.customer_vip_number}</Badge>}
+                                {order.customer_vip_number && <Badge variant="outline" className="font-mono text-xs">Sd{order.customer_vip_number}</Badge>}
+                                {order.customer_mandir_number && <Badge variant="outline" className="font-mono text-xs">Man{order.customer_mandir_number}</Badge>}
+                                {order.customer_shop_number && <Badge variant="outline" className="font-mono text-xs">Shop{order.customer_shop_number}</Badge>}
                               </div>
                               {order.customer_phone && <span className="text-xs text-muted-foreground">{order.customer_phone}</span>}
                             </div>
