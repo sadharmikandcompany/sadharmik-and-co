@@ -656,7 +656,9 @@ export default function SupportDashboardPage() {
         setGeneratingVipNumber(false);
       }
     } else {
-      setFormData({ ...formData, is_vip: checked });
+      // Unchecking must also clear the number — otherwise it survives in
+      // form state (and gets saved back) even though the tier is now off.
+      setFormData({ ...formData, is_vip: checked, vip_number: checked ? formData.vip_number : "" });
     }
   };
 

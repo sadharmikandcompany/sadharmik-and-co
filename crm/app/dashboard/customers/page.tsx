@@ -511,7 +511,9 @@ export default function CustomersPage() {
         setGeneratingVipNumber(false)
       }
     } else {
-      setFormData({ ...formData, is_vip: checked })
+      // Unchecking must also clear the number — otherwise it survives in
+      // form state (and gets saved back) even though the tier is now off.
+      setFormData({ ...formData, is_vip: checked, vip_number: checked ? formData.vip_number : "" })
     }
   }
 
@@ -561,7 +563,7 @@ export default function CustomersPage() {
         setGeneratingMandirNumber(false)
       }
     } else {
-      setFormData({ ...formData, is_mandir: checked })
+      setFormData({ ...formData, is_mandir: checked, mandir_number: checked ? formData.mandir_number : "" })
     }
   }
 
@@ -607,7 +609,7 @@ export default function CustomersPage() {
         setGeneratingShopNumber(false)
       }
     } else {
-      setFormData({ ...formData, is_shop: checked })
+      setFormData({ ...formData, is_shop: checked, shop_number: checked ? formData.shop_number : "" })
     }
   }
 
@@ -1463,19 +1465,19 @@ export default function CustomersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {customer.vip_number || customer.mandir_number || customer.shop_number ? (
+                        {(customer.is_vip && customer.vip_number) || (customer.is_mandir && customer.mandir_number) || (customer.is_shop && customer.shop_number) ? (
                           <div className="flex flex-wrap gap-1">
-                            {customer.vip_number && (
+                            {customer.is_vip && customer.vip_number && (
                               <Badge className="font-mono bg-green-700 text-white hover:bg-green-800">
                                 Sd{customer.vip_number}
                               </Badge>
                             )}
-                            {customer.mandir_number && (
+                            {customer.is_mandir && customer.mandir_number && (
                               <Badge className="font-mono bg-amber-700 text-white hover:bg-amber-800">
                                 Man{customer.mandir_number}
                               </Badge>
                             )}
-                            {customer.shop_number && (
+                            {customer.is_shop && customer.shop_number && (
                               <Badge className="font-mono bg-blue-700 text-white hover:bg-blue-800">
                                 Shop{customer.shop_number}
                               </Badge>

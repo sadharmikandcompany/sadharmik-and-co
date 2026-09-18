@@ -1,10 +1,13 @@
 -- orders_v exposed customer_vip_number (Sd number) but not the equivalent
 -- Mandir/Shop numbers, so the Orders list could only ever show a customer's
 -- Sd badge — a Mandir or Shop customer showed no tier badge at all. Adds
--- customer_mandir_number / customer_shop_number, otherwise an exact copy of
--- the current definition (see add_order_payment_allocations.sql) since a
--- view's column list is frozen at creation and must be fully recreated to
--- add columns.
+-- customer_mandir_number / customer_shop_number, plus the is_vip/is_mandir/
+-- is_shop flags themselves so the UI can gate a badge on the actual flag
+-- rather than just the number being non-null (a customer can have a stale
+-- leftover number from a tier that was later unchecked). Otherwise an exact
+-- copy of the current definition (see add_order_payment_allocations.sql)
+-- since a view's column list is frozen at creation and must be fully
+-- recreated to add columns.
 DROP VIEW IF EXISTS orders_v;
 
 CREATE VIEW orders_v AS
@@ -31,8 +34,11 @@ SELECT
   c.mobile_secondary_2 AS customer_phone_secondary_2,
   CASE WHEN c.whatsapp_same_as_primary = true THEN NULL ELSE c.whatsapp_number END AS customer_whatsapp,
   COALESCE(c.full_address, r.company_name, d.company_name) AS customer_full_address,
+  c.is_vip AS customer_is_vip,
   c.vip_number AS customer_vip_number,
+  c.is_mandir AS customer_is_mandir,
   c.mandir_number AS customer_mandir_number,
+  c.is_shop AS customer_is_shop,
   c.shop_number AS customer_shop_number,
   c.email AS customer_email,
   c.company_name AS customer_company_name,

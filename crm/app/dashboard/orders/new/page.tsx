@@ -1313,7 +1313,9 @@ export default function NewOrderPage() {
         setGeneratingVipNumber(false)
       }
     } else {
-      setCustomerFormData({ ...customerFormData, is_vip: checked })
+      // Unchecking must also clear the number — otherwise it survives in
+      // form state (and gets saved back) even though the tier is now off.
+      setCustomerFormData({ ...customerFormData, is_vip: checked, vip_number: checked ? customerFormData.vip_number : "" })
     }
   }
 
@@ -1359,7 +1361,7 @@ export default function NewOrderPage() {
         setGeneratingMandirNumber(false)
       }
     } else {
-      setCustomerFormData({ ...customerFormData, is_mandir: checked })
+      setCustomerFormData({ ...customerFormData, is_mandir: checked, mandir_number: checked ? customerFormData.mandir_number : "" })
     }
   }
 
@@ -1405,7 +1407,7 @@ export default function NewOrderPage() {
         setGeneratingShopNumber(false)
       }
     } else {
-      setCustomerFormData({ ...customerFormData, is_shop: checked })
+      setCustomerFormData({ ...customerFormData, is_shop: checked, shop_number: checked ? customerFormData.shop_number : "" })
     }
   }
 

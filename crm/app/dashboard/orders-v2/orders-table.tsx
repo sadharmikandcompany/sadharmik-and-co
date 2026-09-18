@@ -100,8 +100,11 @@ type Order = {
   customer_phone_secondary_2?: string | null
   customer_whatsapp?: string | null
   customer_full_address?: string
+  customer_is_vip?: boolean | null
   customer_vip_number?: string | null
+  customer_is_mandir?: boolean | null
   customer_mandir_number?: string | null
+  customer_is_shop?: boolean | null
   customer_shop_number?: string | null
   customer_email?: string | null
   customer_company_name?: string | null
@@ -1125,9 +1128,9 @@ export function OrdersTable({
                             <div className="flex flex-col">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span>{order.customer_name}</span>
-                                {order.customer_vip_number && <Badge variant="outline" className="font-mono text-xs">Sd{order.customer_vip_number}</Badge>}
-                                {order.customer_mandir_number && <Badge variant="outline" className="font-mono text-xs">Man{order.customer_mandir_number}</Badge>}
-                                {order.customer_shop_number && <Badge variant="outline" className="font-mono text-xs">Shop{order.customer_shop_number}</Badge>}
+                                {order.customer_is_vip && order.customer_vip_number && <Badge variant="outline" className="font-mono text-xs">Sd{order.customer_vip_number}</Badge>}
+                                {order.customer_is_mandir && order.customer_mandir_number && <Badge variant="outline" className="font-mono text-xs">Man{order.customer_mandir_number}</Badge>}
+                                {order.customer_is_shop && order.customer_shop_number && <Badge variant="outline" className="font-mono text-xs">Shop{order.customer_shop_number}</Badge>}
                               </div>
                               {order.customer_phone && <span className="text-xs text-muted-foreground">{order.customer_phone}</span>}
                             </div>
