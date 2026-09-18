@@ -19,6 +19,7 @@ import {
   XCircle, Truck, CheckCircle, MoreVertical, Users, Printer, UserCheck,
   AlertTriangle, DollarSign, Trash2, Star, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, QrCode, Copy, Loader2, Store, Globe,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -168,6 +169,8 @@ type Filters = {
   amountTo: string
   hideRetailer: string
   websiteOnly: string
+  sortBy: string
+  sortOrder: string
 }
 
 type OrdersTableProps = {
@@ -327,6 +330,18 @@ export function OrdersTable({
     },
     [searchParams, pathname, router, startTransition]
   )
+
+  // Clicking a sortable column header cycles: unsorted -> asc -> desc -> asc...
+  // (once a column is active, the click just flips direction).
+  const handleSort = (column: string) => {
+    const nextOrder = filters.sortBy === column && filters.sortOrder === "asc" ? "desc" : "asc"
+    updateParams({ sortBy: column, sortOrder: nextOrder })
+  }
+
+  const sortIcon = (column: string) => {
+    if (filters.sortBy !== column) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+    return filters.sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+  }
 
   const handleSearchChange = (value: string) => {
     setSearchInput(value)
@@ -625,6 +640,8 @@ export function OrdersTable({
         gst_number: customerData.gst_number || undefined,
         full_address: customerData.full_address || undefined,
         vip_number: customerData.vip_number || undefined,
+        mandir_number: customerData.mandir_number || undefined,
+        shop_number: customerData.shop_number || undefined,
       },
       items: itemsData.map((item: any) => ({
         product_name: item.product_name, product_sku: item.product_sku || undefined,
@@ -1068,14 +1085,22 @@ export function OrdersTable({
                   <TableHead className="w-[40px]"></TableHead>
                   <TableHead className="w-[40px]"></TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Order Number</TableHead>
+                  <TableHead>
+                    <button onClick={() => handleSort("orderNumber")} className="inline-flex items-center gap-1 hover:text-primary">
+                      Order Number {sortIcon("orderNumber")}
+                    </button>
+                  </TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Distributor</TableHead>
                   <TableHead>Delivery Driver</TableHead>
                   <TableHead>Delivery Status</TableHead>
                   <TableHead>Payment Method</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>
+                    <button onClick={() => handleSort("amount")} className="inline-flex items-center gap-1 hover:text-primary">
+                      Amount {sortIcon("amount")}
+                    </button>
+                  </TableHead>
                   <TableHead>Kg</TableHead>
                   <TableHead>Order Status</TableHead>
                   <TableHead>Payment Status</TableHead>

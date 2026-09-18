@@ -37,6 +37,10 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
   // Visibility toggles: hide retailer orders / show only website orders
   const hideRetailer = String(params.hideRetailer || "") === "1"
   const websiteOnly = String(params.websiteOnly || "") === "1"
+  // Sortable columns: order number and amount. Anything else (or no
+  // sortBy) keeps the original default of newest-first by order_date.
+  const sortBy = String(params.sortBy || "")
+  const sortOrder = String(params.sortOrder || "desc") === "asc" ? "asc" : "desc"
 
   // Build query on enriched view
   let query = supabaseServer
@@ -206,11 +210,18 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
     query = query.lte("total_amount", parseFloat(amountTo))
   }
 
-  // Sort and paginate — sort by order_date (the date shown in the table),
-  // not created_at, so orders appear in the same order as their visible date.
+  // Sort and paginate. Default: order_date (the date shown in the table),
+  // not created_at, so orders appear in the same order as their visible
+  // date. Order Number and Amount are explicit user-chosen sorts instead.
+  const ascending = sortOrder === "asc"
+  if (sortBy === "orderNumber") {
+    query = query.order("order_number", { ascending })
+  } else if (sortBy === "amount") {
+    query = query.order("total_amount", { ascending })
+  } else {
+    query = query.order("order_date", { ascending: false }).order("created_at", { ascending: false })
+  }
   const { data: orders, count, error } = await query
-    .order("order_date", { ascending: false })
-    .order("created_at", { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
 
   // Fetch dropdown options in parallel
@@ -250,6 +261,8 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
         amountTo,
         hideRetailer: hideRetailer ? "1" : "",
         websiteOnly: websiteOnly ? "1" : "",
+        sortBy,
+        sortOrder,
       }}
       error={error?.message}
     />
