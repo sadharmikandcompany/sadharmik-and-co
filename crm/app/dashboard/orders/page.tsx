@@ -825,6 +825,8 @@ export default function OrdersPage() {
           gst_number: customerData.gst_number || undefined,
           full_address: customerData.full_address || undefined,
           vip_number: customerData.vip_number || undefined,
+          mandir_number: customerData.mandir_number || undefined,
+          shop_number: customerData.shop_number || undefined,
         },
         items: itemsData.map(item => ({
           product_name: item.product_name,
@@ -940,6 +942,8 @@ export default function OrdersPage() {
           gst_number: customerData.gst_number || undefined,
           full_address: customerData.full_address || undefined,
           vip_number: customerData.vip_number || undefined,
+          mandir_number: customerData.mandir_number || undefined,
+          shop_number: customerData.shop_number || undefined,
         },
         items: itemsData.map(item => ({
           product_name: item.product_name,
@@ -1530,6 +1534,8 @@ export default function OrdersPage() {
                 gst_number: customerData.gst_number || undefined,
                 full_address: customerData.full_address || undefined,
                 vip_number: customerData.vip_number || undefined,
+                mandir_number: customerData.mandir_number || undefined,
+                shop_number: customerData.shop_number || undefined,
               },
               items: itemsData.map(item => ({
                 product_name: item.product_name,

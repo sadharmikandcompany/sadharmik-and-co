@@ -127,6 +127,8 @@ interface OrderInvoiceData {
     gst_number?: string;
     full_address?: string;
     vip_number?: string;
+    mandir_number?: string;
+    shop_number?: string;
   };
   items: Array<{
     product_name: string;
@@ -183,6 +185,17 @@ interface PurchaseInvoiceData {
     hsn_code?: string;
   }>;
   companyInfo?: CompanyInfo;
+}
+
+// Builds "(Sd1, Man1, Shop1)" from whichever tier numbers a customer has —
+// used on the printed invoice and thermal receipt next to the customer name,
+// same prefix convention as the Customers/Orders pages (Sd/Man/Shop + number).
+function customerTierTags(customer: { vip_number?: string; mandir_number?: string; shop_number?: string }): string {
+  const tags: string[] = [];
+  if (customer.vip_number) tags.push(`Sd${customer.vip_number}`);
+  if (customer.mandir_number) tags.push(`Man${customer.mandir_number}`);
+  if (customer.shop_number) tags.push(`Shop${customer.shop_number}`);
+  return tags.length > 0 ? ` (${tags.join(', ')})` : '';
 }
 
 /**
@@ -842,6 +855,8 @@ interface CustomerLedgerData {
     company_name?: string;
     gst_number?: string;
     vip_number?: string;
+    mandir_number?: string;
+    shop_number?: string;
   };
   orders: Array<{
     order_number: string;
@@ -941,13 +956,7 @@ export async function generateThermalReceipt(data: OrderInvoiceData, customerNam
 
   doc.setFont('helvetica', 'bold');
   const custName = `${data.customer.first_name} ${data.customer.last_name}`;
-  const vipNumber = data.customer.vip_number;
-
-  if (vipNumber) {
-    doc.text(`${custName} (Sd: ${vipNumber})`, margin, yPos);
-  } else {
-    doc.text(custName, margin, yPos);
-  }
+  doc.text(`${custName}${customerTierTags(data.customer)}`, margin, yPos);
   yPos += 4.5;
   doc.setFont('helvetica', 'normal');
   doc.text(`Ph: ${data.customer.mobile_primary}`, margin, yPos);
@@ -1339,13 +1348,7 @@ export async function generateBulkThermalReceipts(invoicesData: Array<{ data: Or
 
     doc.setFont('helvetica', 'bold');
     const custName = `${data.customer.first_name} ${data.customer.last_name}`;
-    const vipNumber = data.customer.vip_number;
-
-    if (vipNumber) {
-      doc.text(`${custName} (Sd: ${vipNumber})`, margin, yPos);
-    } else {
-      doc.text(custName, margin, yPos);
-    }
+    doc.text(`${custName}${customerTierTags(data.customer)}`, margin, yPos);
     yPos += 4.5;
     doc.setFont('helvetica', 'normal');
     doc.text(`Ph: ${data.customer.mobile_primary}`, margin, yPos);
@@ -1711,6 +1714,12 @@ export function generateCustomerLedger(data: CustomerLedgerData): void {
 
   if (data.customer.vip_number) {
     customerDetails += `\nSd #: ${data.customer.vip_number}`;
+  }
+  if (data.customer.mandir_number) {
+    customerDetails += `\nMandir #: ${data.customer.mandir_number}`;
+  }
+  if (data.customer.shop_number) {
+    customerDetails += `\nShop #: ${data.customer.shop_number}`;
   }
 
   autoTable(doc, {
