@@ -1157,6 +1157,33 @@ export default function NewOrderPage() {
     }))
   }
 
+  // Switching a line's pack size after it's already been added — updates
+  // both the weight badge and the price together so they can't drift apart
+  // (e.g. badge still saying 500g after the price was hand-edited to the
+  // 250g rate). Existing discount amount is kept as-is, same as a manual
+  // unit price edit; only capped if it would now exceed the new subtotal.
+  const handleUpdateItemWeightOption = (itemId: string, weightOptionId: string) => {
+    setOrderItems(orderItems.map(item => {
+      if (item.id !== itemId) return item
+      const option = (weightOptionsByProduct[item.product_id] || []).find((o) => o.id === weightOptionId)
+      if (!option) return item
+
+      const itemSubtotal = item.quantity * option.price
+      const discountAmount = Math.min(item.discount_amount, itemSubtotal)
+      const netAmount = itemSubtotal - discountAmount
+      const discountPercentage = itemSubtotal > 0 ? (discountAmount / itemSubtotal) * 100 : 0
+
+      return {
+        ...item,
+        unit_price: option.price,
+        weight_grams: option.weight_grams,
+        discount_amount: discountAmount,
+        discount_percentage: discountPercentage,
+        gross_amount: netAmount,
+      }
+    }))
+  }
+
   const handleUpdateItemDiscountAmount = (itemId: string, discountAmount: number) => {
     if (discountAmount < 0) return
     setOrderItems(orderItems.map(item => {
@@ -3271,7 +3298,25 @@ export default function NewOrderPage() {
                             <TableCell className="font-medium">
                               <div>
                                 {item.product_name}
-                                {item.weight_grams ? (
+                                {(weightOptionsByProduct[item.product_id]?.length ?? 0) > 0 ? (
+                                  <Select
+                                    value={weightOptionsByProduct[item.product_id]?.find(
+                                      (o) => o.weight_grams === item.weight_grams
+                                    )?.id || ""}
+                                    onValueChange={(value) => handleUpdateItemWeightOption(item.id, value)}
+                                  >
+                                    <SelectTrigger className="inline-flex h-6 w-auto ml-2 text-xs px-2 py-0 align-middle">
+                                      <SelectValue placeholder="Pack size" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {weightOptionsByProduct[item.product_id].map((option) => (
+                                        <SelectItem key={option.id} value={option.id}>
+                                          {option.weight_grams >= 1000 ? `${option.weight_grams / 1000}kg` : `${option.weight_grams}g`} — ₹{option.price}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : item.weight_grams ? (
                                   <Badge variant="outline" className="ml-2 text-xs font-normal align-middle">
                                     {item.weight_grams >= 1000 ? `${item.weight_grams / 1000}kg` : `${item.weight_grams}g`}
                                   </Badge>
