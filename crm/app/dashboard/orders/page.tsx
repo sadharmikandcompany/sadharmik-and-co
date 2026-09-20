@@ -842,6 +842,7 @@ export default function OrdersPage() {
           total: item.total,
           hsn_code: item.hsn_code || undefined,
           item_description: item.item_description || undefined,
+          weight_grams: item.weight_grams || undefined,
         })),
         companyInfo,
       }
@@ -959,6 +960,7 @@ export default function OrdersPage() {
           total: item.total,
           hsn_code: item.hsn_code || undefined,
           item_description: item.item_description || undefined,
+          weight_grams: item.weight_grams || undefined,
         })),
         companyInfo: thermalCompanyInfo,
       }
@@ -1382,6 +1384,7 @@ export default function OrdersPage() {
               total: item.total,
               hsn_code: item.hsn_code || undefined,
               item_description: item.item_description || undefined,
+              weight_grams: item.weight_grams || undefined,
             })),
             companyInfo,
           })
@@ -1551,6 +1554,7 @@ export default function OrdersPage() {
                 total: item.total,
                 hsn_code: item.hsn_code || undefined,
                 item_description: item.item_description || undefined,
+                weight_grams: item.weight_grams || undefined,
               })),
               companyInfo,
             },

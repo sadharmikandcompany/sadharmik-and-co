@@ -154,6 +154,7 @@ type OrderItem = {
   gst_percentage: number
   gst_amount: number
   total: number
+  weight_grams: number | null
 }
 
 type Filters = {
@@ -238,18 +239,18 @@ export function OrdersTable({
     let cancelled = false
     supabase
       .from("order_items")
-      .select("order_id, product_id, quantity")
+      .select("order_id, product_id, quantity, weight_grams")
       .in("order_id", orderIds)
       .then(async ({ data, error }) => {
         if (cancelled || error) {
           if (error) console.error("Error fetching order items for Kg column:", error)
           return
         }
-        const byOrder: Record<string, { product_id: string | null; quantity: number }[]> = {}
+        const byOrder: Record<string, { product_id: string | null; quantity: number; weight_grams: number | null }[]> = {}
         const productIds = new Set<string>()
         ;(data || []).forEach((row: any) => {
           if (!byOrder[row.order_id]) byOrder[row.order_id] = []
-          byOrder[row.order_id].push({ product_id: row.product_id, quantity: row.quantity })
+          byOrder[row.order_id].push({ product_id: row.product_id, quantity: row.quantity, weight_grams: row.weight_grams })
           if (row.product_id) productIds.add(row.product_id)
         })
 
@@ -651,6 +652,7 @@ export function OrdersTable({
         sgst_amount: item.sgst_amount, igst_amount: item.igst_amount,
         total: item.total, hsn_code: item.hsn_code || undefined,
         item_description: item.item_description || undefined,
+        weight_grams: item.weight_grams || undefined,
       })),
       companyInfo,
       customerName: `${customerData.first_name} ${customerData.last_name}`,
@@ -1363,7 +1365,7 @@ export function OrdersTable({
                                           {items.map((item) => {
                                             const itemSubtotal = item.quantity * item.unit_price
                                             const netAmount = itemSubtotal - item.discount_amount
-                                            const itemKg = kgForItem(item.product_id ? productWeights[item.product_id] : null, item.quantity)
+                                            const itemKg = kgForItem(item.weight_grams ?? (item.product_id ? productWeights[item.product_id] : null), item.quantity)
                                             return (
                                               <TableRow key={item.id || `${order.id}-${item.product_name}-${item.quantity}`}>
                                                 <TableCell className="font-medium">

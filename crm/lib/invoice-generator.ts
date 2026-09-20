@@ -144,6 +144,7 @@ interface OrderInvoiceData {
     total: number;
     hsn_code?: string;
     item_description?: string;
+    weight_grams?: number | null;
   }>;
   companyInfo?: CompanyInfo;
 }
@@ -196,6 +197,15 @@ function customerTierTags(customer: { vip_number?: string; mandir_number?: strin
   if (customer.mandir_number) tags.push(`Man${customer.mandir_number}`);
   if (customer.shop_number) tags.push(`Shop${customer.shop_number}`);
   return tags.length > 0 ? ` (${tags.join(', ')})` : '';
+}
+
+// Formats a line item's pack size, e.g. " (250g)" / " (1kg)" — products can
+// be sold in multiple weight-based pack sizes, so this is per-line, not a
+// single fixed value per product.
+function formatItemWeight(weightGrams?: number | null): string {
+  if (!weightGrams || weightGrams <= 0) return '';
+  const label = weightGrams >= 1000 ? `${weightGrams / 1000}kg` : `${weightGrams}g`;
+  return ` (${label})`;
 }
 
 /**
@@ -552,7 +562,7 @@ function generateInvoiceContent(doc: jsPDF, data: OrderInvoiceData): void {
 
     return [
       index + 1,
-      item.item_description ? `${item.product_name}\n${item.item_description}` : item.product_name,
+      item.item_description ? `${item.product_name}${formatItemWeight(item.weight_grams)}\n${item.item_description}` : `${item.product_name}${formatItemWeight(item.weight_grams)}`,
       item.hsn_code || '-',
       item.quantity,
       formatCurrency(item.unit_price),
@@ -1053,7 +1063,7 @@ export async function generateThermalReceipt(data: OrderInvoiceData, customerNam
     const itemSubtotal = item.quantity * item.unit_price;
 
     // Item name
-    const itemLines = doc.splitTextToSize(item.product_name, contentWidth - 40);
+    const itemLines = doc.splitTextToSize(`${item.product_name}${formatItemWeight(item.weight_grams)}`, contentWidth - 40);
     itemLines.forEach((line: string, idx: number) => {
       doc.text(line, margin, yPos);
       if (idx === 0) {
@@ -1445,7 +1455,7 @@ export async function generateBulkThermalReceipts(invoicesData: Array<{ data: Or
       const itemSubtotal = item.quantity * item.unit_price;
 
       // Item name
-      const itemLines = doc.splitTextToSize(item.product_name, contentWidth - 40);
+      const itemLines = doc.splitTextToSize(`${item.product_name}${formatItemWeight(item.weight_grams)}`, contentWidth - 40);
       itemLines.forEach((line: string, idx: number) => {
         doc.text(line, margin, yPos);
         if (idx === 0) {
