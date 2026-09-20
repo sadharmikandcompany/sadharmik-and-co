@@ -3276,6 +3276,7 @@ export default function NewOrderPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Product</TableHead>
+                        <TableHead className="text-center">Pack Size</TableHead>
                         <TableHead className="text-center">Quantity</TableHead>
                         <TableHead className="text-right">Unit Price</TableHead>
                         <TableHead className="text-center">Disc %</TableHead>
@@ -3298,29 +3299,6 @@ export default function NewOrderPage() {
                             <TableCell className="font-medium">
                               <div>
                                 {item.product_name}
-                                {(weightOptionsByProduct[item.product_id]?.length ?? 0) > 0 ? (
-                                  <Select
-                                    value={weightOptionsByProduct[item.product_id]?.find(
-                                      (o) => o.weight_grams === item.weight_grams
-                                    )?.id || ""}
-                                    onValueChange={(value) => handleUpdateItemWeightOption(item.id, value)}
-                                  >
-                                    <SelectTrigger className="inline-flex h-6 w-auto ml-2 text-xs px-2 py-0 align-middle">
-                                      <SelectValue placeholder="Pack size" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {weightOptionsByProduct[item.product_id].map((option) => (
-                                        <SelectItem key={option.id} value={option.id}>
-                                          {option.weight_grams >= 1000 ? `${option.weight_grams / 1000}kg` : `${option.weight_grams}g`} — ₹{option.price}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : item.weight_grams ? (
-                                  <Badge variant="outline" className="ml-2 text-xs font-normal align-middle">
-                                    {item.weight_grams >= 1000 ? `${item.weight_grams / 1000}kg` : `${item.weight_grams}g`}
-                                  </Badge>
-                                ) : null}
                                 {item.stock !== null && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     Available: {item.stock}
@@ -3333,6 +3311,33 @@ export default function NewOrderPage() {
                                   className="h-7 text-xs mt-1.5 font-normal"
                                 />
                               </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {(weightOptionsByProduct[item.product_id]?.length ?? 0) > 0 ? (
+                                <Select
+                                  value={weightOptionsByProduct[item.product_id]?.find(
+                                    (o) => o.weight_grams === item.weight_grams
+                                  )?.id || ""}
+                                  onValueChange={(value) => handleUpdateItemWeightOption(item.id, value)}
+                                >
+                                  <SelectTrigger className="h-9 w-[130px] text-sm">
+                                    <SelectValue placeholder="Pack size" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {weightOptionsByProduct[item.product_id].map((option) => (
+                                      <SelectItem key={option.id} value={option.id}>
+                                        {option.weight_grams >= 1000 ? `${option.weight_grams / 1000}kg` : `${option.weight_grams}g`} — ₹{option.price}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : item.weight_grams ? (
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  {item.weight_grams >= 1000 ? `${item.weight_grams / 1000}kg` : `${item.weight_grams}g`}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center">
