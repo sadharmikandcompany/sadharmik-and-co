@@ -157,6 +157,13 @@ type Product = {
   brand: string | null
   parent_category_id: string | null
   sub_category_id: string | null
+  net_weight_grams: number | null
+}
+
+type WeightOption = {
+  id: string
+  weight_grams: number
+  price: number
 }
 
 type CourierPartner = {
@@ -188,6 +195,10 @@ type OrderItem = {
   stock: number | null
   isEditing?: boolean
   description?: string
+  // The pack size actually sold on this line (grams), if the product has
+  // weight-based pack sizes or a single default weight — null for products
+  // sold as a plain single item with no weight concept at all.
+  weight_grams?: number | null
 }
 
 type CustomerFormData = {
@@ -249,6 +260,8 @@ export default function NewOrderPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [selectedProduct, setSelectedProduct] = useState<string>("")
   const [quantity, setQuantity] = useState<number>(1)
+  const [weightOptionsByProduct, setWeightOptionsByProduct] = useState<Record<string, WeightOption[]>>({})
+  const [selectedWeightOptionId, setSelectedWeightOptionId] = useState<string>("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all")
   const [paymentMethod, setPaymentMethod] = useState<string>("cash")
@@ -527,7 +540,22 @@ export default function NewOrderPage() {
       .from("products")
       .select("*")
       .eq("is_active", true)
+      .eq("show_in_order_creation", true)
       .order("name")
+
+    // Fetch weight-based pack sizes for all products in one query
+    const { data: weightOptionsData } = await supabase
+      .from("product_weight_options")
+      .select("id, product_id, weight_grams, price")
+      .eq("is_active", true)
+      .order("weight_grams", { ascending: true })
+
+    const weightMap: Record<string, WeightOption[]> = {}
+    ;(weightOptionsData || []).forEach((w) => {
+      if (!weightMap[w.product_id]) weightMap[w.product_id] = []
+      weightMap[w.product_id].push({ id: w.id, weight_grams: w.weight_grams, price: w.price })
+    })
+    setWeightOptionsByProduct(weightMap)
 
     // Fetch categories
     const { data: categoriesData } = await supabase
@@ -1032,15 +1060,27 @@ export default function NewOrderPage() {
     const product = products.find((p) => p.id === selectedProduct)
     if (!product) return
 
+    const packSizes = weightOptionsByProduct[selectedProduct] || []
+    if (packSizes.length > 0 && !selectedWeightOptionId) {
+      toast.error("Please select a pack size")
+      return
+    }
+    const selectedPackSize = packSizes.find((o) => o.id === selectedWeightOptionId)
+
     // Check if same product already exists - show info but allow adding
     const existingItem = orderItems.find((item) => item.product_id === selectedProduct)
     if (existingItem) {
       toast.info("Same product added again as separate line item")
     }
 
+    // A pack size overrides the product's base price; otherwise fall back to
+    // the product's own price (and single default weight, if it has one).
+    const unitPrice = selectedPackSize ? selectedPackSize.price : product.customer_price
+    const weightGrams = selectedPackSize ? selectedPackSize.weight_grams : product.net_weight_grams
+
     // Calculate using same logic as table display
     // GST is included in product price, so gross_amount = netAmount (no GST added)
-    const itemSubtotal = quantity * product.customer_price
+    const itemSubtotal = quantity * unitPrice
     const discountAmount = 0 // Initially no discount
     const netAmount = itemSubtotal - discountAmount
 
@@ -1049,17 +1089,19 @@ export default function NewOrderPage() {
       product_id: product.id,
       product_name: product.name,
       quantity: quantity,
-      unit_price: product.customer_price,
+      unit_price: unitPrice,
       discount_amount: discountAmount,
       discount_percentage: 0,
       gross_amount: netAmount,
       gst_percentage: product.gst_percentage || 0,
       hsn_code: product.hsn_code || "",
       stock: product.warehouse_stock ?? product.stock, // Use warehouse stock if available
+      weight_grams: weightGrams,
     }
 
     setOrderItems([...orderItems, newItem])
     setSelectedProduct("")
+    setSelectedWeightOptionId("")
     setQuantity(1)
     toast.success("Product added to order")
   }
@@ -1909,6 +1951,7 @@ export default function NewOrderPage() {
           subtotal: itemSubtotal,
           total: item.gross_amount,
           item_description: item.description || null,
+          weight_grams: item.weight_grams || null,
         }
       })
 
@@ -3111,9 +3154,15 @@ export default function NewOrderPage() {
               </div>
 
               {/* Product Selection */}
-              <div className="flex gap-2">
-                <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                  <SelectTrigger className="flex-1 h-9 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={selectedProduct}
+                  onValueChange={(value) => {
+                    setSelectedProduct(value)
+                    setSelectedWeightOptionId("")
+                  }}
+                >
+                  <SelectTrigger className="flex-1 h-9 text-sm min-w-[200px]">
                     <SelectValue placeholder={`Select a product (${filteredProducts.length} available)`} />
                   </SelectTrigger>
                   <SelectContent>
@@ -3139,6 +3188,20 @@ export default function NewOrderPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedProduct && weightOptionsByProduct[selectedProduct]?.length > 0 && (
+                  <Select value={selectedWeightOptionId} onValueChange={setSelectedWeightOptionId}>
+                    <SelectTrigger className="w-[160px] h-9 text-sm">
+                      <SelectValue placeholder="Pack size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {weightOptionsByProduct[selectedProduct].map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.weight_grams >= 1000 ? `${option.weight_grams / 1000}kg` : `${option.weight_grams}g`} — ₹{option.price}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="flex items-center gap-2">
                   <Label htmlFor="quantity" className="text-sm font-medium whitespace-nowrap">
                     Qty:
@@ -3208,6 +3271,11 @@ export default function NewOrderPage() {
                             <TableCell className="font-medium">
                               <div>
                                 {item.product_name}
+                                {item.weight_grams ? (
+                                  <Badge variant="outline" className="ml-2 text-xs font-normal align-middle">
+                                    {item.weight_grams >= 1000 ? `${item.weight_grams / 1000}kg` : `${item.weight_grams}g`}
+                                  </Badge>
+                                ) : null}
                                 {item.stock !== null && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     Available: {item.stock}
