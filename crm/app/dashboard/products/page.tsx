@@ -98,6 +98,7 @@ type Product = {
   is_active: boolean
   is_featured: boolean
   show_on_website: boolean
+  show_in_order_creation: boolean
   created_at: string
   updated_at: string | null
 }
@@ -131,6 +132,7 @@ type ProductFormData = {
   is_active: boolean
   is_featured: boolean
   show_on_website: boolean
+  show_in_order_creation: boolean
 }
 
 type PincodePricingEntry = {
@@ -144,6 +146,13 @@ type PincodePricingEntry = {
   distributor_sale_price: string
   sub_distributor_price: string
   sub_distributor_sale_price: string
+}
+
+type WeightOptionEntry = {
+  id?: string // Optional for new entries
+  weight_grams: string
+  price: string
+  is_active: boolean
 }
 
 type SaleTransaction = {
@@ -198,6 +207,7 @@ export default function ProductsPage() {
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [pincodePricing, setPincodePricing] = useState<PincodePricingEntry[]>([])
+  const [weightOptions, setWeightOptions] = useState<WeightOptionEntry[]>([])
 
   // Transaction drawer state
   const [transactionDrawerOpen, setTransactionDrawerOpen] = useState(false)
@@ -242,6 +252,7 @@ export default function ProductsPage() {
     is_active: true,
     is_featured: false,
     show_on_website: true,
+    show_in_order_creation: true,
   })
 
   useEffect(() => {
@@ -433,6 +444,7 @@ export default function ProductsPage() {
         is_active: product.is_active,
         is_featured: product.is_featured,
         show_on_website: product.show_on_website,
+        show_in_order_creation: product.show_in_order_creation,
       })
 
       // Fetch pincode pricing for this product
@@ -500,10 +512,27 @@ export default function ProductsPage() {
       } else {
         setPincodePricing([])
       }
+
+      // Fetch weight options for this product
+      const { data: weightData } = await supabase
+        .from("product_weight_options")
+        .select("*")
+        .eq("product_id", product.id)
+        .order("weight_grams", { ascending: true })
+
+      setWeightOptions(
+        (weightData || []).map((w) => ({
+          id: w.id,
+          weight_grams: w.weight_grams.toString(),
+          price: w.price.toString(),
+          is_active: w.is_active,
+        }))
+      )
     } else {
       setEditingProduct(null)
       setImageUrls([])
       setPincodePricing([])
+      setWeightOptions([])
       setFormData({
         name: "",
         brand: "",
@@ -533,6 +562,7 @@ export default function ProductsPage() {
         is_active: true,
         is_featured: false,
         show_on_website: true,
+        show_in_order_creation: true,
       })
     }
     setDialogOpen(true)
@@ -627,6 +657,24 @@ export default function ProductsPage() {
     const updated = [...pincodePricing]
     updated[index] = { ...updated[index], [field]: value }
     setPincodePricing(updated)
+  }
+
+  const handleAddWeightOption = () => {
+    setWeightOptions([...weightOptions, { weight_grams: "", price: "", is_active: true }])
+  }
+
+  const handleRemoveWeightOption = (index: number) => {
+    setWeightOptions(weightOptions.filter((_, i) => i !== index))
+  }
+
+  const handleUpdateWeightOption = (
+    index: number,
+    field: keyof WeightOptionEntry,
+    value: string | boolean
+  ) => {
+    const updated = [...weightOptions]
+    updated[index] = { ...updated[index], [field]: value }
+    setWeightOptions(updated)
   }
 
   const handleSave = async () => {
@@ -730,10 +778,38 @@ export default function ProductsPage() {
         }
       }
 
+      // Handle weight options — validate before touching the database so a
+      // bad row (missing weight/price) can't wipe out the good ones.
+      const validWeightOptions = weightOptions.filter(
+        (w) => w.weight_grams.trim() !== "" && w.price.trim() !== ""
+      )
+      if (weightOptions.length > 0 && validWeightOptions.length !== weightOptions.length) {
+        throw new Error("Each weight option needs both a weight and a price. Remove any empty rows or fill them in.")
+      }
+      const weightSet = new Set(validWeightOptions.map((w) => w.weight_grams.trim()))
+      if (weightSet.size !== validWeightOptions.length) {
+        throw new Error("Duplicate weight values — each weight option must be unique (e.g. only one 250g row).")
+      }
+
+      await supabase.from("product_weight_options").delete().eq("product_id", productId)
+
+      if (validWeightOptions.length > 0) {
+        const { error: weightError } = await supabase.from("product_weight_options").insert(
+          validWeightOptions.map((w) => ({
+            product_id: productId,
+            weight_grams: parseFloat(w.weight_grams),
+            price: parseFloat(w.price),
+            is_active: w.is_active,
+          }))
+        )
+        if (weightError) throw weightError
+      }
+
       toast.success(editingProduct ? "Product updated successfully" : "Product created successfully")
       setDialogOpen(false)
       setImageUrls([])
       setPincodePricing([])
+      setWeightOptions([])
       fetchProducts()
     } catch (error: unknown) {
       console.error("Error saving product:", error)
@@ -1530,6 +1606,76 @@ export default function ProductsPage() {
               </div>
             </div>
 
+            {/* Weight-Based Pack Sizes */}
+            <div className="space-y-4">
+              <div className="border-b pb-2 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Weight-Based Pack Sizes</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Sell this product in more than one pack size, each with its own price (e.g. 250g @ Rs.90, 500g @ Rs.160). Leave empty to sell it as a single item at the price set above.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddWeightOption}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Pack Size
+                </Button>
+              </div>
+
+              {weightOptions.length > 0 && (
+                <div className="space-y-3">
+                  {weightOptions.map((option, index) => (
+                    <div key={index} className="flex items-end gap-3 border rounded-lg p-3">
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-xs">Weight (grams) *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="e.g. 250"
+                          value={option.weight_grams}
+                          onChange={(e) => handleUpdateWeightOption(index, "weight_grams", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-xs">Price (Rs.) *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="e.g. 90"
+                          value={option.price}
+                          onChange={(e) => handleUpdateWeightOption(index, "price", e.target.value)}
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 pb-2">
+                        <input
+                          type="checkbox"
+                          checked={option.is_active}
+                          onChange={(e) => handleUpdateWeightOption(index, "is_active", e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Active</span>
+                      </label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 flex-shrink-0"
+                        onClick={() => handleRemoveWeightOption(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Pincode-Based Pricing */}
             <div className="space-y-4">
               <div className="border-b pb-2 flex items-center justify-between">
@@ -1812,9 +1958,20 @@ export default function ProductsPage() {
                   />
                   <span className="text-sm font-medium">Show on Website</span>
                 </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.show_in_order_creation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, show_in_order_creation: e.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium">Show in Order Creation</span>
+                </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                "Active" controls whether this product can be ordered in the CRM/POS. "Show on Website" only controls whether it appears on the public sadharmikandcompany.com product grid — turning it off never hides it from the CRM.
+                "Active" controls whether this product can be ordered in the CRM/POS. "Show on Website" only controls whether it appears on the public sadharmikandcompany.com product grid. "Show in Order Creation" only controls whether it appears in the product picker on the order-creation page — turning either off never hides it from the rest of the CRM.
               </p>
             </div>
           </div>
