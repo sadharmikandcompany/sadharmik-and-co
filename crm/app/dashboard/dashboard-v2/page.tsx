@@ -539,21 +539,26 @@ export default function DashboardV2Page() {
           supabase.from("vendors").select("*", { count: "exact", head: true }),
         ]),
 
-        // 13. AR — unpaid orders
+        // 13. AR — unpaid orders. Excludes cancelled/returned/refunded/failed
+        // orders — no payment is actually owed on one of those regardless of
+        // what payment_status happens to say.
         fetchAllRows<any>((f, t) =>
           supabase
             .from("orders")
             .select("id, total_amount, order_date, customer_id")
             .in("payment_status", ["pending", "partial", "processing"])
+            .not("order_status", "in", "(cancelled,returned,refunded,failed)")
             .range(f, t)
         , "unpaid orders (AR)"),
 
-        // 14. AP — unpaid purchases
+        // 14. AP — unpaid purchases. Same exclusion as AR above — a
+        // cancelled/returned purchase isn't actually money we still owe.
         fetchAllRows<any>((f, t) =>
           supabase
             .from("purchases")
             .select("id, total_amount, purchase_date, supplier_id, supplier_name")
             .in("payment_status", ["pending", "partial", "processing"])
+            .not("purchase_status", "in", "(cancelled,returned)")
             .range(f, t)
         , "unpaid purchases (AP)"),
 
