@@ -28,6 +28,7 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
   const orderStatus = String(params.orderStatus || "all")
   const deliveryStatus = String(params.deliveryStatus || "all")
   const paymentMethod = String(params.paymentMethod || "all")
+  const paymentStatus = String(params.paymentStatus || "all")
   const distributorId = String(params.distributorId || "all")
   const deliveryPartnerId = String(params.deliveryPartnerId || "all")
   const dateFrom = String(params.dateFrom || "")
@@ -160,6 +161,15 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
     query = query.eq("order_status", orderStatus)
   }
 
+  // Payment status filter — collapsed to just completed vs not, since that's
+  // the actual question people have ("is this paid or not"), not which of
+  // the underlying pending/processing/failed/refunded states it's in.
+  if (paymentStatus === "completed") {
+    query = query.eq("payment_status", "completed")
+  } else if (paymentStatus === "not_completed") {
+    query = query.neq("payment_status", "completed")
+  }
+
   // Delivery status filter (complex logic)
   if (deliveryStatus !== "all") {
     if (deliveryStatus === "not_assigned") {
@@ -253,6 +263,7 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
         orderStatus,
         deliveryStatus,
         paymentMethod,
+        paymentStatus,
         distributorId,
         deliveryPartnerId,
         dateFrom,
