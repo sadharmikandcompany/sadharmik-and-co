@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import bcrypt from "bcryptjs"
 import { supabase } from "@/lib/supabase"
 import {
   Table,
@@ -130,6 +131,10 @@ export default function DeliveryPartnersPage() {
   const [deletingPartner, setDeletingPartner] = useState<DeliveryPartner | null>(null)
   const [linkingPartner, setLinkingPartner] = useState<DeliveryPartner | null>(null)
   const [saving, setSaving] = useState(false)
+  // Login PIN for the Sadharmik Delivery rider app — write-only (never
+  // pre-filled from the existing hash), so this stays blank unless the
+  // admin is actually setting/resetting it.
+  const [riderPassword, setRiderPassword] = useState("")
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [pincodeInput, setPincodeInput] = useState("")
   const [pincodeError, setPincodeError] = useState("")
@@ -262,6 +267,7 @@ export default function DeliveryPartnersPage() {
     setFormErrors({}) // Clear errors when opening dialog
     setPincodeInput("")
     setPincodeError("")
+    setRiderPassword("")
     if (partner) {
       setEditingPartner(partner)
       // Fetch full partner data to populate form
@@ -444,10 +450,15 @@ export default function DeliveryPartnersPage() {
     setSaving(true)
 
     try {
+      const dataToSave: Record<string, unknown> = { ...formData }
+      if (riderPassword.trim()) {
+        dataToSave.password_hash = await bcrypt.hash(riderPassword.trim(), 10)
+      }
+
       if (editingPartner) {
         const { error } = await supabase
           .from("delivery_partners")
-          .update(formData)
+          .update(dataToSave)
           .eq("id", editingPartner.id)
 
         if (error) throw error
@@ -455,13 +466,14 @@ export default function DeliveryPartnersPage() {
       } else {
         const { error } = await supabase
           .from("delivery_partners")
-          .insert([formData])
+          .insert([dataToSave])
 
         if (error) throw error
         toast.success("Delivery partner created successfully")
       }
 
       setDialogOpen(false)
+      setRiderPassword("")
       fetchPartners()
     } catch (error: unknown) {
       console.error("Error saving delivery partner:", error)
@@ -1500,6 +1512,20 @@ export default function DeliveryPartnersPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="riderPassword" className="font-semibold">Rider App Login PIN</Label>
+              <Input
+                id="riderPassword"
+                type="text"
+                value={riderPassword}
+                onChange={(e) => setRiderPassword(e.target.value)}
+                placeholder={editingPartner ? "Leave blank to keep the current PIN" : "e.g. a 4-6 digit PIN"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to log into the Sadharmik Delivery rider app with this partner&apos;s mobile number. Leave blank when editing to leave it unchanged.
+              </p>
             </div>
 
             <div className="space-y-2">
