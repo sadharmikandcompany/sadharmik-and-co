@@ -51,8 +51,8 @@ type Distributor = {
   phone_primary: string
   phone_secondary: string | null
   phone_tertiary: string | null
-  company_name: string
-  gst_number: string
+  company_name: string | null
+  gst_number: string | null
   invoice_code: string | null
   serviceable_pincodes: string[] | null
   shipping_address_line1: string
@@ -90,7 +90,9 @@ type Distributor = {
   updated_at: string | null
 }
 
-type DistributorFormData = Omit<Distributor, 'id' | 'created_at' | 'updated_at' | 'serviceable_pincodes' | 'phone_secondary' | 'phone_tertiary' | 'shipping_address_line2' | 'shipping_country' | 'billing_address_line2' | 'billing_country' | 'aadhaar_number' | 'pan_number' | 'bank_name' | 'bank_account_number' | 'bank_ifsc_code' | 'bank_account_holder_name' | 'bank_branch' | 'aadhaar_card_url' | 'pan_card_url' | 'user_photo_url' | 'payment_qr_code_url' | 'gumasta_license_url' | 'udyog_aadhaar_url' | 'cancelled_cheque_url' | 'bank_passbook_url' | 'parent_id' | 'user_id' | 'invoice_code'> & {
+type DistributorFormData = Omit<Distributor, 'id' | 'created_at' | 'updated_at' | 'serviceable_pincodes' | 'phone_secondary' | 'phone_tertiary' | 'shipping_address_line2' | 'shipping_country' | 'billing_address_line2' | 'billing_country' | 'aadhaar_number' | 'pan_number' | 'bank_name' | 'bank_account_number' | 'bank_ifsc_code' | 'bank_account_holder_name' | 'bank_branch' | 'aadhaar_card_url' | 'pan_card_url' | 'user_photo_url' | 'payment_qr_code_url' | 'gumasta_license_url' | 'udyog_aadhaar_url' | 'cancelled_cheque_url' | 'bank_passbook_url' | 'parent_id' | 'user_id' | 'invoice_code' | 'company_name' | 'gst_number'> & {
+  company_name: string
+  gst_number: string
   phone_secondary: string
   phone_tertiary: string
   invoice_code: string
@@ -335,8 +337,8 @@ export default function DistributorsPage() {
         phone_primary: distributor.phone_primary,
         phone_secondary: distributor.phone_secondary || "",
         phone_tertiary: distributor.phone_tertiary || "",
-        company_name: distributor.company_name,
-        gst_number: distributor.gst_number,
+        company_name: distributor.company_name || "",
+        gst_number: distributor.gst_number || "",
         invoice_code: distributor.invoice_code || "",
         serviceable_pincodes: distributor.serviceable_pincodes || [],
         shipping_address_line1: distributor.shipping_address_line1,
@@ -425,10 +427,6 @@ export default function DistributorsPage() {
     // Validate required fields
     if (!formData.name.trim()) {
       toast.error("Name is required")
-      return
-    }
-    if (!formData.company_name.trim()) {
-      toast.error("Company name is required")
       return
     }
     if (!formData.phone_primary.trim()) {
@@ -574,6 +572,7 @@ export default function DistributorsPage() {
 
       // Convert empty optional string fields to null for database consistency
       const optionalStringFields = [
+        'company_name', 'gst_number',
         'phone_secondary', 'phone_tertiary', 'invoice_code',
         'shipping_address_line2', 'shipping_country',
         'billing_address_line2', 'billing_country',
@@ -676,8 +675,8 @@ export default function DistributorsPage() {
     (distributor) =>
       distributor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       distributor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      distributor.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      distributor.gst_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (distributor.company_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (distributor.gst_number || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       distributor.phone_primary.includes(searchTerm)
   )
 
@@ -1085,15 +1084,17 @@ export default function DistributorsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company_name">Company Name *</Label>
+                  <Label htmlFor="company_name">Company Name</Label>
                   <Input
                     id="company_name"
                     value={formData.company_name}
                     onChange={(e) =>
                       setFormData({ ...formData, company_name: e.target.value })
                     }
-                    required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Optional — if left blank, invoices this distributor issues show "Sadharmik & Company" instead.
+                  </p>
                 </div>
               </div>
 
@@ -1125,7 +1126,7 @@ export default function DistributorsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="gst_number">GST Number *</Label>
+                  <Label htmlFor="gst_number">GST Number</Label>
                   <Input
                     id="gst_number"
                     value={formData.gst_number}

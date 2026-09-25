@@ -162,6 +162,7 @@ type Filters = {
   orderStatus: string
   deliveryStatus: string
   paymentMethod: string
+  paymentStatus: string
   distributorId: string
   deliveryPartnerId: string
   dateFrom: string
@@ -362,7 +363,7 @@ export function OrdersTable({
 
   const hasActiveFilters =
     filters.search || filters.orderStatus !== "all" || filters.deliveryStatus !== "all" ||
-    filters.paymentMethod !== "all" || filters.distributorId !== "all" ||
+    filters.paymentMethod !== "all" || filters.paymentStatus !== "all" || filters.distributorId !== "all" ||
     filters.deliveryPartnerId !== "all" || filters.dateFrom || filters.dateTo ||
     filters.amountFrom || filters.amountTo || filters.hideRetailer || filters.websiteOnly
 
@@ -536,7 +537,9 @@ export function OrdersTable({
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(", ")
           return {
-            name: match.company_name || match.name, address, city: match.shipping_city || "",
+            // Company name is optional on a distributor — fall back to our
+            // own company name rather than their personal name.
+            name: match.company_name || "Sadharmik & Company", address, city: match.shipping_city || "",
             pincode: match.shipping_pincode || "", phone: match.phone_primary || "",
             email: match.email || "", gst: match.gst_number || "",
             state: match.shipping_state ? `${match.shipping_pincode?.substring(0, 2) || ""}-${match.shipping_state}` : "",
@@ -1026,6 +1029,15 @@ export function OrdersTable({
                 <SelectItem value="cod">COD</SelectItem>
                 <SelectItem value="online">Online</SelectItem>
                 <SelectItem value="balance">Balance</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filters.paymentStatus} onValueChange={(v) => updateParams({ paymentStatus: v })}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Payment Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Payment Statuses</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="not_completed">Not Completed</SelectItem>
               </SelectContent>
             </Select>
 

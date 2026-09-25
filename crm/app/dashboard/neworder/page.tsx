@@ -532,7 +532,7 @@ export default function OrdersPage() {
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(', ')
           return {
-            name: match.company_name || match.name,
+            name: match.company_name || "Sadharmik & Company",
             address: address || '',
             city: match.shipping_city || '',
             pincode: match.shipping_pincode || '',

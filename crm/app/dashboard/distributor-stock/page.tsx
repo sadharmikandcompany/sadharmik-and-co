@@ -183,7 +183,7 @@ export default function DistributorStockOverviewPage() {
 
   const filteredDistributors = distributors.filter((distributor) =>
     distributor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    distributor.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (distributor.company_name && distributor.company_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (distributor.invoice_code && distributor.invoice_code.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 

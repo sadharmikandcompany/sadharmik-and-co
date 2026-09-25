@@ -313,7 +313,7 @@ export default function EasebuzzTransactionsPage() {
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(', ')
           return {
-            name: match.company_name || match.name, address: address || '', city: match.shipping_city || '',
+            name: match.company_name || "Sadharmik & Company", address: address || '', city: match.shipping_city || '',
             pincode: match.shipping_pincode || '', phone: match.phone_primary || '', email: match.email || '',
             gst: match.gst_number || '',
             state: match.shipping_state ? `${match.shipping_pincode?.substring(0, 2) || ''}-${match.shipping_state}` : '',

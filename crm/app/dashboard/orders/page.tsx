@@ -1246,7 +1246,10 @@ export default function OrdersPage() {
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(', ')
           return {
-            name: match.company_name || match.name,
+            // Company name is optional on a distributor — falling back to
+            // their personal name here would print it where a business name
+            // belongs on the invoice, so use our own company name instead.
+            name: match.company_name || "Sadharmik & Company",
             address: address || '',
             city: match.shipping_city || '',
             pincode: match.shipping_pincode || '',
