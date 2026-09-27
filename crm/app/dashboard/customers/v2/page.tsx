@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import {
   Table,
@@ -677,6 +678,12 @@ function CustomerForm({
 }
 
 export default function CustomersV2Page() {
+  // ?view=debtors (linked from the Factory Dashboard's Bills Receivable
+  // card) shows every customer with an outstanding balance instead of the
+  // normal recently-created-first list — "who do we need to collect from."
+  const searchParams = useSearchParams()
+  const debtorsOnly = searchParams.get("view") === "debtors"
+
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerOrders, setCustomerOrders] = useState<Order[]>([])
@@ -693,7 +700,7 @@ export default function CustomersV2Page() {
   // Filter and sorting states
   const [filterVip, setFilterVip] = useState<string>("all")
   const [filterDefaulter, setFilterDefaulter] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<"name" | "date" | "spend">("date")
+  const [sortBy, setSortBy] = useState<"name" | "date" | "spend" | "balance">(debtorsOnly ? "balance" : "date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [customerTotalSpend, setCustomerTotalSpend] = useState<{ [key: string]: number }>({})
   const [customerBalanceData, setCustomerBalanceData] = useState<{ [key: string]: { totalPending: number; balanceAmount: number } }>({})
@@ -758,7 +765,7 @@ export default function CustomersV2Page() {
 
   useEffect(() => {
     fetchCustomers()
-  }, [currentPage, debouncedSearch, filterVip, filterDefaulter])
+  }, [currentPage, debouncedSearch, filterVip, filterDefaulter, debtorsOnly])
 
   // Fetch other entities on mount
   useEffect(() => {
@@ -808,6 +815,41 @@ export default function CustomersV2Page() {
   const fetchCustomers = async () => {
     try {
       setLoading(true)
+
+      if (debtorsOnly) {
+        // Ignore normal date-ordered pagination/search entirely — collect
+        // every customer with an unpaid/partial non-cancelled order,
+        // wherever they'd otherwise fall in the list.
+        let debtorIds: string[] = []
+        let from = 0
+        const batchSize = 1000
+        while (true) {
+          const { data, error } = await supabase
+            .from("orders")
+            .select("customer_id")
+            .not("customer_id", "is", null)
+            .in("payment_status", ["pending", "partial"])
+            .not("order_status", "eq", "cancelled")
+            .range(from, from + batchSize - 1)
+          if (error) throw error
+          if (!data || data.length === 0) break
+          debtorIds.push(...data.map((o: any) => o.customer_id))
+          if (data.length < batchSize) break
+          from += batchSize
+        }
+        const uniqueIds = Array.from(new Set(debtorIds))
+        if (uniqueIds.length === 0) {
+          setCustomers([])
+          setTotalCustomers(0)
+          return
+        }
+        const { data, error } = await supabase.from("customers").select("*").in("id", uniqueIds)
+        if (error) throw error
+        setCustomers(data || [])
+        setTotalCustomers((data || []).length)
+        return
+      }
+
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
 
@@ -1678,6 +1720,12 @@ export default function CustomersV2Page() {
         const spendA = customerTotalSpend[a.id] || 0
         const spendB = customerTotalSpend[b.id] || 0
         return sortOrder === "asc" ? spendA - spendB : spendB - spendA
+      } else if (sortBy === "balance") {
+        const balA = customerBalanceData[a.id]
+        const balB = customerBalanceData[b.id]
+        const outA = balA ? (balA.balanceAmount > 0 ? balA.balanceAmount : balA.totalPending) : 0
+        const outB = balB ? (balB.balanceAmount > 0 ? balB.balanceAmount : balB.totalPending) : 0
+        return sortOrder === "asc" ? outA - outB : outB - outA
       }
       return 0
     })
@@ -1869,6 +1917,23 @@ export default function CustomersV2Page() {
   const averageOrderValue = customerOrders.length > 0 ? totalSpend / customerOrders.length : 0
   const lastOrderDate = customerOrders.length > 0 ? customerOrders[0].order_date : null
 
+  // Running balance (payment in / payment out): Total Billed excludes
+  // cancelled orders (never actually owed); the unpaid part of each
+  // non-cancelled order mirrors the per-row "Balance / Unused" calculation
+  // in the Transactions table below (payment_out_amount already carries
+  // route_assignment collections + COD fallback from fetchCustomerOrders).
+  // Balance Due folds in the customer's opening_balance so it reflects what
+  // they actually owe overall, not just from orders placed in this system.
+  const activeCustomerOrders = customerOrders.filter((o) => o.order_status !== "cancelled")
+  const totalBilled = activeCustomerOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0)
+  const unpaidFromOrders = activeCustomerOrders.reduce((sum, order) => {
+    if (order.payment_status === "completed") return sum
+    const payOut = order.payment_out_amount || 0
+    return sum + Math.max(0, (order.total_amount || 0) - payOut)
+  }, 0)
+  const totalPaid = totalBilled - unpaidFromOrders
+  const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0)
+
   return (
     <div className="flex gap-3 -mx-6 -my-4 max-w-none w-[calc(100%+3rem)] px-3 py-3">
       {/* Left Panel - Customer List (1/3) */}
@@ -1910,6 +1975,16 @@ export default function CustomersV2Page() {
                 </Button>
               </div>
             </div>
+            {debtorsOnly && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs dark:border-red-900/40 dark:bg-red-950/30">
+                <span className="text-red-700 dark:text-red-300">
+                  Showing {totalCustomers} customer{totalCustomers === 1 ? "" : "s"} with an outstanding balance, sorted highest first
+                </span>
+                <a href="/dashboard/customers/v2" className="font-medium text-red-700 underline hover:no-underline dark:text-red-300">
+                  Clear
+                </a>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="flex flex-1 min-h-0 flex-col gap-3 px-4">
             {/* Search */}
@@ -2260,6 +2335,33 @@ export default function CustomersV2Page() {
                 </div>
               </CardHeader>
               <CardContent className="px-4">
+                {/* Running balance: what's been billed, what's actually been
+                    paid, and what's still owed (including opening balance) */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="p-3 rounded-lg border border-border bg-card">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Total Billed</p>
+                    <p className="text-lg font-bold flex items-center gap-0.5">
+                      <IndianRupee className="h-3.5 w-3.5" />
+                      {totalBilled.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-border bg-card">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Total Paid</p>
+                    <p className="text-lg font-bold flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                      <IndianRupee className="h-3.5 w-3.5" />
+                      {totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`p-3 rounded-lg border bg-card ${balanceDue > 0 ? "border-red-200 dark:border-red-900/40" : "border-border"}`}>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                      {balanceDue < 0 ? "In Credit" : "Balance Due"}
+                    </p>
+                    <p className={`text-lg font-bold flex items-center gap-0.5 ${balanceDue > 0 ? "text-red-600 dark:text-red-400" : balanceDue < 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                      <IndianRupee className="h-3.5 w-3.5" />
+                      {Math.abs(balanceDue).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
                 <Tabs defaultValue="contact" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="contact">Contact</TabsTrigger>

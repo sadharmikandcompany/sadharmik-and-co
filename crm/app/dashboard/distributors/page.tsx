@@ -86,6 +86,8 @@ type Distributor = {
   user_id: string | null
   is_active: boolean
   is_verified: boolean
+  serves_mandir_customers: boolean
+  serves_shop_customers: boolean
   created_at: string
   updated_at: string | null
 }
@@ -291,6 +293,8 @@ export default function DistributorsPage() {
     user_id: "",
     is_active: true,
     is_verified: false,
+    serves_mandir_customers: true,
+    serves_shop_customers: true,
   })
 
   useEffect(() => {
@@ -372,6 +376,8 @@ export default function DistributorsPage() {
         user_id: distributor.user_id || "",
         is_active: distributor.is_active,
         is_verified: distributor.is_verified,
+        serves_mandir_customers: distributor.serves_mandir_customers,
+        serves_shop_customers: distributor.serves_shop_customers,
       })
     } else {
       setEditingDistributor(null)
@@ -416,6 +422,8 @@ export default function DistributorsPage() {
         user_id: "",
         is_active: true,
         is_verified: false,
+        serves_mandir_customers: true,
+        serves_shop_customers: true,
       })
     }
     setUseSameAddress(true)
@@ -1978,7 +1986,32 @@ export default function DistributorsPage() {
                   />
                   <span>Verified</span>
                 </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.serves_mandir_customers}
+                    onChange={(e) =>
+                      setFormData({ ...formData, serves_mandir_customers: e.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span>Delivers to Mandir/Temple customers</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.serves_shop_customers}
+                    onChange={(e) =>
+                      setFormData({ ...formData, serves_shop_customers: e.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span>Delivers to Shop customers</span>
+                </label>
               </div>
+              <p className="text-xs text-muted-foreground">
+                If unchecked, orders for Mandir-tagged or Shop-tagged customers (matching whichever box is off) within this distributor&apos;s pincodes skip them entirely — even though the pincode matches, they won&apos;t be assigned or shown as the servicing distributor for that order, and it's fulfilled in-house instead.
+              </p>
             </div>
           </div>
           <DialogFooter>

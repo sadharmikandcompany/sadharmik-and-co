@@ -65,7 +65,7 @@ import {
 import { toast } from "sonner"
 import { useUserRole } from "@/hooks/use-user-role"
 
-// A loose_stock row is one bulk category (Buffalo Ghee, Cow Ghee, etc.) joined
+// A loose_stock row is one bulk category (raw ingredient or flavor) joined
 // with its product_categories.name for display.
 type LooseCategory = {
   loose_stock_id: string
@@ -82,8 +82,8 @@ type Factory = {
 type RecentEntry = {
   id: string
   opening_date: string
-  quantity_liters: number
-  price_per_liter: number
+  quantity_kg: number
+  price_per_kg: number
   amount: number
   category_name: string | null
   factory_label: string | null
@@ -97,11 +97,11 @@ const formatINR = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n)
 
-const formatLitres = (n: number) =>
+const formatKg = (n: number) =>
   `${new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(n || 0)} Ltr`
+  }).format(n || 0)} kg`
 
 export function LooseOpeningStockForm() {
   const router = useRouter()
@@ -121,8 +121,8 @@ export function LooseOpeningStockForm() {
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<RecentEntry | null>(null)
   const [editForm, setEditForm] = useState({
-    quantity_liters: "",
-    price_per_liter: "",
+    quantity_kg: "",
+    price_per_kg: "",
     opening_date: "",
     notes: "",
   })
@@ -132,8 +132,8 @@ export function LooseOpeningStockForm() {
 
   const [form, setForm] = useState({
     loose_stock_id: "",
-    quantity_liters: "",
-    price_per_liter: "",
+    quantity_kg: "",
+    price_per_kg: "",
     opening_date: new Date().toISOString().slice(0, 10),
     factory_user_id: "",
     notes: "",
@@ -143,8 +143,8 @@ export function LooseOpeningStockForm() {
     type Row = {
       id: string
       transaction_date: string
-      quantity_liters: number
-      price_per_liter: number | null
+      quantity_kg: number
+      price_per_kg: number | null
       total_amount: number | null
       transaction_notes: string | null
       user_id: string | null
@@ -162,7 +162,7 @@ export function LooseOpeningStockForm() {
     const { data, error } = await supabase
       .from("loose_stock_transactions")
       .select(
-        `id, transaction_date, quantity_liters, price_per_liter, total_amount, transaction_notes, user_id, user_email,
+        `id, transaction_date, quantity_kg, price_per_kg, total_amount, transaction_notes, user_id, user_email,
          loose_stock!inner ( product_categories!inner ( name ) )`
       )
       .eq("transaction_type", "opening")
@@ -196,8 +196,8 @@ export function LooseOpeningStockForm() {
     const factoryById = new Map(factories.map((f) => [f.id, f]))
 
     const rows = (data as unknown as Row[]).map<RecentEntry>((r) => {
-      const qty = Number(r.quantity_liters || 0)
-      const price = Number(r.price_per_liter || 0)
+      const qty = Number(r.quantity_kg || 0)
+      const price = Number(r.price_per_kg || 0)
       const amt =
         r.total_amount != null
           ? Number(r.total_amount)
@@ -206,8 +206,8 @@ export function LooseOpeningStockForm() {
       return {
         id: r.id,
         opening_date: r.transaction_date,
-        quantity_liters: qty,
-        price_per_liter: price,
+        quantity_kg: qty,
+        price_per_kg: price,
         amount: amt,
         category_name: pickName(r.loose_stock),
         factory_label: f?.full_name || f?.email || r.user_email,
@@ -219,7 +219,7 @@ export function LooseOpeningStockForm() {
     let totalAmount = 0
     const cats = new Set<string>()
     rows.forEach((r) => {
-      totalQty += r.quantity_liters
+      totalQty += r.quantity_kg
       totalAmount += r.amount
       if (r.category_name) cats.add(r.category_name)
     })
@@ -280,15 +280,15 @@ export function LooseOpeningStockForm() {
       toast.error("Please select a loose category")
       return
     }
-    const qty = parseFloat(form.quantity_liters)
-    if (!form.quantity_liters || Number.isNaN(qty) || qty < 0) {
-      toast.error("Please enter a valid quantity in litres")
+    const qty = parseFloat(form.quantity_kg)
+    if (!form.quantity_kg || Number.isNaN(qty) || qty < 0) {
+      toast.error("Please enter a valid quantity in kg")
       return
     }
     const price =
-      form.price_per_liter === "" ? 0 : parseFloat(form.price_per_liter)
+      form.price_per_kg === "" ? 0 : parseFloat(form.price_per_kg)
     if (Number.isNaN(price) || price < 0) {
-      toast.error("Please enter a valid price per litre")
+      toast.error("Please enter a valid price per kg")
       return
     }
     if (!form.opening_date) {
@@ -304,8 +304,8 @@ export function LooseOpeningStockForm() {
       const payload: Record<string, unknown> = {
         loose_stock_id: form.loose_stock_id,
         transaction_type: "opening",
-        quantity_liters: qty,
-        price_per_liter: price,
+        quantity_kg: qty,
+        price_per_kg: price,
         total_amount: qty * price,
         // transaction_date is timestamptz — append T00:00:00Z so the date the
         // user typed isn't shifted by the local timezone on save.
@@ -323,8 +323,8 @@ export function LooseOpeningStockForm() {
       toast.success("Opening stock saved")
       setForm({
         loose_stock_id: "",
-        quantity_liters: "",
-        price_per_liter: "",
+        quantity_kg: "",
+        price_per_kg: "",
         opening_date: new Date().toISOString().slice(0, 10),
         factory_user_id: "",
         notes: "",
@@ -353,7 +353,7 @@ export function LooseOpeningStockForm() {
               Loose Stock Opening Stock
             </h1>
             <p className="text-sm text-muted-foreground">
-              Record opening balance for bulk loose stock (Buffalo Ghee, Cow Ghee, etc.)
+              Record opening balance for bulk loose stock (raw materials and flavors)
             </p>
           </div>
         </div>
@@ -404,9 +404,9 @@ export function LooseOpeningStockForm() {
 
         <Card>
           <CardHeader>
-            <CardDescription>Total Litres</CardDescription>
+            <CardDescription>Total Kg</CardDescription>
             <CardTitle className="text-2xl font-bold tabular-nums">
-              {formatLitres(stats.totalQuantity)}
+              {formatKg(stats.totalQuantity)}
             </CardTitle>
             <CardAction>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -470,7 +470,7 @@ export function LooseOpeningStockForm() {
                     New Loose Opening Stock Entry
                   </CardTitle>
                   <CardDescription className="mt-0.5">
-                    Pick a loose category and enter the opening balance in litres
+                    Pick a loose category and enter the opening balance in kg
                   </CardDescription>
                 </div>
               </div>
@@ -512,36 +512,36 @@ export function LooseOpeningStockForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="quantity_liters">
-                  Quantity (litres) <span className="text-red-500">*</span>
+                <Label htmlFor="quantity_kg">
+                  Quantity (kg) <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  id="quantity_liters"
+                  id="quantity_kg"
                   type="number"
                   min="0"
                   step="any"
                   placeholder="e.g., 250"
-                  value={form.quantity_liters}
+                  value={form.quantity_kg}
                   onChange={(e) =>
-                    setForm({ ...form, quantity_liters: e.target.value })
+                    setForm({ ...form, quantity_kg: e.target.value })
                   }
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="price_per_liter">
-                  Price per Litre
+                <Label htmlFor="price_per_kg">
+                  Price per Kg
                 </Label>
                 <Input
-                  id="price_per_liter"
+                  id="price_per_kg"
                   type="number"
                   min="0"
                   step="any"
                   placeholder="e.g., 540"
-                  value={form.price_per_liter}
+                  value={form.price_per_kg}
                   onChange={(e) =>
-                    setForm({ ...form, price_per_liter: e.target.value })
+                    setForm({ ...form, price_per_kg: e.target.value })
                   }
                 />
               </div>
@@ -661,7 +661,7 @@ export function LooseOpeningStockForm() {
                       Quantity
                     </TableHead>
                     <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">
-                      Price/Litre
+                      Price/Kg
                     </TableHead>
                     <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">
                       Amount
@@ -701,10 +701,10 @@ export function LooseOpeningStockForm() {
                           )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
-                          {formatLitres(r.quantity_liters)}
+                          {formatKg(r.quantity_kg)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {formatINR(r.price_per_liter)}
+                          {formatINR(r.price_per_kg)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
                           {formatINR(r.amount)}
@@ -718,8 +718,8 @@ export function LooseOpeningStockForm() {
                                 onClick={() => {
                                   setEditing(r)
                                   setEditForm({
-                                    quantity_liters: String(r.quantity_liters),
-                                    price_per_liter: String(r.price_per_liter),
+                                    quantity_kg: String(r.quantity_kg),
+                                    price_per_kg: String(r.price_per_kg),
                                     opening_date: r.opening_date.slice(0, 10),
                                     notes: r.notes ?? "",
                                   })
@@ -769,34 +769,34 @@ export function LooseOpeningStockForm() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit_qty">
-                Quantity (litres) <span className="text-red-500">*</span>
+                Quantity (kg) <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit_qty"
                 type="number"
                 min="0"
                 step="any"
-                value={editForm.quantity_liters}
+                value={editForm.quantity_kg}
                 onChange={(e) =>
                   setEditForm({
                     ...editForm,
-                    quantity_liters: e.target.value,
+                    quantity_kg: e.target.value,
                   })
                 }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit_ppl">Price per Litre</Label>
+              <Label htmlFor="edit_ppl">Price per Kg</Label>
               <Input
                 id="edit_ppl"
                 type="number"
                 min="0"
                 step="any"
-                value={editForm.price_per_liter}
+                value={editForm.price_per_kg}
                 onChange={(e) =>
                   setEditForm({
                     ...editForm,
-                    price_per_liter: e.target.value,
+                    price_per_kg: e.target.value,
                   })
                 }
               />
@@ -837,17 +837,17 @@ export function LooseOpeningStockForm() {
             <Button
               onClick={async () => {
                 if (!editing) return
-                const qty = parseFloat(editForm.quantity_liters)
+                const qty = parseFloat(editForm.quantity_kg)
                 if (Number.isNaN(qty) || qty < 0) {
                   toast.error("Please enter a valid quantity")
                   return
                 }
                 const ppl =
-                  editForm.price_per_liter === ""
+                  editForm.price_per_kg === ""
                     ? 0
-                    : parseFloat(editForm.price_per_liter)
+                    : parseFloat(editForm.price_per_kg)
                 if (Number.isNaN(ppl) || ppl < 0) {
-                  toast.error("Please enter a valid price per litre")
+                  toast.error("Please enter a valid price per kg")
                   return
                 }
                 if (!editForm.opening_date) {
@@ -858,8 +858,8 @@ export function LooseOpeningStockForm() {
                 const { error } = await supabase
                   .from("loose_stock_transactions")
                   .update({
-                    quantity_liters: qty,
-                    price_per_liter: ppl,
+                    quantity_kg: qty,
+                    price_per_kg: ppl,
                     total_amount: qty * ppl,
                     transaction_date: `${editForm.opening_date}T00:00:00Z`,
                     transaction_notes: editForm.notes || null,
@@ -899,9 +899,9 @@ export function LooseOpeningStockForm() {
                 {deleting?.category_name ?? "this category"}
               </span>
               {deleting
-                ? ` (${formatLitres(deleting.quantity_liters)} @ ${formatINR(
-                    deleting.price_per_liter
-                  )}/L)`
+                ? ` (${formatKg(deleting.quantity_kg)} @ ${formatINR(
+                    deleting.price_per_kg
+                  )}/kg)`
                 : ""}
               . This action cannot be undone.
             </AlertDialogDescription>

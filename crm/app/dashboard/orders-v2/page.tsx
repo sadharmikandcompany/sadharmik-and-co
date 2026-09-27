@@ -8,16 +8,16 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
   const params = await searchParams
 
   // Role is mirrored to a cookie by useUserRole(); entity id by useEntityData().
-  // Both are used to apply role-specific server-side filters (e.g. factory users
-  // see only KP-prefixed invoices; distributors see only orders in their scope).
+  // Both are used to apply role-specific server-side filters (e.g. distributors
+  // and retailers see only orders in their scope).
   const cookieStore = await cookies()
   const userRole = cookieStore.get("user_role")?.value ?? ""
   const entityId = cookieStore.get("user_entity_id")?.value ?? ""
-  const isFactory = userRole === "factories"
   const isMainDistributor = userRole === "main_distributor"
   const isSubDistributor = userRole === "sub_distributor"
   const isDistributor = isMainDistributor || isSubDistributor
   const isRetailer = userRole === "retailer"
+  const isFactory = userRole === "factories"
   // Distributors and retailers must not see factory-issued ("KP") invoices.
   const hidesKpInvoices = isDistributor || isRetailer
 
@@ -96,15 +96,36 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
     // Retailers: only their own orders.
     query = query.eq("retailer_id", entityId)
   } else {
-    // Default scope: any order that belongs to a customer, retailer, or distributor.
-    query = query.or("customer_id.not.is.null,retailer_id.not.is.null,distributor_id.not.is.null")
+    // Default scope: any order that belongs to a customer, retailer, or
+    // distributor — plus guest website checkouts, which have all three of
+    // those columns null and only customer_full_name set instead (see
+    // app/api/public-orders/route.ts). Without this last clause, every
+    // website order was silently invisible here regardless of role.
+    query = query.or("customer_id.not.is.null,retailer_id.not.is.null,distributor_id.not.is.null,customer_full_name.not.is.null")
   }
 
-  // Factory users: only see invoices with the "KP" prefix issued from April 2026 onwards.
+  // Factory users: see every order except ones billed under a distributor's
+  // own Invoice Code (e.g. "MS") — those are the distributor's own sale, not
+  // the factory's, even though Sadharmik physically supplies the product
+  // either way. They otherwise fall through to the same default scope as
+  // everyone else above, since factories is neither a distributor nor a
+  // retailer role.
   if (isFactory) {
-    query = query
-      .or("order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%")
-      .gte("order_date", "2026-04-01")
+    const { data: distributorCodeRows } = await supabaseServer
+      .from("distributors")
+      .select("invoice_code")
+      .not("invoice_code", "is", null)
+    const distributorInvoiceCodes = (distributorCodeRows || [])
+      .map((d: any) => (d.invoice_code || "").trim())
+      .filter(Boolean)
+    // OR with `is.null` so rows missing that invoice type aren't dropped —
+    // Postgres evaluates `NULL NOT ILIKE 'MS%'` as NULL (not TRUE), which
+    // PostgREST treats as "exclude this row" same as an actual match.
+    for (const code of distributorInvoiceCodes) {
+      query = query
+        .or(`invoice_number_gst.is.null,invoice_number_gst.not.ilike.${code}%`)
+        .or(`invoice_number_non_gst.is.null,invoice_number_non_gst.not.ilike.${code}%`)
+    }
   }
 
   // Distributors and retailers must not see KP-prefixed (factory-issued) invoices.

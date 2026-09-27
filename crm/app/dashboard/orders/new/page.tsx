@@ -1905,6 +1905,24 @@ export default function NewOrderPage() {
         customerData: customer
       })
 
+      // Auto-assign a delivery partner by pincode match when staff didn't
+      // manually pick one — same idea as the distributor pincode match, but
+      // this one actually sets delivery_partner_id (not just a suggestion),
+      // so the order is genuinely assigned everywhere including the rider app.
+      let resolvedDeliveryPartnerId = selectedDeliveryPartnerId || null
+      if (!resolvedDeliveryPartnerId && shippingPincode) {
+        const { data: matchedPartners } = await supabase
+          .from("delivery_partners")
+          .select("id")
+          .not("serviceable_pincodes", "is", null)
+          .contains("serviceable_pincodes", [shippingPincode])
+          .eq("is_active", true)
+          .limit(1)
+        if (matchedPartners && matchedPartners.length > 0) {
+          resolvedDeliveryPartnerId = matchedPartners[0].id
+        }
+      }
+
       const orderData = {
         order_number: orderNumber,
         customer_id: isCustomerOrder ? selectedCustomer : null,
@@ -1946,9 +1964,9 @@ export default function NewOrderPage() {
         created_by_agent_name: currentAgentName,
         source_godown_id: selectedWarehouseId,
         destination_godown_id: (isDistributorOrder || isSubdistributorOrder || isRetailerOrder) ? destinationWarehouseId : null,
-        delivery_partner_id: selectedDeliveryPartnerId || null,
-        assigned_to_delivery_at: selectedDeliveryPartnerId ? new Date().toISOString() : null,
-        delivery_status: selectedDeliveryPartnerId ? "assigned" : null,
+        delivery_partner_id: resolvedDeliveryPartnerId,
+        assigned_to_delivery_at: resolvedDeliveryPartnerId ? new Date().toISOString() : null,
+        delivery_status: resolvedDeliveryPartnerId ? "assigned" : null,
       }
 
       const { data: order, error: orderError } = await supabase
@@ -1994,10 +2012,29 @@ export default function NewOrderPage() {
         if (isDistributorOrder || isSubdistributorOrder) {
           const { data: distData } = await supabase
             .from("distributors")
-            .select("code")
+            .select("invoice_code")
             .eq("id", selectedCustomer)
             .single()
-          if (distData) distCode = distData.code
+          if (distData) distCode = distData.invoice_code
+        } else if (isCustomerOrder && shippingPincode) {
+          // A customer order (including Shop-tier): if a distributor covers
+          // this shipping pincode (and hasn't opted out of Mandir or Shop
+          // customers, whichever applies to this customer), their bill comes
+          // from THAT distributor's own Invoice Code sequence — they're the
+          // one actually responsible for delivering it.
+          const { data: matchedDistributors } = await supabase
+            .from("distributors")
+            .select("invoice_code, serviceable_pincodes, serves_mandir_customers, serves_shop_customers")
+            .not("serviceable_pincodes", "is", null)
+            .not("invoice_code", "is", null)
+          const match = (matchedDistributors || []).find(
+            (d: any) =>
+              Array.isArray(d.serviceable_pincodes) &&
+              d.serviceable_pincodes.includes(shippingPincode) &&
+              (!customer?.is_mandir || d.serves_mandir_customers) &&
+              (!customer?.is_shop || d.serves_shop_customers)
+          )
+          if (match) distCode = match.invoice_code
         }
 
         const { data: nextInvoiceNumber, error: invoiceError } = await supabase.rpc('get_next_invoice_number', {
@@ -2286,7 +2323,7 @@ export default function NewOrderPage() {
       }
 
       toast.success("Order created successfully!")
-      router.push("/dashboard/orders")
+      router.push("/dashboard/orders-v2")
     } catch (error: unknown) {
       console.error("Error creating order:", error)
       const errorMessage = error instanceof Error ? error.message : "Failed to create order"

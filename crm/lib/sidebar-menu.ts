@@ -153,6 +153,7 @@ export const menuGroups: MenuGroup[] = [
       { title: "Stock Inventory", url: "/dashboard/stock", icon: Package, roles: ["admin", "warehouse", "factories"] },
       { title: "Loose Stock", url: "/dashboard/loose-stock", icon: Droplets, roles: ["admin", "warehouse", "factories"] },
       { title: "Loose Opening Stock", url: "/dashboard/loose-opening-stock", icon: Droplets, roles: ["admin", "warehouse", "factories"] },
+      { title: "Khakhra Production", url: "/dashboard/khakhra-production", icon: Factory, roles: ["admin", "factories"] },
       { title: "Warehouses (Godowns)", url: "/dashboard/godowns", icon: Warehouse, roles: ["admin", "warehouse", "factories"] },
       { title: "Stock Transfers", url: "/dashboard/stock-transfers", icon: ArrowRightLeft, roles: ["admin", "warehouse", "factories", "retailer"] },
       { title: "Distributor Stock", url: "/dashboard/distributor-stock", icon: Building2, roles: ["admin", "warehouse"] },

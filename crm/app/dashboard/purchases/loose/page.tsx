@@ -45,15 +45,19 @@ type LooseStock = {
   id: string
   category_id: string
   category_name: string
-  quantity_liters: number
-  price_per_liter: number
+  quantity_kg: number
+  price_per_kg: number
 }
 
 const MAIN_STOCK_CATEGORIES = [
-  "Buffalo Ghee",
-  "Cow Ghee",
-  "Valona Ghee",
-  "Groundnut Oil"
+  "Wheat Flour",
+  "Edible Oil",
+  "Salt",
+  "Red Chilli Powder",
+  "Carom Seeds",
+  "Cumin Seeds",
+  "Turmeric Powder",
+  "Kasuri Methi",
 ]
 
 export default function LooseStockPurchasePage() {
@@ -67,12 +71,12 @@ export default function LooseStockPurchasePage() {
   const [selectedVendorId, setSelectedVendorId] = useState("")
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
   const [selectedCategory, setSelectedCategory] = useState("")
-  const [quantityLiters, setQuantityLiters] = useState("")
-  const [pricePerLiter, setPricePerLiter] = useState("")
+  const [quantityKg, setQuantityKg] = useState("")
+  const [pricePerKg, setPricePerKg] = useState("")
   const [invoiceNumber, setInvoiceNumber] = useState("")
   const [batchNumber, setBatchNumber] = useState("")
   const [notes, setNotes] = useState("")
-  // Rate entered is excl.-tax; ghee/loose purchases are taxable (default 5%), not exempt.
+  // Rate entered is excl.-tax; raw material purchases are taxable (default 5%), not exempt.
   const [gstPercentage, setGstPercentage] = useState("5")
   const [itcEligible, setItcEligible] = useState(true)
 
@@ -119,8 +123,8 @@ export default function LooseStockPurchasePage() {
       .select(`
         id,
         category_id,
-        quantity_liters,
-        price_per_liter,
+        quantity_kg,
+        price_per_kg,
         product_categories!inner (
           name
         )
@@ -135,8 +139,8 @@ export default function LooseStockPurchasePage() {
       id: item.id,
       category_id: item.category_id,
       category_name: item.product_categories.name,
-      quantity_liters: item.quantity_liters,
-      price_per_liter: item.price_per_liter,
+      quantity_kg: item.quantity_kg,
+      price_per_kg: item.price_per_kg,
     }))
 
     setLooseStock(transformedData)
@@ -180,16 +184,16 @@ export default function LooseStockPurchasePage() {
     return looseStock.find((ls) => ls.category_id === selectedCategory)
   }
 
-  // Loose purchases (milk, packaging, etc.) are received at the Gujarat factory.
+  // Loose purchases (raw materials, packaging, etc.) are received at the Gujarat factory.
   const COMPANY_STATE = "Gujarat"
 
   const calculateTotals = () => {
-    const quantity = parseFloat(quantityLiters) || 0
-    const price = parseFloat(pricePerLiter) || 0
+    const quantity = parseFloat(quantityKg) || 0
+    const price = parseFloat(pricePerKg) || 0
     const total = quantity * price
 
     const currentStock = getCurrentStock()
-    const newTotal = (currentStock?.quantity_liters || 0) + quantity
+    const newTotal = (currentStock?.quantity_kg || 0) + quantity
 
     const pct = Number(gstPercentage) || 0
     // Rate entered is excl.-tax (matches vendor bills/Tally) — GST is added on top, not extracted.
@@ -200,7 +204,7 @@ export default function LooseStockPurchasePage() {
     return {
       totalAmount: total,
       grandTotal: total + gstAmount,
-      newTotalLiters: newTotal,
+      newTotalKg: newTotal,
       gstAmount,
       cgstAmount: isInterState ? 0 : gstAmount / 2,
       sgstAmount: isInterState ? 0 : gstAmount / 2,
@@ -220,12 +224,12 @@ export default function LooseStockPurchasePage() {
       toast.error("Please select a category")
       return false
     }
-    if (!quantityLiters || parseFloat(quantityLiters) <= 0) {
-      toast.error("Please enter a valid quantity in liters")
+    if (!quantityKg || parseFloat(quantityKg) <= 0) {
+      toast.error("Please enter a valid quantity in kg")
       return false
     }
-    if (!pricePerLiter || parseFloat(pricePerLiter) <= 0) {
-      toast.error("Please enter a valid price per liter")
+    if (!pricePerKg || parseFloat(pricePerKg) <= 0) {
+      toast.error("Please enter a valid price per kg")
       return false
     }
     return true
@@ -238,8 +242,8 @@ export default function LooseStockPurchasePage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const quantity = parseFloat(quantityLiters)
-      const price = parseFloat(pricePerLiter)
+      const quantity = parseFloat(quantityKg)
+      const price = parseFloat(pricePerKg)
       const totalAmount = quantity * price
 
       // Get or create loose_stock record
@@ -251,8 +255,8 @@ export default function LooseStockPurchasePage() {
           .from("loose_stock")
           .insert({
             category_id: selectedCategory,
-            quantity_liters: quantity,
-            price_per_liter: price,
+            quantity_kg: quantity,
+            price_per_kg: price,
           })
           .select()
           .single()
@@ -262,17 +266,17 @@ export default function LooseStockPurchasePage() {
           id: newLooseStock.id,
           category_id: newLooseStock.category_id,
           category_name: categories.find(c => c.id === selectedCategory)?.name || "",
-          quantity_liters: newLooseStock.quantity_liters,
-          price_per_liter: newLooseStock.price_per_liter,
+          quantity_kg: newLooseStock.quantity_kg,
+          price_per_kg: newLooseStock.price_per_kg,
         }
       } else {
         // Update existing loose_stock record
-        const newQuantity = looseStockRecord.quantity_liters + quantity
+        const newQuantity = looseStockRecord.quantity_kg + quantity
         const { error: updateError } = await supabase
           .from("loose_stock")
           .update({
-            quantity_liters: newQuantity,
-            price_per_liter: price, // Update to latest price
+            quantity_kg: newQuantity,
+            price_per_kg: price, // Update to latest price
           })
           .eq("id", looseStockRecord.id)
 
@@ -285,8 +289,8 @@ export default function LooseStockPurchasePage() {
         .insert({
           loose_stock_id: looseStockRecord.id,
           transaction_type: "purchase",
-          quantity_liters: quantity,
-          price_per_liter: price,
+          quantity_kg: quantity,
+          price_per_kg: price,
           total_amount: totalAmount,
           vendor_id: selectedVendorId,
           vendor_name: selectedVendor?.vendor_name || "",
@@ -305,7 +309,7 @@ export default function LooseStockPurchasePage() {
 
       if (transactionError) throw transactionError
 
-      toast.success(`Successfully purchased ${quantity}L of loose stock`)
+      toast.success(`Successfully purchased ${quantity}kg of loose stock`)
       router.push("/dashboard/purchases")
     } catch (error: unknown) {
       console.error("Error saving loose stock purchase:", error)
@@ -327,7 +331,7 @@ export default function LooseStockPurchasePage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Droplets className="h-8 w-8" />
-            Purchase Loose Stock
+            Purchase Raw Materials
           </h1>
           <p className="text-muted-foreground">
             Record purchase of bulk/loose quantities from vendors
@@ -407,41 +411,41 @@ export default function LooseStockPurchasePage() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current Stock:</span>
-                    <span className="font-bold">{currentStock.quantity_liters.toFixed(2)} L</span>
+                    <span className="font-bold">{currentStock.quantity_kg.toFixed(2)} kg</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Current Price/L:</span>
-                    <span className="font-medium">₹{currentStock.price_per_liter.toFixed(2)}</span>
+                    <span className="text-muted-foreground">Current Price/kg:</span>
+                    <span className="font-medium">₹{currentStock.price_per_kg.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Quantity in Liters */}
+            {/* Quantity in Kg */}
             <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity (Liters) *</Label>
+              <Label htmlFor="quantity">Quantity (Kg) *</Label>
               <Input
                 id="quantity"
                 type="number"
                 min="0"
                 step="0.01"
-                value={quantityLiters}
-                onChange={(e) => setQuantityLiters(e.target.value)}
-                placeholder="Enter quantity in liters"
+                value={quantityKg}
+                onChange={(e) => setQuantityKg(e.target.value)}
+                placeholder="Enter quantity in kg"
               />
             </div>
 
-            {/* Price per Liter */}
+            {/* Price per Kg */}
             <div className="space-y-2">
-              <Label htmlFor="price">Price per Liter, Excl. Tax (₹) *</Label>
+              <Label htmlFor="price">Price per Kg, Excl. Tax (₹) *</Label>
               <Input
                 id="price"
                 type="number"
                 min="0"
                 step="0.01"
-                value={pricePerLiter}
-                onChange={(e) => setPricePerLiter(e.target.value)}
-                placeholder="Enter price per liter"
+                value={pricePerKg}
+                onChange={(e) => setPricePerKg(e.target.value)}
+                placeholder="Enter price per kg"
               />
               <p className="text-xs text-muted-foreground">GST is added on top of this rate.</p>
             </div>
@@ -534,12 +538,12 @@ export default function LooseStockPurchasePage() {
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center text-sm mb-2">
                   <span className="text-muted-foreground">Purchase Quantity:</span>
-                  <span className="font-bold text-lg">{quantityLiters || 0} L</span>
+                  <span className="font-bold text-lg">{quantityKg || 0} kg</span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm mb-2">
-                  <span className="text-muted-foreground">Price per Liter (Excl. Tax):</span>
-                  <span className="font-medium">₹{parseFloat(pricePerLiter || "0").toFixed(2)}</span>
+                  <span className="text-muted-foreground">Price per Kg (Excl. Tax):</span>
+                  <span className="font-medium">₹{parseFloat(pricePerKg || "0").toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm mb-2 text-muted-foreground">
@@ -571,16 +575,16 @@ export default function LooseStockPurchasePage() {
                   <div className="text-sm space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Current Stock:</span>
-                      <span className="font-medium">{currentStock.quantity_liters.toFixed(2)} L</span>
+                      <span className="font-medium">{currentStock.quantity_kg.toFixed(2)} kg</span>
                     </div>
                     <div className="flex justify-between items-center text-green-600 dark:text-green-400">
                       <span>Adding:</span>
-                      <span className="font-bold">+{parseFloat(quantityLiters || "0").toFixed(2)} L</span>
+                      <span className="font-bold">+{parseFloat(quantityKg || "0").toFixed(2)} kg</span>
                     </div>
                     <div className="flex justify-between items-center border-t pt-2 border-blue-200 dark:border-blue-800">
                       <span className="font-bold">New Total:</span>
                       <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                        {totals.newTotalLiters.toFixed(2)} L
+                        {totals.newTotalKg.toFixed(2)} kg
                       </span>
                     </div>
                   </div>

@@ -18,10 +18,9 @@ import {
   Package,
   Warehouse,
   ArrowRightLeft,
-  Droplets,
   IndianRupee,
   Layers,
-  Beaker,
+  Wheat,
   Boxes,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -45,9 +44,9 @@ type WarehouseStock = {
   total_quantity: number
   total_reserved: number
   total_available: number
-  unit_volume_litres: number
+  unit_weight_kg: number
   unit_price: number
-  total_litres: number
+  total_kg: number
   total_amount: number
 }
 
@@ -57,18 +56,26 @@ type Distributor = {
   company_name: string
 }
 
-// Extract volume in litres from product name
-function extractVolumeLitres(productName: string): number {
-  // Match patterns like "500ML", "15 LTR", "1 LTR", "100 ML", "5 LTR"
-  const match = productName.match(/(\d+(?:\.\d+)?)\s*(ML|LTR|L|LITRE)/i)
+// The 4 khakhra flavors — each is a product_categories row backing a pair of
+// pack-size products (e.g. "500 GRAM Classic Sada"). Colors/icons match the
+// scheme already used elsewhere for these same 4 flavors.
+const FLAVOR_CARDS = [
+  { key: 'classicSada', categoryName: 'Classic Sada Khakhra', label: 'Classic Sada', border: 'border-amber-200', bg: 'bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20', text: 'text-amber-700 dark:text-amber-400', iconBg: 'bg-amber-100 text-amber-600 dark:bg-amber-950/60' },
+  { key: 'spicyMasala', categoryName: 'Spicy Masala Khakhra', label: 'Spicy Masala', border: 'border-violet-200', bg: 'bg-violet-50/50 dark:border-violet-900 dark:bg-violet-950/20', text: 'text-violet-700 dark:text-violet-400', iconBg: 'bg-violet-100 text-violet-600 dark:bg-violet-950/60' },
+  { key: 'magicMethi', categoryName: 'Magic Methi Khakhra', label: 'Magic Methi', border: 'border-emerald-200', bg: 'bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', iconBg: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60' },
+  { key: 'zestyJeera', categoryName: 'Zesty Jeera Khakhra', label: 'Zesty Jeera', border: 'border-orange-200', bg: 'bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20', text: 'text-orange-700 dark:text-orange-400', iconBg: 'bg-orange-100 text-orange-600 dark:bg-orange-950/60' },
+] as const
+
+// Extract weight in kg from a product name like "500 GRAM Classic Sada" or "250g Spicy Masala"
+function extractWeightKg(productName: string): number {
+  const match = productName.match(/(\d+(?:\.\d+)?)\s*(GRAMS?|G|KG|KILOGRAMS?)\b/i)
   if (!match) return 0
 
   const value = parseFloat(match[1])
   const unit = match[2].toUpperCase()
 
-  // Convert to litres
-  if (unit === 'ML') return value / 1000
-  return value // LTR, L, LITRE are already in litres
+  if (unit.startsWith('KG') || unit.startsWith('KILOGRAM')) return value
+  return value / 1000 // GRAM(S)/G are in grams, convert to kg
 }
 
 function WarehouseStockContent() {
@@ -80,6 +87,11 @@ function WarehouseStockContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [distributors, setDistributors] = useState<Distributor[]>([])
+  // Lifted up from the table so the summary cards below can also react to it
+  // — e.g. picking "sadharmik&Company Bhyander" (the factory's own godown,
+  // godown_type='company') shows factory-only totals instead of grand
+  // totals across the factory + every distributor's godown combined.
+  const [warehouseFilter, setWarehouseFilter] = useState('all')
   const [selectedDistributor, setSelectedDistributor] = useState<string>('all')
 
   useEffect(() => {
@@ -216,8 +228,8 @@ function WarehouseStockContent() {
         || productInventory.products?.customer_price
         || 0
 
-      // Extract volume from product name
-      const unitVolumeLitres = extractVolumeLitres(productName)
+      // Extract weight from product name
+      const unitWeightKg = extractWeightKg(productName)
 
       const warehouses: { [key: string]: any } = {}
       let total_quantity = 0
@@ -256,9 +268,9 @@ function WarehouseStockContent() {
         total_quantity,
         total_reserved,
         total_available,
-        unit_volume_litres: unitVolumeLitres,
+        unit_weight_kg: unitWeightKg,
         unit_price: unitPrice,
-        total_litres: unitVolumeLitres * total_quantity,
+        total_kg: unitWeightKg * total_quantity,
         total_amount: unitPrice * total_quantity,
       }
     })
@@ -273,9 +285,9 @@ function WarehouseStockContent() {
           <Skeleton className="h-11 w-72" />
           <Skeleton className="h-9 w-36" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-44" />
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -305,33 +317,39 @@ function WarehouseStockContent() {
     ? distributors.find(d => d.id === selectedDistributor)?.name || 'Selected Distributor'
     : null
 
-  // Calculate category-wise totals
-  const getCategoryData = (categoryName: string) => {
-    const categoryProducts = products.filter(p => p.category_name === categoryName)
+  // When a specific warehouse is selected (e.g. the factory's own godown),
+  // every total below should reflect just that warehouse, not the grand
+  // total across the factory + every distributor's godown combined.
+  const isFactoryOnly = warehouseFilter !== 'all'
+  const quantityFor = (p: WarehouseStock) =>
+    isFactoryOnly ? (p.warehouses[warehouseFilter]?.quantity || 0) : p.total_quantity
+  const reservedFor = (p: WarehouseStock) =>
+    isFactoryOnly ? (p.warehouses[warehouseFilter]?.reserved_quantity || 0) : p.total_reserved
+  const availableFor = (p: WarehouseStock) =>
+    isFactoryOnly ? (p.warehouses[warehouseFilter]?.available_quantity || 0) : p.total_available
+  const kgFor = (p: WarehouseStock) => p.unit_weight_kg * quantityFor(p)
+  const amountFor = (p: WarehouseStock) => p.unit_price * quantityFor(p)
+
+  // Calculate flavor-wise totals
+  const getFlavorData = (categoryName: string) => {
+    const flavorProducts = products.filter(p => p.category_name === categoryName)
     return {
-      products: categoryProducts,
-      totalQuantity: categoryProducts.reduce((sum, p) => sum + p.total_quantity, 0),
-      totalLitres: categoryProducts.reduce((sum, p) => sum + p.total_litres, 0),
-      totalAmount: categoryProducts.reduce((sum, p) => sum + p.total_amount, 0),
-      totalAvailable: categoryProducts.reduce((sum, p) => sum + p.total_available, 0),
-      totalReserved: categoryProducts.reduce((sum, p) => sum + p.total_reserved, 0),
+      products: flavorProducts,
+      totalQuantity: flavorProducts.reduce((sum, p) => sum + quantityFor(p), 0),
+      totalKg: flavorProducts.reduce((sum, p) => sum + kgFor(p), 0),
+      totalAmount: flavorProducts.reduce((sum, p) => sum + amountFor(p), 0),
+      totalAvailable: flavorProducts.reduce((sum, p) => sum + availableFor(p), 0),
+      totalReserved: flavorProducts.reduce((sum, p) => sum + reservedFor(p), 0),
     }
   }
 
-  const categoryData = {
-    cowGhee: getCategoryData('Cow Ghee'),
-    buffaloGhee: getCategoryData('Buffalo Ghee'),
-    valonaGhee: getCategoryData('Valona Ghee'),
-    groundnutOil: getCategoryData('Groundnut Oil'),
-  }
-
-  // Grand totals
+  // Grand totals (or factory-only totals, when a specific warehouse is picked)
   const grandTotals = {
-    totalQuantity: products.reduce((sum, p) => sum + p.total_quantity, 0),
-    totalLitres: products.reduce((sum, p) => sum + p.total_litres, 0),
-    totalAmount: products.reduce((sum, p) => sum + p.total_amount, 0),
-    totalAvailable: products.reduce((sum, p) => sum + p.total_available, 0),
-    totalReserved: products.reduce((sum, p) => sum + p.total_reserved, 0),
+    totalQuantity: products.reduce((sum, p) => sum + quantityFor(p), 0),
+    totalKg: products.reduce((sum, p) => sum + kgFor(p), 0),
+    totalAmount: products.reduce((sum, p) => sum + amountFor(p), 0),
+    totalAvailable: products.reduce((sum, p) => sum + availableFor(p), 0),
+    totalReserved: products.reduce((sum, p) => sum + reservedFor(p), 0),
   }
 
   return (
@@ -347,7 +365,9 @@ function WarehouseStockContent() {
               Warehouse Stock Overview
             </h1>
             <p className="text-sm text-muted-foreground">
-              View and manage stock levels across {selectedDistributorName ? `${selectedDistributorName}'s warehouses` : 'all warehouses'}
+              {isFactoryOnly
+                ? `Showing only ${warehouseFilter} (the factory) — clear the warehouse filter below to see all warehouses`
+                : `View and manage stock levels across ${selectedDistributorName ? `${selectedDistributorName}'s warehouses` : 'all warehouses'}`}
             </p>
           </div>
         </div>
@@ -359,163 +379,29 @@ function WarehouseStockContent() {
         </Link>
       </div>
 
-      {/* Category-wise Stock Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Cow Ghee */}
-        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-          <CardHeader>
-            <CardDescription>Cow Ghee</CardDescription>
-            <CardTitle className="text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
-              {categoryData.cowGhee.totalLitres.toFixed(2)} L
-            </CardTitle>
-            <CardAction>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950/60">
-                <Layers className="h-4 w-4" />
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Products:</span>
-              <span className="font-medium">{categoryData.cowGhee.products.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Quantity:</span>
-              <span className="font-semibold tabular-nums">{categoryData.cowGhee.totalQuantity.toLocaleString()} pcs</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Available:</span>
-              <span className="font-semibold tabular-nums text-green-600">{categoryData.cowGhee.totalAvailable.toLocaleString()} pcs</span>
-            </div>
-            {categoryData.cowGhee.totalReserved > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Reserved:</span>
-                <span className="font-semibold tabular-nums text-orange-600">{categoryData.cowGhee.totalReserved.toLocaleString()} pcs</span>
-              </div>
-            )}
-            <div className="flex justify-between text-xs border-t pt-2">
-              <span className="text-muted-foreground font-medium">Total Amount:</span>
-              <span className="font-bold tabular-nums text-primary">₹{categoryData.cowGhee.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Buffalo Ghee */}
-        <Card className="border-violet-200 bg-violet-50/50 dark:border-violet-900 dark:bg-violet-950/20">
-          <CardHeader>
-            <CardDescription>Buffalo Ghee</CardDescription>
-            <CardTitle className="text-2xl font-bold tabular-nums text-violet-700 dark:text-violet-400">
-              {categoryData.buffaloGhee.totalLitres.toFixed(2)} L
-            </CardTitle>
-            <CardAction>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/60">
-                <Beaker className="h-4 w-4" />
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Products:</span>
-              <span className="font-medium">{categoryData.buffaloGhee.products.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Quantity:</span>
-              <span className="font-semibold tabular-nums">{categoryData.buffaloGhee.totalQuantity.toLocaleString()} pcs</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Available:</span>
-              <span className="font-semibold tabular-nums text-green-600">{categoryData.buffaloGhee.totalAvailable.toLocaleString()} pcs</span>
-            </div>
-            {categoryData.buffaloGhee.totalReserved > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Reserved:</span>
-                <span className="font-semibold tabular-nums text-orange-600">{categoryData.buffaloGhee.totalReserved.toLocaleString()} pcs</span>
-              </div>
-            )}
-            <div className="flex justify-between text-xs border-t pt-2">
-              <span className="text-muted-foreground font-medium">Total Amount:</span>
-              <span className="font-bold tabular-nums text-primary">₹{categoryData.buffaloGhee.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Valona Ghee */}
-        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <CardHeader>
-            <CardDescription>Valona Ghee</CardDescription>
-            <CardTitle className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-              {categoryData.valonaGhee.totalLitres.toFixed(2)} L
-            </CardTitle>
-            <CardAction>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60">
-                <Droplets className="h-4 w-4" />
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Products:</span>
-              <span className="font-medium">{categoryData.valonaGhee.products.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Quantity:</span>
-              <span className="font-semibold tabular-nums">{categoryData.valonaGhee.totalQuantity.toLocaleString()} pcs</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Available:</span>
-              <span className="font-semibold tabular-nums text-green-600">{categoryData.valonaGhee.totalAvailable.toLocaleString()} pcs</span>
-            </div>
-            {categoryData.valonaGhee.totalReserved > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Reserved:</span>
-                <span className="font-semibold tabular-nums text-orange-600">{categoryData.valonaGhee.totalReserved.toLocaleString()} pcs</span>
-              </div>
-            )}
-            <div className="flex justify-between text-xs border-t pt-2">
-              <span className="text-muted-foreground font-medium">Total Amount:</span>
-              <span className="font-bold tabular-nums text-primary">₹{categoryData.valonaGhee.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Groundnut Oil */}
-        <Card className="border-orange-200 bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20">
-          <CardHeader>
-            <CardDescription>Groundnut Oil</CardDescription>
-            <CardTitle className="text-2xl font-bold tabular-nums text-orange-700 dark:text-orange-400">
-              {categoryData.groundnutOil.totalLitres.toFixed(2)} L
-            </CardTitle>
-            <CardAction>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950/60">
-                <Droplets className="h-4 w-4" />
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Products:</span>
-              <span className="font-medium">{categoryData.groundnutOil.products.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Quantity:</span>
-              <span className="font-semibold tabular-nums">{categoryData.groundnutOil.totalQuantity.toLocaleString()} pcs</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Available:</span>
-              <span className="font-semibold tabular-nums text-green-600">{categoryData.groundnutOil.totalAvailable.toLocaleString()} pcs</span>
-            </div>
-            {categoryData.groundnutOil.totalReserved > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Reserved:</span>
-                <span className="font-semibold tabular-nums text-orange-600">{categoryData.groundnutOil.totalReserved.toLocaleString()} pcs</span>
-              </div>
-            )}
-            <div className="flex justify-between text-xs border-t pt-2">
-              <span className="text-muted-foreground font-medium">Total Amount:</span>
-              <span className="font-bold tabular-nums text-primary">₹{categoryData.groundnutOil.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Flavor-wise Stock Cards — one line on desktop */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {FLAVOR_CARDS.map((flavor) => {
+          const data = getFlavorData(flavor.categoryName)
+          return (
+            <Card key={flavor.key} className={`${flavor.border} ${flavor.bg} gap-0 py-0`}>
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className={`text-xs font-semibold ${flavor.text}`}>{flavor.label}</p>
+                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${flavor.iconBg}`}>
+                    <Wheat className="h-3 w-3" />
+                  </div>
+                </div>
+                <p className="text-lg font-bold tabular-nums">{data.totalKg.toFixed(2)} kg</p>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                  <span>{data.totalQuantity.toLocaleString()} pcs</span>
+                  <span className="text-green-600 font-medium">{data.totalAvailable.toLocaleString()} avail.</span>
+                </div>
+                <p className="text-xs font-semibold text-primary mt-1 pt-1 border-t">₹{data.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Summary Cards */}
@@ -558,7 +444,7 @@ function WarehouseStockContent() {
           <CardHeader>
             <CardDescription>Total Stock</CardDescription>
             <CardTitle className="text-2xl font-bold tabular-nums">
-              {grandTotals.totalLitres.toFixed(2)} L
+              {grandTotals.totalKg.toFixed(2)} kg
             </CardTitle>
             <CardAction>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -619,6 +505,8 @@ function WarehouseStockContent() {
               distributors={distributors}
               selectedDistributor={selectedDistributor}
               onDistributorChange={handleDistributorChange}
+              warehouseFilter={warehouseFilter}
+              onWarehouseFilterChange={setWarehouseFilter}
             />
           </div>
         </CardContent>
@@ -661,9 +549,9 @@ export default function WarehouseStockPage() {
           <Skeleton className="h-11 w-72" />
           <Skeleton className="h-9 w-36" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-44" />
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

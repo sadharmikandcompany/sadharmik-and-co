@@ -28,8 +28,13 @@ export default function LoginScreen() {
       }
       setLoggedIn(true);
       router.replace("/(tabs)");
-    } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+    } catch (err) {
+      // Was a bare `catch {}` showing this same message for any failure
+      // inside the try block, network or not — e.g. a device SecureStore
+      // failure while saving the token would masquerade as a network error.
+      // Now surfaces what actually happened.
+      const detail = err instanceof Error ? err.message : String(err);
+      setError(`Something went wrong: ${detail}`);
     } finally {
       setIsSubmitting(false);
     }

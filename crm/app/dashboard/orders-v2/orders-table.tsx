@@ -107,6 +107,7 @@ type Order = {
   customer_mandir_number?: string | null
   customer_is_shop?: boolean | null
   customer_shop_number?: string | null
+  is_factory_order?: boolean | null
   customer_email?: string | null
   customer_company_name?: string | null
   customer_gst_number?: string | null
@@ -123,6 +124,7 @@ type Order = {
   route_name?: string | null
   serviceable_distributor_id?: string | null
   serviceable_distributor_name?: string | null
+  order_distributor_name?: string | null
 }
 
 type DeliveryPartner = {
@@ -524,15 +526,19 @@ export function OrdersTable({
 
   // ─── Invoice & Print helpers ─────────────────────────────────────────────
 
-  const fetchDistributorCompanyInfo = async (shippingPincode: string) => {
+  const fetchDistributorCompanyInfo = async (shippingPincode: string, isMandirCustomer: boolean = false) => {
     try {
       const { data: distributorsData } = await supabase
         .from("distributors")
-        .select("company_name, name, email, phone_primary, gst_number, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, bank_name, bank_account_number, bank_ifsc_code, bank_branch, serviceable_pincodes")
+        .select("company_name, name, email, phone_primary, gst_number, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, bank_name, bank_account_number, bank_ifsc_code, bank_branch, serviceable_pincodes, serves_mandir_customers")
         .not("serviceable_pincodes", "is", null)
       if (distributorsData) {
+        // Skip a distributor who's opted out of Mandir/Temple customers for
+        // a Mandir order, same as if their pincodes didn't match — falls
+        // through to in-house fulfillment.
         const match = distributorsData.find((dist: any) =>
-          dist.serviceable_pincodes?.includes(shippingPincode)
+          dist.serviceable_pincodes?.includes(shippingPincode) &&
+          (!isMandirCustomer || dist.serves_mandir_customers)
         )
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(", ")
@@ -594,7 +600,7 @@ export function OrdersTable({
     const companyInfo = orderData.is_factory_order
       ? FACTORY_COMPANY_INFO
       : orderData.shipping_pincode
-        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode)
+        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode, customerData?.is_mandir === true)
         : undefined
 
     return {
@@ -828,7 +834,7 @@ export function OrdersTable({
     Address: order.customer_full_address || "",
     "Shipping Address": order.shipping_full_address || `${order.shipping_city}, ${order.shipping_state}`,
     Pincode: order.shipping_pincode || "",
-    Distributor: order.serviceable_distributor_name || "",
+    Distributor: (order.distributor_id || order.is_factory_order) ? FACTORY_COMPANY_INFO.name : (order.serviceable_distributor_name || FACTORY_COMPANY_INFO.name),
     Amount: `₹${order.total_amount.toFixed(2)}`,
     "Order Status": order.order_status,
     "Payment Status": order.payment_status,
@@ -1183,12 +1189,32 @@ export function OrdersTable({
                             </div>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {order.serviceable_distributor_name && order.serviceable_distributor_id ? (
+                            {order.distributor_id || order.is_factory_order ? (
+                              // A distributor's own order, or an order
+                              // explicitly flagged as factory-direct — either
+                              // way, the factory supplies them directly.
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">{FACTORY_COMPANY_INFO.name}</span>
+                                <span className="text-xs text-muted-foreground">{FACTORY_COMPANY_INFO.city} Factory (direct)</span>
+                              </div>
+                            ) : order.serviceable_distributor_name && order.serviceable_distributor_id ? (
+                              // A regular customer order (including Shop-tier)
+                              // — the distributor covering this shipping
+                              // pincode delivers it, unless they've opted out
+                              // of Mandir/Shop customers (handled in orders_v).
                               <button onClick={() => router.push(`/dashboard/distributors/${order.serviceable_distributor_id}`)} className="flex flex-col text-left hover:text-primary transition-colors">
                                 <span className="font-medium hover:underline">{order.serviceable_distributor_name}</span>
                                 <span className="text-xs text-muted-foreground">Services {order.shipping_pincode}</span>
                               </button>
-                            ) : <span className="text-xs text-muted-foreground">No distributor</span>}
+                            ) : (
+                              // No distributor covers this pincode (or the
+                              // matched one opted out, e.g. Mandir customers)
+                              // — fulfilled directly from the factory.
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">{FACTORY_COMPANY_INFO.name}</span>
+                                <span className="text-xs text-muted-foreground">{FACTORY_COMPANY_INFO.city} Factory (direct)</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             {order.delivery_partner_id && order.delivery_partner_name ? (

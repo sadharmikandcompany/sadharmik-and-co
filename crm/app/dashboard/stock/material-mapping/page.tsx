@@ -80,7 +80,7 @@ type MaterialMapping = {
   material_name: string
   material_type: string
   quantity_per_unit: number
-  liters_consumed_per_unit: number
+  kg_consumed_per_unit: number
   is_required: boolean
   display_order: number
   product_id: string | null
@@ -117,7 +117,7 @@ export default function MaterialMappingPage() {
   const [formMaterialId, setFormMaterialId] = useState("")
   const [formProductId, setFormProductId] = useState("")
   const [formQuantityPerUnit, setFormQuantityPerUnit] = useState("1")
-  const [formLitersConsumed, setFormLitersConsumed] = useState("0")
+  const [formKgConsumed, setFormKgConsumed] = useState("0")
   const [formIsRequired, setFormIsRequired] = useState("true")
   const [formDisplayOrder, setFormDisplayOrder] = useState("0")
 
@@ -126,7 +126,7 @@ export default function MaterialMappingPage() {
     id: string
     material_id: string
     quantity_per_unit: string
-    liters_consumed_per_unit: string
+    kg_consumed_per_unit: string
     is_required: string
     display_order: string
   }
@@ -136,7 +136,7 @@ export default function MaterialMappingPage() {
       id: crypto.randomUUID(),
       material_id: "",
       quantity_per_unit: "1",
-      liters_consumed_per_unit: "0",
+      kg_consumed_per_unit: "0",
       is_required: "true",
       display_order: "0",
     },
@@ -256,7 +256,7 @@ export default function MaterialMappingPage() {
         material_id,
         product_id,
         quantity_per_unit,
-        liters_consumed_per_unit,
+        kg_consumed_per_unit,
         is_required,
         display_order,
         product_variants!inner (
@@ -286,7 +286,7 @@ export default function MaterialMappingPage() {
       material_name: m.packaging_materials.name,
       material_type: m.packaging_materials.material_type,
       quantity_per_unit: m.quantity_per_unit,
-      liters_consumed_per_unit: m.liters_consumed_per_unit,
+      kg_consumed_per_unit: m.kg_consumed_per_unit,
       is_required: m.is_required,
       display_order: m.display_order,
       product_id: m.product_id,
@@ -302,7 +302,7 @@ export default function MaterialMappingPage() {
     setFormMaterialId("")
     setFormProductId("")
     setFormQuantityPerUnit("1")
-    setFormLitersConsumed("0")
+    setFormKgConsumed("0")
     setFormIsRequired("true")
     setFormDisplayOrder("0")
     setBatchMode(true) // Default to batch mode for better UX
@@ -311,7 +311,7 @@ export default function MaterialMappingPage() {
         id: crypto.randomUUID(),
         material_id: "",
         quantity_per_unit: "1",
-        liters_consumed_per_unit: "0",
+        kg_consumed_per_unit: "0",
         is_required: "true",
         display_order: "0",
       },
@@ -326,7 +326,7 @@ export default function MaterialMappingPage() {
     setFormMaterialId(mapping.material_id)
     setFormProductId(mapping.product_id || "")
     setFormQuantityPerUnit(mapping.quantity_per_unit.toString())
-    setFormLitersConsumed(mapping.liters_consumed_per_unit.toString())
+    setFormKgConsumed(mapping.kg_consumed_per_unit.toString())
     setFormIsRequired(mapping.is_required.toString())
     setFormDisplayOrder(mapping.display_order.toString())
     setBatchMode(false) // Single mode for editing
@@ -342,7 +342,7 @@ export default function MaterialMappingPage() {
         id: crypto.randomUUID(),
         material_id: "",
         quantity_per_unit: "1",
-        liters_consumed_per_unit: "0",
+        kg_consumed_per_unit: "0",
         is_required: "true",
         display_order: batchMaterialRows.length.toString(),
       },
@@ -403,8 +403,8 @@ export default function MaterialMappingPage() {
             setSaving(false)
             return
           }
-          if (parseFloat(row.liters_consumed_per_unit) < 0) {
-            toast.error("Liters consumed cannot be negative")
+          if (parseFloat(row.kg_consumed_per_unit) < 0) {
+            toast.error("Kg consumed cannot be negative")
             setSaving(false)
             return
           }
@@ -416,7 +416,7 @@ export default function MaterialMappingPage() {
           material_id: row.material_id,
           product_id: null,
           quantity_per_unit: parseFloat(row.quantity_per_unit),
-          liters_consumed_per_unit: parseFloat(row.liters_consumed_per_unit),
+          kg_consumed_per_unit: parseFloat(row.kg_consumed_per_unit),
           is_required: row.is_required === "true",
           display_order: parseInt(row.display_order) || 0,
         }))
@@ -439,8 +439,8 @@ export default function MaterialMappingPage() {
           setSaving(false)
           return
         }
-        if (parseFloat(formLitersConsumed) < 0) {
-          toast.error("Liters consumed cannot be negative")
+        if (parseFloat(formKgConsumed) < 0) {
+          toast.error("Kg consumed cannot be negative")
           setSaving(false)
           return
         }
@@ -450,7 +450,7 @@ export default function MaterialMappingPage() {
           material_id: formMaterialId,
           product_id: null,
           quantity_per_unit: parseFloat(formQuantityPerUnit),
-          liters_consumed_per_unit: parseFloat(formLitersConsumed),
+          kg_consumed_per_unit: parseFloat(formKgConsumed),
           is_required: formIsRequired === "true",
           display_order: parseInt(formDisplayOrder) || 0,
         }
@@ -582,7 +582,7 @@ export default function MaterialMappingPage() {
             <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">
               Content
             </Badge>
-            materials (Ghee, oil) are liquids tracked in loose stock - they won't block transfers if not in stock inventory.
+            materials (e.g. loose khakhra) are tracked in loose stock - they won't block transfers if not in stock inventory.
           </span>{" "}
           <span className="inline-flex items-center gap-1">
             <Badge variant="outline" className="text-xs">
@@ -755,7 +755,7 @@ export default function MaterialMappingPage() {
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Material</TableHead>
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Type</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Qty per Unit</TableHead>
-                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Liters Consumed</TableHead>
+                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Kg Consumed</TableHead>
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Required</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Order</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -780,7 +780,7 @@ export default function MaterialMappingPage() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{mapping.quantity_per_unit}</TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {mapping.liters_consumed_per_unit > 0 ? `${mapping.liters_consumed_per_unit} L` : '-'}
+                            {mapping.kg_consumed_per_unit > 0 ? `${mapping.kg_consumed_per_unit} kg` : '-'}
                           </TableCell>
                           <TableCell>
                             {mapping.is_required ? (
@@ -920,18 +920,18 @@ export default function MaterialMappingPage() {
                                 />
                               </div>
 
-                              {/* Liters Consumed */}
+                              {/* Kg Consumed */}
                               <div className="space-y-2">
-                                <Label className="text-xs">Liters Consumed</Label>
+                                <Label className="text-xs">Kg Consumed</Label>
                                 <Input
                                   type="number"
                                   min="0"
                                   step="0.0001"
-                                  value={row.liters_consumed_per_unit}
+                                  value={row.kg_consumed_per_unit}
                                   onChange={(e) =>
                                     updateMaterialRow(
                                       row.id,
-                                      "liters_consumed_per_unit",
+                                      "kg_consumed_per_unit",
                                       e.target.value
                                     )
                                   }
@@ -1020,13 +1020,13 @@ export default function MaterialMappingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Liters Consumed per Unit</Label>
+                    <Label>Kg Consumed per Unit</Label>
                     <Input
                       type="number"
                       min="0"
                       step="0.0001"
-                      value={formLitersConsumed}
-                      onChange={(e) => setFormLitersConsumed(e.target.value)}
+                      value={formKgConsumed}
+                      onChange={(e) => setFormKgConsumed(e.target.value)}
                       placeholder="e.g., 1 or 0.5"
                     />
                   </div>

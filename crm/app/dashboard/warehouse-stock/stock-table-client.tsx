@@ -26,9 +26,9 @@ type WarehouseStock = {
   total_quantity: number
   total_reserved: number
   total_available: number
-  unit_volume_litres: number
+  unit_weight_kg: number
   unit_price: number
-  total_litres: number
+  total_kg: number
   total_amount: number
 }
 
@@ -45,6 +45,8 @@ type StockTableClientProps = {
   distributors?: Distributor[]
   selectedDistributor?: string
   onDistributorChange?: (distributorId: string) => void
+  warehouseFilter: string
+  onWarehouseFilterChange: (warehouse: string) => void
 }
 
 type EditDialogState = {
@@ -63,10 +65,11 @@ export function StockTableClient({
   onStockUpdate,
   distributors,
   selectedDistributor,
-  onDistributorChange
+  onDistributorChange,
+  warehouseFilter,
+  onWarehouseFilterChange,
 }: StockTableClientProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [warehouseFilter, setWarehouseFilter] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
 
   // Get unique categories from products
@@ -136,7 +139,7 @@ export function StockTableClient({
       totalQuantity: filteredProducts.reduce((sum, p) => sum + p.total_quantity, 0),
       totalReserved: filteredProducts.reduce((sum, p) => sum + p.total_reserved, 0),
       totalAvailable: filteredProducts.reduce((sum, p) => sum + p.total_available, 0),
-      totalLitres: filteredProducts.reduce((sum, p) => sum + p.total_litres, 0),
+      totalKg: filteredProducts.reduce((sum, p) => sum + p.total_kg, 0),
       totalAmount: filteredProducts.reduce((sum, p) => sum + p.total_amount, 0),
     }
   }, [filteredProducts])
@@ -145,7 +148,8 @@ export function StockTableClient({
     <div className="space-y-4 min-w-0 max-w-full">
       <StockFilters
         onSearchChange={setSearchQuery}
-        onWarehouseFilter={setWarehouseFilter}
+        selectedWarehouse={warehouseFilter}
+        onWarehouseFilter={onWarehouseFilterChange}
         warehouses={warehouseNames}
         categories={uniqueCategories}
         selectedCategory={selectedCategory}
@@ -178,7 +182,7 @@ export function StockTableClient({
               <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px]">Total</TableHead>
               <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px]">Reserved</TableHead>
               <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px] text-green-600">Available</TableHead>
-              <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px] text-blue-600">Total Litres</TableHead>
+              <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px] text-blue-600">Total Kg</TableHead>
               <TableHead className="text-center font-semibold uppercase tracking-wider text-[11px] text-purple-600">Total Amount</TableHead>
             </TableRow>
           </TableHeader>
@@ -266,7 +270,7 @@ export function StockTableClient({
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
                       <span className="font-medium text-blue-600">
-                        {product.total_litres > 0 ? `${product.total_litres.toFixed(2)} L` : '-'}
+                        {product.total_kg > 0 ? `${product.total_kg.toFixed(2)} kg` : '-'}
                       </span>
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
@@ -306,7 +310,7 @@ export function StockTableClient({
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
                       <span className="text-blue-600">
-                        {filteredTotals.totalLitres > 0 ? `${filteredTotals.totalLitres.toFixed(2)} L` : '-'}
+                        {filteredTotals.totalKg > 0 ? `${filteredTotals.totalKg.toFixed(2)} kg` : '-'}
                       </span>
                     </TableCell>
                     <TableCell className="text-center tabular-nums">

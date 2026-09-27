@@ -410,34 +410,60 @@ export default function FactoryDashboardPage() {
       const fromIso = effectiveFrom.toISOString()
       const toIso = to.toISOString()
 
-      // ===== KP-PREFIXED ORDERS (factory-issued invoices) =====
-      // Same filter as /dashboard/orders-v2 for the factories role.
+      // Distributors with their own Invoice Code (e.g. "MS") bill under
+      // their own sequence — those are the distributor's own sales, not the
+      // factory's, even though the product physically ships from here. The
+      // factory dashboard tracks only bills issued under the factory's own
+      // plain sequence (no distributor code).
+      const { data: distributorCodeRows } = await supabase
+        .from("distributors")
+        .select("invoice_code")
+        .not("invoice_code", "is", null)
+      const distributorInvoiceCodes = (distributorCodeRows || [])
+        .map((d: any) => (d.invoice_code || "").trim())
+        .filter(Boolean)
+      // OR with `is.null` so rows where an invoice column is simply unset
+      // aren't dropped — Postgres evaluates `NULL NOT ILIKE 'MS%'` as NULL
+      // (not TRUE), which PostgREST treats as "exclude this row" the same
+      // as a real match, wiping out every order missing that invoice type.
+      const excludeDistributorInvoices = (q: any) =>
+        distributorInvoiceCodes.reduce(
+          (query, code) =>
+            query
+              .or(`invoice_number_gst.is.null,invoice_number_gst.not.ilike.${code}%`)
+              .or(`invoice_number_non_gst.is.null,invoice_number_non_gst.not.ilike.${code}%`),
+          q
+        )
+
+      // ===== FACTORY ORDERS (every order not billed under a distributor's
+      // own Invoice Code — Sadharmik manufactures 100% in-house, so a plain
+      // customer/Shop-tier order is always a factory dispatch, but an order
+      // billed under a distributor's sequence is their sale, not counted
+      // here). =====
       const kpOrders = await fetchAllRows<any>((f, t) =>
-        supabase
-          .from("orders_v")
-          .select(
-            "id, order_number, invoice_number_gst, invoice_number_non_gst, total_amount, gst_amount, cgst_amount, sgst_amount, igst_amount, order_date, order_status, payment_status, distributor_id, customer_name, retailer_id"
-          )
-          .or(
-            "order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%"
-          )
+        excludeDistributorInvoices(
+          supabase
+            .from("orders_v")
+            .select(
+              "id, order_number, invoice_number_gst, invoice_number_non_gst, total_amount, gst_amount, cgst_amount, sgst_amount, igst_amount, order_date, order_status, payment_status, distributor_id, customer_name, retailer_id"
+            )
+        )
           .gte("order_date", fromIso)
           .lte("order_date", toIso)
           .range(f, t),
-        "KP orders (period)"
+        "factory orders (period)"
       )
 
       const kpOrdersToday = await fetchAllRows<any>((f, t) =>
-        supabase
-          .from("orders_v")
-          .select("id, total_amount, gst_amount, order_date, order_status")
-          .or(
-            "order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%"
-          )
+        excludeDistributorInvoices(
+          supabase
+            .from("orders_v")
+            .select("id, total_amount, gst_amount, order_date, order_status")
+        )
           .gte("order_date", todayRange.startIso)
           .lte("order_date", todayRange.endIso)
           .range(f, t),
-        "KP orders (today)"
+        "factory orders (today)"
       )
 
       // Cancelled orders carry no actual sales/tax liability — excluded from
@@ -1066,8 +1092,8 @@ export default function FactoryDashboardPage() {
         stockAmount += (qty + (categoryName ? packedLitresByCategory[categoryName] || 0 : 0)) * price
       })
 
-      // ===== BILLS RECEIVABLE (unpaid KP invoices — distributors owe the factory) =====
-      // KP-prefixed unpaid orders, current snapshot (all-time, ignores the date
+      // ===== BILLS RECEIVABLE (unpaid orders — customers/distributors owe the factory) =====
+      // All unpaid orders, current snapshot (all-time, ignores the date
       // preset like AP above). Overdue at 30+ days to match the AP-aging rule.
       // remaining_amount only exists on orders_v once
       // migrations/add_order_payment_allocations.sql has been run — fall
@@ -1077,29 +1103,27 @@ export default function FactoryDashboardPage() {
       let unpaidKpOrders: any[]
       try {
         unpaidKpOrders = await fetchAllRows<any>((f, t) =>
-          supabase
-            .from("orders_v")
-            .select("id, total_amount, remaining_amount, order_date, customer_name, distributor_id, payment_status")
-            .or(
-              "order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%"
-            )
+          excludeDistributorInvoices(
+            supabase
+              .from("orders_v")
+              .select("id, total_amount, remaining_amount, order_date, customer_name, distributor_id, payment_status")
+          )
             .in("payment_status", ["pending", "partial", "processing"])
             .range(f, t),
-          "unpaid KP orders (AR)"
+          "unpaid orders (AR)"
         )
       } catch (err: any) {
         if (err?.code === "PGRST204" || err?.code === "42703") {
           console.warn("orders_v.remaining_amount doesn't exist yet (run migrations/add_order_payment_allocations.sql) — AR outstanding will count full order totals until then.")
           unpaidKpOrders = await fetchAllRows<any>((f, t) =>
-            supabase
-              .from("orders_v")
-              .select("id, total_amount, order_date, customer_name, distributor_id, payment_status")
-              .or(
-                "order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%"
-              )
+            excludeDistributorInvoices(
+              supabase
+                .from("orders_v")
+                .select("id, total_amount, order_date, customer_name, distributor_id, payment_status")
+            )
               .in("payment_status", ["pending", "partial", "processing"])
               .range(f, t),
-            "unpaid KP orders (AR, no remaining_amount)"
+            "unpaid orders (AR, no remaining_amount)"
           )
         } else {
           throw err
@@ -1173,17 +1197,16 @@ export default function FactoryDashboardPage() {
       const fyEndIso = breakdownFY.end.toISOString()
 
       const fyKpOrders = await fetchAllRows<any>((f, t) =>
-        supabase
-          .from("orders_v")
-          .select("id, total_amount, gst_amount, order_date")
-          .or(
-            "order_number.ilike.KP%,invoice_number_gst.ilike.KP%,invoice_number_non_gst.ilike.KP%"
-          )
+        excludeDistributorInvoices(
+          supabase
+            .from("orders_v")
+            .select("id, total_amount, gst_amount, order_date")
+        )
           .neq("order_status", "cancelled")
           .gte("order_date", fyStartIso)
           .lte("order_date", fyEndIso)
           .range(f, t),
-        "FY KP orders"
+        "FY factory orders"
       )
 
       const fyKpOrderIds = fyKpOrders.map((o) => o.id)
@@ -1557,7 +1580,7 @@ export default function FactoryDashboardPage() {
         <div>
           <h1 className="text-3xl font-bold">Factory Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            KP-prefixed invoices and your purchases since {FACTORY_EPOCH}
+            All factory orders and your purchases since {FACTORY_EPOCH}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1691,7 +1714,7 @@ export default function FactoryDashboardPage() {
               rightValue={formatINRCompact(stats.arOverdue)}
               rightHint={`${formatNumber(stats.arCustomerCount)} customer${stats.arCustomerCount === 1 ? "" : "s"}`}
               valueTone="red-right"
-              href="/dashboard/orders"
+              href="/dashboard/customers/v2?view=debtors"
             />
             <PLDualCard
               label="BILLS PAYABLE (CREDITORS)"

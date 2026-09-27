@@ -21,6 +21,7 @@ type Distributor = {
 
 type StockFiltersProps = {
   onSearchChange: (search: string) => void
+  selectedWarehouse: string
   onWarehouseFilter: (warehouse: string) => void
   warehouses: string[]
   categories: string[]
@@ -33,6 +34,7 @@ type StockFiltersProps = {
 
 export function StockFilters({
   onSearchChange,
+  selectedWarehouse,
   onWarehouseFilter,
   warehouses,
   categories,
@@ -107,7 +109,7 @@ export function StockFilters({
         )}
         <div className="w-full sm:w-[200px]">
           <Label htmlFor="warehouse" className="sr-only">Filter by warehouse</Label>
-          <Select onValueChange={onWarehouseFilter} defaultValue="all">
+          <Select value={selectedWarehouse} onValueChange={onWarehouseFilter}>
             <SelectTrigger id="warehouse" className="w-full">
               <SelectValue placeholder="All Warehouses" />
             </SelectTrigger>

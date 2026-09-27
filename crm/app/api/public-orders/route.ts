@@ -111,12 +111,29 @@ export async function POST(request: Request) {
     const [firstName, ...restName] = name.split(/\s+/)
     const orderNumber = `ORD-${Date.now()}`
 
+    // Auto-assign a delivery partner whose serviceable pincodes cover this
+    // address, same as staff-created orders (see orders/new/page.tsx).
+    let autoDeliveryPartnerId: string | null = null
+    if (pincodeMatch) {
+      const { data: matchedPartners } = await supabaseAdmin
+        .from("delivery_partners")
+        .select("id")
+        .not("serviceable_pincodes", "is", null)
+        .contains("serviceable_pincodes", [pincodeMatch[0]])
+        .eq("is_active", true)
+        .limit(1)
+      if (matchedPartners && matchedPartners.length > 0) {
+        autoDeliveryPartnerId = matchedPartners[0].id
+      }
+    }
+
     const orderData = {
       order_number: orderNumber,
       customer_id: null,
       customer_first_name: firstName || name,
       customer_last_name: restName.join(" ") || null,
       customer_full_name: name,
+      guest_phone: phone,
       order_status: "pending",
       payment_status: "pending",
       payment_method: "cod",
@@ -141,6 +158,9 @@ export async function POST(request: Request) {
       total_amount: totalAmount,
       order_notes: `Placed via website. Phone: ${phone}`,
       order_date: new Date().toISOString(),
+      delivery_partner_id: autoDeliveryPartnerId,
+      assigned_to_delivery_at: autoDeliveryPartnerId ? new Date().toISOString() : null,
+      delivery_status: autoDeliveryPartnerId ? "assigned" : null,
     }
 
     const { data: order, error: orderError } = await supabaseAdmin
@@ -165,11 +185,26 @@ export async function POST(request: Request) {
     }
 
     // Auto-generate invoice number. Website checkouts are always guest/plain
-    // retail orders — never Mandir or Shop tier — so both flags stay false
-    // and this always lands on the plain "A" prefix.
+    // retail orders — never Mandir or Shop tier — so both flags stay false.
+    // If a distributor covers the extracted shipping pincode, the bill comes
+    // from their Invoice Code sequence instead of the plain "A" prefix, same
+    // as staff-created customer orders (see orders/new/page.tsx).
+    let websiteDistCode: string | null = null
+    if (orderData.shipping_pincode) {
+      const { data: matchedDistributors } = await supabaseAdmin
+        .from("distributors")
+        .select("invoice_code, serviceable_pincodes")
+        .not("serviceable_pincodes", "is", null)
+        .not("invoice_code", "is", null)
+      const match = (matchedDistributors || []).find(
+        (d: any) => Array.isArray(d.serviceable_pincodes) && d.serviceable_pincodes.includes(orderData.shipping_pincode)
+      )
+      if (match) websiteDistCode = match.invoice_code
+    }
+
     const { data: nextInvoiceNumber, error: invoiceError } = await supabaseAdmin.rpc('get_next_invoice_number', {
       is_gst: false,
-      dist_code: null,
+      dist_code: websiteDistCode,
       force_kp: false,
       p_is_mandir: false,
       p_is_shop: false

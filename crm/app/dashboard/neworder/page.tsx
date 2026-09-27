@@ -516,18 +516,22 @@ export default function OrdersPage() {
     setExpandedRows(newExpandedRows)
   }
 
-  const fetchDistributorCompanyInfo = async (shippingPincode: string) => {
+  const fetchDistributorCompanyInfo = async (shippingPincode: string, isMandirCustomer: boolean = false) => {
     try {
       const { data: distributorsData } = await supabase
         .from("distributors")
-        .select("company_name, name, email, phone_primary, gst_number, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, bank_name, bank_account_number, bank_ifsc_code, bank_branch, serviceable_pincodes")
+        .select("company_name, name, email, phone_primary, gst_number, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, bank_name, bank_account_number, bank_ifsc_code, bank_branch, serviceable_pincodes, serves_mandir_customers")
         .not("serviceable_pincodes", "is", null)
 
       if (distributorsData) {
+        // Skip a distributor who's opted out of Mandir/Temple customers for
+        // a Mandir order, same as if their pincodes didn't match — falls
+        // through to in-house fulfillment.
         const match = distributorsData.find((dist: any) =>
           dist.serviceable_pincodes &&
           Array.isArray(dist.serviceable_pincodes) &&
-          dist.serviceable_pincodes.includes(shippingPincode)
+          dist.serviceable_pincodes.includes(shippingPincode) &&
+          (!isMandirCustomer || dist.serves_mandir_customers)
         )
         if (match) {
           const address = [match.shipping_address_line1, match.shipping_address_line2].filter(Boolean).join(', ')
@@ -583,7 +587,7 @@ export default function OrdersPage() {
 
       // Fetch distributor company info by shipping pincode
       const companyInfo = orderData.shipping_pincode
-        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode)
+        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode, customerData?.is_mandir === true)
         : undefined
 
       const invoiceData = {
@@ -697,7 +701,7 @@ export default function OrdersPage() {
 
       // Fetch distributor company info by shipping pincode
       const distCompanyInfo = orderData.shipping_pincode
-        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode)
+        ? await fetchDistributorCompanyInfo(orderData.shipping_pincode, customerData?.is_mandir === true)
         : undefined
 
       // Build companyInfo for thermal print (subset of fields)
@@ -1327,7 +1331,7 @@ export default function OrdersPage() {
 
           // Fetch distributor company info by shipping pincode
           const distInfo = orderData.shipping_pincode
-            ? await fetchDistributorCompanyInfo(orderData.shipping_pincode)
+            ? await fetchDistributorCompanyInfo(orderData.shipping_pincode, customerData?.is_mandir === true)
             : undefined
 
           const bulkThermalCompanyInfo = distInfo ? {

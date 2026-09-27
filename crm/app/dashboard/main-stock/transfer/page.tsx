@@ -46,7 +46,7 @@ type MaterialRequirement = {
   material_name: string
   material_type: string
   quantity_per_unit: number
-  liters_consumed_per_unit: number
+  kg_consumed_per_unit: number
   is_required: boolean
   available_quantity: number
 }
@@ -54,8 +54,8 @@ type MaterialRequirement = {
 type LooseStock = {
   id: string
   category_id: string
-  quantity_liters: number
-  price_per_liter: number
+  quantity_kg: number
+  price_per_kg: number
 }
 
 type Product = {
@@ -68,7 +68,7 @@ type TransferResult = {
   variantName: string
   categoryName: string
   quantity: number
-  litersConsumed: number
+  kgConsumed: number
   materialsUsed: { name: string; quantity: number }[]
   previousLooseStock: number
   newLooseStock: number
@@ -79,10 +79,10 @@ type TransferResult = {
 }
 
 const MAIN_STOCK_CATEGORIES = [
-  "Buffalo Ghee",
-  "Cow Ghee",
-  "Valona Ghee",
-  "Groundnut Oil"
+  "Classic Sada Khakhra",
+  "Spicy Masala Khakhra",
+  "Magic Methi Khakhra",
+  "Zesty Jeera Khakhra",
 ]
 
 export default function StockTransferPageWrapper() {
@@ -478,7 +478,7 @@ function StockTransferPage() {
           material_name: mapping.packaging_materials.name,
           material_type: mapping.packaging_materials.material_type,
           quantity_per_unit: mapping.quantity_per_unit,
-          liters_consumed_per_unit: mapping.liters_consumed_per_unit,
+          kg_consumed_per_unit: mapping.kg_consumed_per_unit,
           is_required: mapping.is_required,
           available_quantity: materialTotals.get(mapping.material_id) || 0,
         }
@@ -519,8 +519,8 @@ function StockTransferPage() {
     // Only include materials that are not excluded
     const activeMaterials = materialRequirements.filter(req => !excludedMaterials.has(req.material_id))
 
-    const totalLitersNeeded = activeMaterials.reduce((sum, req) => {
-      return sum + (req.liters_consumed_per_unit * quantity)
+    const totalKgNeeded = activeMaterials.reduce((sum, req) => {
+      return sum + (req.kg_consumed_per_unit * quantity)
     }, 0)
 
     const materialNeeds = materialRequirements.map(req => {
@@ -541,20 +541,20 @@ function StockTransferPage() {
         isSticker,
         excluded: effectivelyExcluded,
         needed: effectivelyExcluded ? 0 : req.quantity_per_unit * quantity,
-        // Content materials (ghee, oil) are tracked in loose_stock, not stock_inventory
+        // Content materials (loose khakhra) are tracked in loose_stock, not stock_inventory
         // Only check availability for packaging materials
         sufficient: req.material_type === 'content' || effectivelyExcluded ? true : req.available_quantity >= (req.quantity_per_unit * quantity),
       }
     })
 
-    const looseStockSufficient = looseStock ? looseStock.quantity_liters >= totalLitersNeeded : false
+    const looseStockSufficient = looseStock ? looseStock.quantity_kg >= totalKgNeeded : false
 
     // Only validate active packaging materials (not excluded, not content)
     // Bags, bottle bags, and stickers are always optional — never block the transfer
     const activePackagingMaterials = materialNeeds.filter(m => m.material_type === 'packaging' && !m.excluded)
 
     return {
-      totalLitersNeeded,
+      totalKgNeeded,
       materialNeeds,
       looseStockSufficient,
       allMaterialsSufficient: activePackagingMaterials.every(m => m.sufficient || !m.is_required || m.isBag || m.isBottleBag || m.isSticker),
@@ -607,11 +607,11 @@ function StockTransferPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       // 1. Reduce loose stock
-      const newLooseQuantity = looseStock.quantity_liters - requirements.totalLitersNeeded
+      const newLooseQuantity = looseStock.quantity_kg - requirements.totalKgNeeded
       const { error: looseUpdateError } = await supabase
         .from("loose_stock")
         .update({
-          quantity_liters: newLooseQuantity,
+          quantity_kg: newLooseQuantity,
           updated_at: new Date().toISOString()
         })
         .eq("id", looseStock.id)
@@ -624,7 +624,7 @@ function StockTransferPage() {
         .insert([{
           loose_stock_id: looseStock.id,
           transaction_type: "transfer",
-          quantity_liters: requirements.totalLitersNeeded,
+          quantity_kg: requirements.totalKgNeeded,
           batch_number: batchNo.trim(),
           transaction_notes: notes || `Transferred to ${quantity} unit(s) of packaged product`,
           user_id: user?.id,
@@ -635,7 +635,7 @@ function StockTransferPage() {
 
       // 3. Reduce packaging materials (skip content and excluded materials)
       for (const material of requirements.materialNeeds) {
-        // Skip content materials (ghee, oil) - they're consumed from loose_stock, not stock_inventory
+        // Skip content materials (loose khakhra) - they're consumed from loose_stock, not stock_inventory
         if (material.material_type === 'content') continue
         // Skip excluded optional materials (e.g. bag)
         if (material.excluded) continue
@@ -727,7 +727,7 @@ function StockTransferPage() {
               product_id: productId,
               quantity: quantity,
               min_stock: 0,
-              price: looseStock.price_per_liter, // Use loose stock price as base
+              price: looseStock.price_per_kg, // Use loose stock price as base
             }])
             .select("id")
             .single()
@@ -745,7 +745,7 @@ function StockTransferPage() {
               previous_quantity: finalStock?.quantity || 0,
               new_quantity: (finalStock?.quantity || 0) + quantity,
               quantity_change: quantity,
-              comment: `Transferred ${quantity} units from loose stock. Used ${requirements.totalLitersNeeded.toFixed(2)}L of loose stock. ${notes || ''}`,
+              comment: `Transferred ${quantity} units from loose stock. Used ${requirements.totalKgNeeded.toFixed(2)}kg of loose stock. ${notes || ''}`,
               user_id: user?.id,
               user_email: user?.email,
             }])
@@ -766,7 +766,7 @@ function StockTransferPage() {
 
         // 5b. Insert stock_batches record for this packaged batch
         const ratePerUnit = quantity > 0
-          ? (requirements.totalLitersNeeded * looseStock.price_per_liter) / quantity
+          ? (requirements.totalKgNeeded * looseStock.price_per_kg) / quantity
           : 0
         const { error: batchInsertError } = await supabase
           .from("stock_batches")
@@ -826,14 +826,14 @@ function StockTransferPage() {
         variantName,
         categoryName,
         quantity,
-        litersConsumed: requirements.totalLitersNeeded,
+        kgConsumed: requirements.totalKgNeeded,
         materialsUsed: requirements.materialNeeds
           .filter(m => m.material_type === 'packaging' && !m.excluded)
           .map(m => ({
             name: m.material_name,
             quantity: m.needed
           })),
-        previousLooseStock: looseStock.quantity_liters,
+        previousLooseStock: looseStock.quantity_kg,
         newLooseStock: newLooseQuantity,
         timestamp: new Date().toISOString(),
         batchNo: batchNo.trim(),
@@ -924,9 +924,9 @@ function StockTransferPage() {
                 <Alert className="border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950">
                   <Droplets className="h-4 w-4 text-orange-600" />
                   <AlertDescription className="text-orange-800 dark:text-orange-200">
-                    <strong>Available Loose Stock:</strong> {looseStock.quantity_liters.toFixed(2)}L
+                    <strong>Available Loose Stock:</strong> {looseStock.quantity_kg.toFixed(2)}kg
                     <br />
-                    <span className="text-sm">Price: ₹{looseStock.price_per_liter.toFixed(2)}/L</span>
+                    <span className="text-sm">Price: ₹{looseStock.price_per_kg.toFixed(2)}/kg</span>
                   </AlertDescription>
                 </Alert>
               )}
@@ -1287,7 +1287,7 @@ function StockTransferPage() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Loose Stock Used:</span>
                       <span className="font-medium text-orange-600">
-                        {lastTransferResult.litersConsumed.toFixed(2)}L
+                        {lastTransferResult.kgConsumed.toFixed(2)}kg
                       </span>
                     </div>
                   </div>
@@ -1302,19 +1302,19 @@ function StockTransferPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Previous:</span>
                       <span className="font-medium">
-                        {lastTransferResult.previousLooseStock.toFixed(2)}L
+                        {lastTransferResult.previousLooseStock.toFixed(2)}kg
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Consumed:</span>
                       <span className="font-medium text-red-600">
-                        -{lastTransferResult.litersConsumed.toFixed(2)}L
+                        -{lastTransferResult.kgConsumed.toFixed(2)}kg
                       </span>
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t">
                       <span className="text-muted-foreground font-semibold">Current:</span>
                       <span className="font-bold text-green-700 dark:text-green-300">
-                        {lastTransferResult.newLooseStock.toFixed(2)}L
+                        {lastTransferResult.newLooseStock.toFixed(2)}kg
                       </span>
                     </div>
                   </div>
@@ -1446,10 +1446,10 @@ function StockTransferPage() {
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-orange-600">
-                      {requirements.totalLitersNeeded.toFixed(2)}L
+                      {requirements.totalKgNeeded.toFixed(2)}kg
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Available: {looseStock?.quantity_liters.toFixed(2)}L
+                      Available: {looseStock?.quantity_kg.toFixed(2)}kg
                     </div>
                   </div>
                 </div>

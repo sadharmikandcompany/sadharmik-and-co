@@ -126,9 +126,9 @@ type StockComment = {
 type LooseStock = {
   id: string
   category_id: string
-  quantity_liters: number
-  price_per_liter: number
-  min_stock_liters?: number
+  quantity_kg: number
+  price_per_kg: number
+  min_stock_kg?: number
   product_categories: {
     name: string
   }
@@ -202,14 +202,6 @@ export default function StockInventoryPage() {
   const [looseStocks, setLooseStocks] = useState<LooseStock[]>([])
   const [loadingLooseStock, setLoadingLooseStock] = useState(false)
 
-  // Product counts state
-  const [productCounts, setProductCounts] = useState({
-    buffaloGhee: 0,
-    cowGhee: 0,
-    cowBelonaGhee: 0,
-    groundnutOil: 0,
-  })
-
   // Order quantities by product_id
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map())
 
@@ -220,7 +212,6 @@ export default function StockInventoryPage() {
     fetchStockData()
     fetchCurrentUser()
     fetchLooseStock()
-    fetchProductCounts()
     fetchVariantsWithProducts()
     fetchOrderQuantities()
     fetchFactoryWarehouseStock()
@@ -250,59 +241,6 @@ export default function StockInventoryPage() {
       console.error("Error fetching loose stock:", error)
     } finally {
       setLoadingLooseStock(false)
-    }
-  }
-
-  const fetchProductCounts = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_product_counts_by_category')
-
-      if (error) {
-        // Fallback to manual query if RPC doesn't exist
-        const { data: manualData, error: manualError } = await supabase
-          .from("product_categories")
-          .select(`
-            name,
-            product_variants!inner (
-              product_id,
-              products!inner (
-                id,
-                is_active
-              )
-            )
-          `)
-          .in("name", ["Buffalo Ghee", "Cow Ghee", "Valona Ghee", "Groundnut Oil"])
-
-        if (manualError) throw manualError
-
-        // Process manual data
-        const counts = {
-          buffaloGhee: 0,
-          cowGhee: 0,
-          cowBelonaGhee: 0,
-          groundnutOil: 0,
-        }
-
-        manualData?.forEach((category: any) => {
-          const uniqueProducts = new Set(
-            category.product_variants
-              ?.filter((v: any) => v.product_id && v.products?.is_active)
-              .map((v: any) => v.product_id)
-          )
-          const count = uniqueProducts.size
-
-          if (category.name === "Buffalo Ghee") counts.buffaloGhee = count
-          else if (category.name === "Cow Ghee") counts.cowGhee = count
-          else if (category.name === "Valona Ghee") counts.cowBelonaGhee = count
-          else if (category.name === "Groundnut Oil") counts.groundnutOil = count
-        })
-
-        setProductCounts(counts)
-      } else {
-        setProductCounts(data)
-      }
-    } catch (error) {
-      console.error("Error fetching product counts:", error)
     }
   }
 
@@ -454,7 +392,7 @@ export default function StockInventoryPage() {
       if (error) throw error
 
       // Transform the data to match our StockItem type
-      // Filter out content materials (Ghee, oil) as they're tracked in loose_stock
+      // Filter out content materials (loose khakhra) as they're tracked in loose_stock
       const transformedData: StockItem[] = (data || [])
         .filter((item: any) => item.packaging_materials.material_type !== 'content')
         .map((item: any) => ({
@@ -1112,17 +1050,17 @@ export default function StockInventoryPage() {
 
   // Calculate category-specific totals (from factory warehouse stock)
   const categoryTotals = {
-    buffaloGhee: factoryStock
-      .filter((item) => item.category_name === "Buffalo Ghee")
+    classicSada: factoryStock
+      .filter((item) => item.category_name === "Classic Sada Khakhra")
       .reduce((sum, item) => sum + item.quantity, 0),
-    cowGhee: factoryStock
-      .filter((item) => item.category_name === "Cow Ghee")
+    spicyMasala: factoryStock
+      .filter((item) => item.category_name === "Spicy Masala Khakhra")
       .reduce((sum, item) => sum + item.quantity, 0),
-    cowBelonaGhee: factoryStock
-      .filter((item) => item.category_name === "Valona Ghee")
+    magicMethi: factoryStock
+      .filter((item) => item.category_name === "Magic Methi Khakhra")
       .reduce((sum, item) => sum + item.quantity, 0),
-    groundnutOil: factoryStock
-      .filter((item) => item.category_name === "Groundnut Oil")
+    zestyJeera: factoryStock
+      .filter((item) => item.category_name === "Zesty Jeera Khakhra")
       .reduce((sum, item) => sum + item.quantity, 0),
   }
 
@@ -1162,59 +1100,43 @@ export default function StockInventoryPage() {
       .sort((a, b) => b.quantity - a.quantity)
   }
 
-  // Function to convert variant to liters
-  const convertToLiters = (variantName: string, quantity: number): number => {
-    const variant = variantName.toLowerCase()
-
-    // Extract numeric value and unit
-    if (variant.includes('ml')) {
-      const ml = parseFloat(variant.replace('ml', ''))
-      return (ml / 1000) * quantity
-    } else if (variant.includes('l') && !variant.includes('m') && !variant.includes('r')) {
-      // Handle liter variants (1l, 5l, 15l, etc.)
-      const liters = parseFloat(variant.replace('l', '').replace('pouch', '').trim())
-      return liters * quantity
-    } else if (variant.includes('m') || variant.includes('r')) {
-      // Handle special variants like 15m, 15r, 5m
-      const value = parseFloat(variant.replace('m', '').replace('r', ''))
-      return value * quantity
-    } else if (!isNaN(parseFloat(variant))) {
-      // Handle numeric-only variants like "200", "500" - assume ml
-      const ml = parseFloat(variant)
-      return (ml / 1000) * quantity
-    }
-
-    return 0
+  // Function to convert a pack-size variant (e.g. "500g", "250g") to kg
+  const convertToKg = (variantName: string, quantity: number): number => {
+    const match = variantName.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(kg|g)\b/)
+    if (!match) return 0
+    const value = parseFloat(match[1])
+    const unit = match[2]
+    return unit === 'kg' ? value * quantity : (value / 1000) * quantity
   }
 
-  // Calculate total liters for a category (from factory warehouse stock)
-  const getCategoryTotalLiters = (categoryName: string): number => {
+  // Calculate total kg for a flavor (from factory warehouse stock)
+  const getCategoryTotalKg = (categoryName: string): number => {
     const categoryItems = factoryStock.filter((item) => item.category_name === categoryName)
     return categoryItems.reduce((total, item) => {
-      return total + convertToLiters(item.variant_name, item.quantity)
+      return total + convertToKg(item.variant_name, item.quantity)
     }, 0)
   }
 
   const categoryVariants = {
-    buffaloGhee: getVariantBreakdown("Buffalo Ghee"),
-    cowGhee: getVariantBreakdown("Cow Ghee"),
-    cowBelonaGhee: getVariantBreakdown("Valona Ghee"),
-    groundnutOil: getVariantBreakdown("Groundnut Oil"),
+    classicSada: getVariantBreakdown("Classic Sada Khakhra"),
+    spicyMasala: getVariantBreakdown("Spicy Masala Khakhra"),
+    magicMethi: getVariantBreakdown("Magic Methi Khakhra"),
+    zestyJeera: getVariantBreakdown("Zesty Jeera Khakhra"),
   }
 
-  const categoryLiters = {
-    buffaloGhee: getCategoryTotalLiters("Buffalo Ghee"),
-    cowGhee: getCategoryTotalLiters("Cow Ghee"),
-    cowBelonaGhee: getCategoryTotalLiters("Valona Ghee"),
-    groundnutOil: getCategoryTotalLiters("Groundnut Oil"),
+  const categoryKg = {
+    classicSada: getCategoryTotalKg("Classic Sada Khakhra"),
+    spicyMasala: getCategoryTotalKg("Spicy Masala Khakhra"),
+    magicMethi: getCategoryTotalKg("Magic Methi Khakhra"),
+    zestyJeera: getCategoryTotalKg("Zesty Jeera Khakhra"),
   }
 
-  // Calculate order totals per category
+  // Calculate order totals per flavor
   const categoryOrderTotals = {
-    buffaloGhee: categoryVariants.buffaloGhee.reduce((sum, v) => sum + v.orderQuantity, 0),
-    cowGhee: categoryVariants.cowGhee.reduce((sum, v) => sum + v.orderQuantity, 0),
-    cowBelonaGhee: categoryVariants.cowBelonaGhee.reduce((sum, v) => sum + v.orderQuantity, 0),
-    groundnutOil: categoryVariants.groundnutOil.reduce((sum, v) => sum + v.orderQuantity, 0),
+    classicSada: categoryVariants.classicSada.reduce((sum, v) => sum + v.orderQuantity, 0),
+    spicyMasala: categoryVariants.spicyMasala.reduce((sum, v) => sum + v.orderQuantity, 0),
+    magicMethi: categoryVariants.magicMethi.reduce((sum, v) => sum + v.orderQuantity, 0),
+    zestyJeera: categoryVariants.zestyJeera.reduce((sum, v) => sum + v.orderQuantity, 0),
   }
 
   // Get loose stock by category name
@@ -1223,42 +1145,42 @@ export default function StockInventoryPage() {
   }
 
   const looseStockByCategory = {
-    buffaloGhee: getLooseStockByCategory("Buffalo Ghee"),
-    cowGhee: getLooseStockByCategory("Cow Ghee"),
-    cowBelonaGhee: getLooseStockByCategory("Valona Ghee"),
-    groundnutOil: getLooseStockByCategory("Groundnut Oil"),
+    classicSada: getLooseStockByCategory("Classic Sada Khakhra"),
+    spicyMasala: getLooseStockByCategory("Spicy Masala Khakhra"),
+    magicMethi: getLooseStockByCategory("Magic Methi Khakhra"),
+    zestyJeera: getLooseStockByCategory("Zesty Jeera Khakhra"),
   }
 
-  // Calculate total stock (loose + package) in liters
-  const totalStockLiters = {
-    cowGhee: (looseStockByCategory.cowGhee?.quantity_liters || 0) + categoryLiters.cowGhee,
-    buffaloGhee: (looseStockByCategory.buffaloGhee?.quantity_liters || 0) + categoryLiters.buffaloGhee,
-    cowBelonaGhee: (looseStockByCategory.cowBelonaGhee?.quantity_liters || 0) + categoryLiters.cowBelonaGhee,
-    groundnutOil: (looseStockByCategory.groundnutOil?.quantity_liters || 0) + categoryLiters.groundnutOil,
+  // Calculate total stock (loose + packaged) in kg
+  const totalStockKg = {
+    classicSada: (looseStockByCategory.classicSada?.quantity_kg || 0) + categoryKg.classicSada,
+    spicyMasala: (looseStockByCategory.spicyMasala?.quantity_kg || 0) + categoryKg.spicyMasala,
+    magicMethi: (looseStockByCategory.magicMethi?.quantity_kg || 0) + categoryKg.magicMethi,
+    zestyJeera: (looseStockByCategory.zestyJeera?.quantity_kg || 0) + categoryKg.zestyJeera,
   }
 
-  // Calculate loose stock value (quantity × price_per_liter)
+  // Calculate loose stock value (quantity × price_per_kg)
   const looseStockValue = {
-    cowGhee: (looseStockByCategory.cowGhee?.quantity_liters || 0) * (looseStockByCategory.cowGhee?.price_per_liter || 0),
-    buffaloGhee: (looseStockByCategory.buffaloGhee?.quantity_liters || 0) * (looseStockByCategory.buffaloGhee?.price_per_liter || 0),
-    cowBelonaGhee: (looseStockByCategory.cowBelonaGhee?.quantity_liters || 0) * (looseStockByCategory.cowBelonaGhee?.price_per_liter || 0),
-    groundnutOil: (looseStockByCategory.groundnutOil?.quantity_liters || 0) * (looseStockByCategory.groundnutOil?.price_per_liter || 0),
+    classicSada: (looseStockByCategory.classicSada?.quantity_kg || 0) * (looseStockByCategory.classicSada?.price_per_kg || 0),
+    spicyMasala: (looseStockByCategory.spicyMasala?.quantity_kg || 0) * (looseStockByCategory.spicyMasala?.price_per_kg || 0),
+    magicMethi: (looseStockByCategory.magicMethi?.quantity_kg || 0) * (looseStockByCategory.magicMethi?.price_per_kg || 0),
+    zestyJeera: (looseStockByCategory.zestyJeera?.quantity_kg || 0) * (looseStockByCategory.zestyJeera?.price_per_kg || 0),
   }
 
   // Calculate min stock needed for loose stock (deficit)
   const looseStockDeficit = {
-    cowGhee: Math.max(0, (looseStockByCategory.cowGhee?.min_stock_liters || 0) - (looseStockByCategory.cowGhee?.quantity_liters || 0)),
-    buffaloGhee: Math.max(0, (looseStockByCategory.buffaloGhee?.min_stock_liters || 0) - (looseStockByCategory.buffaloGhee?.quantity_liters || 0)),
-    cowBelonaGhee: Math.max(0, (looseStockByCategory.cowBelonaGhee?.min_stock_liters || 0) - (looseStockByCategory.cowBelonaGhee?.quantity_liters || 0)),
-    groundnutOil: Math.max(0, (looseStockByCategory.groundnutOil?.min_stock_liters || 0) - (looseStockByCategory.groundnutOil?.quantity_liters || 0)),
+    classicSada: Math.max(0, (looseStockByCategory.classicSada?.min_stock_kg || 0) - (looseStockByCategory.classicSada?.quantity_kg || 0)),
+    spicyMasala: Math.max(0, (looseStockByCategory.spicyMasala?.min_stock_kg || 0) - (looseStockByCategory.spicyMasala?.quantity_kg || 0)),
+    magicMethi: Math.max(0, (looseStockByCategory.magicMethi?.min_stock_kg || 0) - (looseStockByCategory.magicMethi?.quantity_kg || 0)),
+    zestyJeera: Math.max(0, (looseStockByCategory.zestyJeera?.min_stock_kg || 0) - (looseStockByCategory.zestyJeera?.quantity_kg || 0)),
   }
 
-  // Calculate purchase amount needed (deficit × price_per_liter)
+  // Calculate purchase amount needed (deficit × price_per_kg)
   const looseStockPurchaseAmount = {
-    cowGhee: looseStockDeficit.cowGhee * (looseStockByCategory.cowGhee?.price_per_liter || 0),
-    buffaloGhee: looseStockDeficit.buffaloGhee * (looseStockByCategory.buffaloGhee?.price_per_liter || 0),
-    cowBelonaGhee: looseStockDeficit.cowBelonaGhee * (looseStockByCategory.cowBelonaGhee?.price_per_liter || 0),
-    groundnutOil: looseStockDeficit.groundnutOil * (looseStockByCategory.groundnutOil?.price_per_liter || 0),
+    classicSada: looseStockDeficit.classicSada * (looseStockByCategory.classicSada?.price_per_kg || 0),
+    spicyMasala: looseStockDeficit.spicyMasala * (looseStockByCategory.spicyMasala?.price_per_kg || 0),
+    magicMethi: looseStockDeficit.magicMethi * (looseStockByCategory.magicMethi?.price_per_kg || 0),
+    zestyJeera: looseStockDeficit.zestyJeera * (looseStockByCategory.zestyJeera?.price_per_kg || 0),
   }
 
   if (loading) {
@@ -1289,7 +1211,7 @@ export default function StockInventoryPage() {
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">Factory Stock Inventory</h1>
             <p className="text-sm text-muted-foreground">
-              Manage ghee and oil products with packaging materials
+              Manage khakhra products with packaging materials
             </p>
           </div>
         </div>
@@ -1352,53 +1274,53 @@ export default function StockInventoryPage() {
 
 
 
-      {/* Summary Cards - Total stock per category (loose + packed) with purchase value */}
+      {/* Summary Cards - Total stock per flavor (loose + packed) with purchase value */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         {[
-          { key: 'cowGhee' as const, label: 'Cow Ghee', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
-          { key: 'buffaloGhee' as const, label: 'Buffalo Ghee', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-          { key: 'cowBelonaGhee' as const, label: 'Valona Ghee', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-          { key: 'groundnutOil' as const, label: 'Groundnut Oil', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
+          { key: 'classicSada' as const, label: 'Classic Sada', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+          { key: 'spicyMasala' as const, label: 'Spicy Masala', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
+          { key: 'magicMethi' as const, label: 'Magic Methi', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+          { key: 'zestyJeera' as const, label: 'Zesty Jeera', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
         ].map(({ key, label, color, bg }) => {
-          const looseLiters = looseStockByCategory[key]?.quantity_liters || 0
-          const packedLiters = categoryLiters[key]
-          const totalLiters = looseLiters + packedLiters
-          const purchaseRate = looseStockByCategory[key]?.price_per_liter || 0
-          const totalValue = totalLiters * purchaseRate
+          const looseKg = looseStockByCategory[key]?.quantity_kg || 0
+          const packedKg = categoryKg[key]
+          const totalKg = looseKg + packedKg
+          const purchaseRate = looseStockByCategory[key]?.price_per_kg || 0
+          const totalValue = totalKg * purchaseRate
           return (
             <Card key={key} className={`${bg} gap-0 py-0`}>
               <CardContent className="py-3 px-4">
                 <p className={`text-xs font-semibold ${color} mb-1`}>{label}</p>
-                <p className="text-lg font-bold">{totalLiters.toFixed(1)} L</p>
+                <p className="text-lg font-bold">{totalKg.toFixed(1)} kg</p>
                 <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
-                  <p>Loose: {looseLiters.toFixed(1)} L</p>
-                  <p>Packed: {packedLiters.toFixed(1)} L</p>
+                  <p>Loose: {looseKg.toFixed(1)} kg</p>
+                  <p>Packed: {packedKg.toFixed(1)} kg</p>
                 </div>
                 <p className="text-sm font-semibold mt-1">₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
-                <p className="text-[10px] text-muted-foreground">@ ₹{purchaseRate.toFixed(0)}/L (purchase)</p>
+                <p className="text-[10px] text-muted-foreground">@ ₹{purchaseRate.toFixed(0)}/kg (purchase)</p>
               </CardContent>
             </Card>
           )
         })}
         {/* 5th card - Grand Total */}
         {(() => {
-          const keys = ['cowGhee', 'buffaloGhee', 'cowBelonaGhee', 'groundnutOil'] as const
-          const grandTotalLiters = keys.reduce((sum, key) => {
-            return sum + (looseStockByCategory[key]?.quantity_liters || 0) + categoryLiters[key]
+          const keys = ['classicSada', 'spicyMasala', 'magicMethi', 'zestyJeera'] as const
+          const grandTotalKg = keys.reduce((sum, key) => {
+            return sum + (looseStockByCategory[key]?.quantity_kg || 0) + categoryKg[key]
           }, 0)
           const grandTotalValue = keys.reduce((sum, key) => {
-            const looseLiters = looseStockByCategory[key]?.quantity_liters || 0
-            const packedLiters = categoryLiters[key]
-            const purchaseRate = looseStockByCategory[key]?.price_per_liter || 0
-            return sum + ((looseLiters + packedLiters) * purchaseRate)
+            const looseKg = looseStockByCategory[key]?.quantity_kg || 0
+            const packedKg = categoryKg[key]
+            const purchaseRate = looseStockByCategory[key]?.price_per_kg || 0
+            return sum + ((looseKg + packedKg) * purchaseRate)
           }, 0)
           return (
             <Card className="bg-blue-50 border-blue-200 gap-0 py-0 col-span-2 lg:col-span-1">
               <CardContent className="py-3 px-4">
                 <p className="text-xs font-semibold text-blue-700 mb-1">Grand Total</p>
-                <p className="text-lg font-bold">{grandTotalLiters.toFixed(1)} L</p>
+                <p className="text-lg font-bold">{grandTotalKg.toFixed(1)} kg</p>
                 <p className="text-sm font-semibold mt-1">₹{grandTotalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Purchase value (all categories)</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Purchase value (all flavors)</p>
               </CardContent>
             </Card>
           )
@@ -1412,19 +1334,19 @@ export default function StockInventoryPage() {
             <TooltipTrigger asChild>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                  <CardTitle className="text-sm font-medium">Cow Ghee</CardTitle>
+                  <CardTitle className="text-sm font-medium">Classic Sada</CardTitle>
             <div className="text-sm flex items-center gap-2">
-              {looseStockByCategory.cowGhee && looseStockByCategory.cowGhee.min_stock_liters &&
-               looseStockByCategory.cowGhee.quantity_liters < looseStockByCategory.cowGhee.min_stock_liters && (
+              {looseStockByCategory.classicSada && looseStockByCategory.classicSada.min_stock_kg &&
+               looseStockByCategory.classicSada.quantity_kg < looseStockByCategory.classicSada.min_stock_kg && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="text-xs text-red-600 cursor-help">
-                        -{(looseStockByCategory.cowGhee.min_stock_liters - looseStockByCategory.cowGhee.quantity_liters).toFixed(2)}
+                        -{(looseStockByCategory.classicSada.min_stock_kg - looseStockByCategory.classicSada.quantity_kg).toFixed(2)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Loose stock deficit - liters needed to reach minimum</p>
+                      <p>Loose stock deficit - kg needed to reach minimum</p>
                     </TooltipContent>
                   </Tooltip>
                   <span className="text-muted-foreground">|</span>
@@ -1434,13 +1356,13 @@ export default function StockInventoryPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="font-semibold text-orange-600 cursor-help">
-                    {looseStockByCategory.cowGhee
-                      ? `${looseStockByCategory.cowGhee.quantity_liters.toFixed(2)} L`
-                      : '0.00 L'}
+                    {looseStockByCategory.classicSada
+                      ? `${looseStockByCategory.classicSada.quantity_kg.toFixed(2)} kg`
+                      : '0.00 kg'}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Current loose stock available in liters</p>
+                  <p>Current loose stock available in kg</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1450,23 +1372,23 @@ export default function StockInventoryPage() {
               {/* Total Stock (Loose + Package) */}
               <div className="flex justify-between text-sm bg-accent/30 rounded px-2 py-1.5">
                 <span className="font-semibold">Total Stock:</span>
-                <span className="font-bold text-lg">{totalStockLiters.cowGhee.toFixed(2)} L</span>
+                <span className="font-bold text-lg">{totalStockKg.classicSada.toFixed(2)} kg</span>
               </div>
               {/* Loose Stock with Amount */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Loose Stock:</span>
                 <div className="text-right">
-                  <span className="font-semibold text-orange-600">{looseStockByCategory.cowGhee?.quantity_liters.toFixed(2) || '0.00'} L</span>
-                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.cowGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                  <span className="font-semibold text-orange-600">{looseStockByCategory.classicSada?.quantity_kg.toFixed(2) || '0.00'} kg</span>
+                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.classicSada.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                 </div>
               </div>
               {/* Loose Stock Min Needed */}
-              {looseStockDeficit.cowGhee > 0 && (
+              {looseStockDeficit.classicSada > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground font-medium">Loose Min Needed:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-red-600">-{looseStockDeficit.cowGhee.toFixed(2)} L</span>
-                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.cowGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                    <span className="font-semibold text-red-600">-{looseStockDeficit.classicSada.toFixed(2)} kg</span>
+                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.classicSada.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                   </div>
                 </div>
               )}
@@ -1474,12 +1396,12 @@ export default function StockInventoryPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Packaged:</span>
                 <div className="text-right">
-                  <span className="font-bold text-primary">{categoryLiters.cowGhee.toFixed(2)} L</span>
-                  <span className="text-muted-foreground ml-2">({categoryTotals.cowGhee} pcs)</span>
+                  <span className="font-bold text-primary">{categoryKg.classicSada.toFixed(2)} kg</span>
+                  <span className="text-muted-foreground ml-2">({categoryTotals.classicSada} pcs)</span>
                 </div>
               </div>
               {(() => {
-                const totalNeeded = categoryVariants.cowGhee.reduce((sum, { minStock, quantity }) => {
+                const totalNeeded = categoryVariants.classicSada.reduce((sum, { minStock, quantity }) => {
                   const needed = Math.max(0, minStock - quantity)
                   return sum + needed
                 }, 0)
@@ -1492,7 +1414,7 @@ export default function StockInventoryPage() {
               })()}
               <div className="flex justify-between text-sm hidden">
                 <span className="text-muted-foreground font-medium">Orders:</span>
-                <span className="font-bold text-green-600">{categoryOrderTotals.cowGhee} Units</span>
+                <span className="font-bold text-green-600">{categoryOrderTotals.classicSada} Units</span>
               </div>
             </div>
             <div className="space-y-0 rounded-md border overflow-hidden">
@@ -1507,7 +1429,7 @@ export default function StockInventoryPage() {
                   <div className="w-20 text-right py-1 px-2 border-l">Actual</div>
                 </div>
               </div>
-              {categoryVariants.cowGhee.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
+              {categoryVariants.classicSada.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
                 const needed = Math.max(0, orderQuantity - quantity)
                 return (
                   <div
@@ -1542,7 +1464,7 @@ export default function StockInventoryPage() {
         </Card>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Cow Ghee stock overview - shows loose stock, packaged quantity, and pending orders</p>
+              <p>Classic Sada stock overview - shows loose stock, packaged quantity, and pending orders</p>
             </TooltipContent>
           </Tooltip>
 
@@ -1550,19 +1472,19 @@ export default function StockInventoryPage() {
             <TooltipTrigger asChild>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                  <CardTitle className="text-sm font-medium">Buffalo Ghee</CardTitle>
+                  <CardTitle className="text-sm font-medium">Spicy Masala</CardTitle>
             <div className="text-sm flex items-center gap-2">
-              {looseStockByCategory.buffaloGhee && looseStockByCategory.buffaloGhee.min_stock_liters &&
-               looseStockByCategory.buffaloGhee.quantity_liters < looseStockByCategory.buffaloGhee.min_stock_liters && (
+              {looseStockByCategory.spicyMasala && looseStockByCategory.spicyMasala.min_stock_kg &&
+               looseStockByCategory.spicyMasala.quantity_kg < looseStockByCategory.spicyMasala.min_stock_kg && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="text-xs text-red-600 cursor-help">
-                        -{(looseStockByCategory.buffaloGhee.min_stock_liters - looseStockByCategory.buffaloGhee.quantity_liters).toFixed(2)}
+                        -{(looseStockByCategory.spicyMasala.min_stock_kg - looseStockByCategory.spicyMasala.quantity_kg).toFixed(2)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Loose stock deficit - liters needed to reach minimum</p>
+                      <p>Loose stock deficit - kg needed to reach minimum</p>
                     </TooltipContent>
                   </Tooltip>
                   <span className="text-muted-foreground">|</span>
@@ -1572,13 +1494,13 @@ export default function StockInventoryPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="font-semibold text-orange-600 cursor-help">
-                    {looseStockByCategory.buffaloGhee
-                      ? `${looseStockByCategory.buffaloGhee.quantity_liters.toFixed(2)} L`
-                      : '0.00 L'}
+                    {looseStockByCategory.spicyMasala
+                      ? `${looseStockByCategory.spicyMasala.quantity_kg.toFixed(2)} kg`
+                      : '0.00 kg'}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Current loose stock available in liters</p>
+                  <p>Current loose stock available in kg</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1588,23 +1510,23 @@ export default function StockInventoryPage() {
               {/* Total Stock (Loose + Package) */}
               <div className="flex justify-between text-sm bg-accent/30 rounded px-2 py-1.5">
                 <span className="font-semibold">Total Stock:</span>
-                <span className="font-bold text-lg">{totalStockLiters.buffaloGhee.toFixed(2)} L</span>
+                <span className="font-bold text-lg">{totalStockKg.spicyMasala.toFixed(2)} kg</span>
               </div>
               {/* Loose Stock with Amount */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Loose Stock:</span>
                 <div className="text-right">
-                  <span className="font-semibold text-orange-600">{looseStockByCategory.buffaloGhee?.quantity_liters.toFixed(2) || '0.00'} L</span>
-                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.buffaloGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                  <span className="font-semibold text-orange-600">{looseStockByCategory.spicyMasala?.quantity_kg.toFixed(2) || '0.00'} kg</span>
+                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.spicyMasala.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                 </div>
               </div>
               {/* Loose Stock Min Needed */}
-              {looseStockDeficit.buffaloGhee > 0 && (
+              {looseStockDeficit.spicyMasala > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground font-medium">Loose Min Needed:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-red-600">-{looseStockDeficit.buffaloGhee.toFixed(2)} L</span>
-                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.buffaloGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                    <span className="font-semibold text-red-600">-{looseStockDeficit.spicyMasala.toFixed(2)} kg</span>
+                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.spicyMasala.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                   </div>
                 </div>
               )}
@@ -1612,12 +1534,12 @@ export default function StockInventoryPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Packaged:</span>
                 <div className="text-right">
-                  <span className="font-bold text-primary">{categoryLiters.buffaloGhee.toFixed(2)} L</span>
-                  <span className="text-muted-foreground ml-2">({categoryTotals.buffaloGhee} pcs)</span>
+                  <span className="font-bold text-primary">{categoryKg.spicyMasala.toFixed(2)} kg</span>
+                  <span className="text-muted-foreground ml-2">({categoryTotals.spicyMasala} pcs)</span>
                 </div>
               </div>
               {(() => {
-                const totalNeeded = categoryVariants.buffaloGhee.reduce((sum, { minStock, quantity }) => {
+                const totalNeeded = categoryVariants.spicyMasala.reduce((sum, { minStock, quantity }) => {
                   const needed = Math.max(0, minStock - quantity)
                   return sum + needed
                 }, 0)
@@ -1630,7 +1552,7 @@ export default function StockInventoryPage() {
               })()}
               <div className="flex justify-between text-sm hidden">
                 <span className="text-muted-foreground font-medium">Orders:</span>
-                <span className="font-bold text-green-600">{categoryOrderTotals.buffaloGhee} Units</span>
+                <span className="font-bold text-green-600">{categoryOrderTotals.spicyMasala} Units</span>
               </div>
             </div>
             <div className="space-y-0 rounded-md border overflow-hidden">
@@ -1645,7 +1567,7 @@ export default function StockInventoryPage() {
                   <div className="w-20 text-right py-1 px-2 border-l">Actual</div>
                 </div>
               </div>
-              {categoryVariants.buffaloGhee.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
+              {categoryVariants.spicyMasala.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
                 const needed = Math.max(0, orderQuantity - quantity)
                 return (
                   <div
@@ -1680,7 +1602,7 @@ export default function StockInventoryPage() {
         </Card>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Buffalo Ghee stock overview - shows loose stock, packaged quantity, and pending orders</p>
+              <p>Spicy Masala stock overview - shows loose stock, packaged quantity, and pending orders</p>
             </TooltipContent>
           </Tooltip>
 
@@ -1688,19 +1610,19 @@ export default function StockInventoryPage() {
             <TooltipTrigger asChild>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                  <CardTitle className="text-sm font-medium">Cow Valona Ghee</CardTitle>
+                  <CardTitle className="text-sm font-medium">Magic Methi</CardTitle>
             <div className="text-sm flex items-center gap-2">
-              {looseStockByCategory.cowBelonaGhee && looseStockByCategory.cowBelonaGhee.min_stock_liters &&
-               looseStockByCategory.cowBelonaGhee.quantity_liters < looseStockByCategory.cowBelonaGhee.min_stock_liters && (
+              {looseStockByCategory.magicMethi && looseStockByCategory.magicMethi.min_stock_kg &&
+               looseStockByCategory.magicMethi.quantity_kg < looseStockByCategory.magicMethi.min_stock_kg && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="text-xs text-red-600 cursor-help">
-                        -{(looseStockByCategory.cowBelonaGhee.min_stock_liters - looseStockByCategory.cowBelonaGhee.quantity_liters).toFixed(2)}
+                        -{(looseStockByCategory.magicMethi.min_stock_kg - looseStockByCategory.magicMethi.quantity_kg).toFixed(2)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Loose stock deficit - liters needed to reach minimum</p>
+                      <p>Loose stock deficit - kg needed to reach minimum</p>
                     </TooltipContent>
                   </Tooltip>
                   <span className="text-muted-foreground">|</span>
@@ -1710,13 +1632,13 @@ export default function StockInventoryPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="font-semibold text-orange-600 cursor-help">
-                    {looseStockByCategory.cowBelonaGhee
-                      ? `${looseStockByCategory.cowBelonaGhee.quantity_liters.toFixed(2)} L`
-                      : '0.00 L'}
+                    {looseStockByCategory.magicMethi
+                      ? `${looseStockByCategory.magicMethi.quantity_kg.toFixed(2)} kg`
+                      : '0.00 kg'}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Current loose stock available in liters</p>
+                  <p>Current loose stock available in kg</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1726,23 +1648,23 @@ export default function StockInventoryPage() {
               {/* Total Stock (Loose + Package) */}
               <div className="flex justify-between text-sm bg-accent/30 rounded px-2 py-1.5">
                 <span className="font-semibold">Total Stock:</span>
-                <span className="font-bold text-lg">{totalStockLiters.cowBelonaGhee.toFixed(2)} L</span>
+                <span className="font-bold text-lg">{totalStockKg.magicMethi.toFixed(2)} kg</span>
               </div>
               {/* Loose Stock with Amount */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Loose Stock:</span>
                 <div className="text-right">
-                  <span className="font-semibold text-orange-600">{looseStockByCategory.cowBelonaGhee?.quantity_liters.toFixed(2) || '0.00'} L</span>
-                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.cowBelonaGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                  <span className="font-semibold text-orange-600">{looseStockByCategory.magicMethi?.quantity_kg.toFixed(2) || '0.00'} kg</span>
+                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.magicMethi.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                 </div>
               </div>
               {/* Loose Stock Min Needed */}
-              {looseStockDeficit.cowBelonaGhee > 0 && (
+              {looseStockDeficit.magicMethi > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground font-medium">Loose Min Needed:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-red-600">-{looseStockDeficit.cowBelonaGhee.toFixed(2)} L</span>
-                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.cowBelonaGhee.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                    <span className="font-semibold text-red-600">-{looseStockDeficit.magicMethi.toFixed(2)} kg</span>
+                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.magicMethi.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                   </div>
                 </div>
               )}
@@ -1750,12 +1672,12 @@ export default function StockInventoryPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Packaged:</span>
                 <div className="text-right">
-                  <span className="font-bold text-primary">{categoryLiters.cowBelonaGhee.toFixed(2)} L</span>
-                  <span className="text-muted-foreground ml-2">({categoryTotals.cowBelonaGhee} pcs)</span>
+                  <span className="font-bold text-primary">{categoryKg.magicMethi.toFixed(2)} kg</span>
+                  <span className="text-muted-foreground ml-2">({categoryTotals.magicMethi} pcs)</span>
                 </div>
               </div>
               {(() => {
-                const totalNeeded = categoryVariants.cowBelonaGhee.reduce((sum, { minStock, quantity }) => {
+                const totalNeeded = categoryVariants.magicMethi.reduce((sum, { minStock, quantity }) => {
                   const needed = Math.max(0, minStock - quantity)
                   return sum + needed
                 }, 0)
@@ -1768,7 +1690,7 @@ export default function StockInventoryPage() {
               })()}
               <div className="flex justify-between text-sm hidden">
                 <span className="text-muted-foreground font-medium">Orders:</span>
-                <span className="font-bold text-green-600">{categoryOrderTotals.cowBelonaGhee} Units</span>
+                <span className="font-bold text-green-600">{categoryOrderTotals.magicMethi} Units</span>
               </div>
             </div>
             <div className="space-y-0 rounded-md border overflow-hidden">
@@ -1783,7 +1705,7 @@ export default function StockInventoryPage() {
                   <div className="w-20 text-right py-1 px-2 border-l">Actual</div>
                 </div>
               </div>
-              {categoryVariants.cowBelonaGhee.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
+              {categoryVariants.magicMethi.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
                 const needed = Math.max(0, orderQuantity - quantity)
                 return (
                   <div
@@ -1818,7 +1740,7 @@ export default function StockInventoryPage() {
         </Card>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Cow Valona Ghee stock overview - shows loose stock, packaged quantity, and pending orders</p>
+              <p>Magic Methi stock overview - shows loose stock, packaged quantity, and pending orders</p>
             </TooltipContent>
           </Tooltip>
 
@@ -1826,19 +1748,19 @@ export default function StockInventoryPage() {
             <TooltipTrigger asChild>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                  <CardTitle className="text-sm font-medium">Groundnut Oil</CardTitle>
+                  <CardTitle className="text-sm font-medium">Zesty Jeera</CardTitle>
             <div className="text-sm flex items-center gap-2">
-              {looseStockByCategory.groundnutOil && looseStockByCategory.groundnutOil.min_stock_liters &&
-               looseStockByCategory.groundnutOil.quantity_liters < looseStockByCategory.groundnutOil.min_stock_liters && (
+              {looseStockByCategory.zestyJeera && looseStockByCategory.zestyJeera.min_stock_kg &&
+               looseStockByCategory.zestyJeera.quantity_kg < looseStockByCategory.zestyJeera.min_stock_kg && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="text-xs text-red-600 cursor-help">
-                        -{(looseStockByCategory.groundnutOil.min_stock_liters - looseStockByCategory.groundnutOil.quantity_liters).toFixed(2)}
+                        -{(looseStockByCategory.zestyJeera.min_stock_kg - looseStockByCategory.zestyJeera.quantity_kg).toFixed(2)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Loose stock deficit - liters needed to reach minimum</p>
+                      <p>Loose stock deficit - kg needed to reach minimum</p>
                     </TooltipContent>
                   </Tooltip>
                   <span className="text-muted-foreground">|</span>
@@ -1848,13 +1770,13 @@ export default function StockInventoryPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="font-semibold text-orange-600 cursor-help">
-                    {looseStockByCategory.groundnutOil
-                      ? `${looseStockByCategory.groundnutOil.quantity_liters.toFixed(2)} L`
-                      : '0.00 L'}
+                    {looseStockByCategory.zestyJeera
+                      ? `${looseStockByCategory.zestyJeera.quantity_kg.toFixed(2)} kg`
+                      : '0.00 kg'}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Current loose stock available in liters</p>
+                  <p>Current loose stock available in kg</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1864,23 +1786,23 @@ export default function StockInventoryPage() {
               {/* Total Stock (Loose + Package) */}
               <div className="flex justify-between text-sm bg-accent/30 rounded px-2 py-1.5">
                 <span className="font-semibold">Total Stock:</span>
-                <span className="font-bold text-lg">{totalStockLiters.groundnutOil.toFixed(2)} L</span>
+                <span className="font-bold text-lg">{totalStockKg.zestyJeera.toFixed(2)} kg</span>
               </div>
               {/* Loose Stock with Amount */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Loose Stock:</span>
                 <div className="text-right">
-                  <span className="font-semibold text-orange-600">{looseStockByCategory.groundnutOil?.quantity_liters.toFixed(2) || '0.00'} L</span>
-                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.groundnutOil.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                  <span className="font-semibold text-orange-600">{looseStockByCategory.zestyJeera?.quantity_kg.toFixed(2) || '0.00'} kg</span>
+                  <span className="text-muted-foreground ml-2">(₹{looseStockValue.zestyJeera.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                 </div>
               </div>
               {/* Loose Stock Min Needed */}
-              {looseStockDeficit.groundnutOil > 0 && (
+              {looseStockDeficit.zestyJeera > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground font-medium">Loose Min Needed:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-red-600">-{looseStockDeficit.groundnutOil.toFixed(2)} L</span>
-                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.groundnutOil.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                    <span className="font-semibold text-red-600">-{looseStockDeficit.zestyJeera.toFixed(2)} kg</span>
+                    <span className="text-red-600 ml-2">(₹{looseStockPurchaseAmount.zestyJeera.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
                   </div>
                 </div>
               )}
@@ -1888,12 +1810,12 @@ export default function StockInventoryPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Packaged:</span>
                 <div className="text-right">
-                  <span className="font-bold text-primary">{categoryLiters.groundnutOil.toFixed(2)} L</span>
-                  <span className="text-muted-foreground ml-2">({categoryTotals.groundnutOil} pcs)</span>
+                  <span className="font-bold text-primary">{categoryKg.zestyJeera.toFixed(2)} kg</span>
+                  <span className="text-muted-foreground ml-2">({categoryTotals.zestyJeera} pcs)</span>
                 </div>
               </div>
               {(() => {
-                const totalNeeded = categoryVariants.groundnutOil.reduce((sum, { minStock, quantity }) => {
+                const totalNeeded = categoryVariants.zestyJeera.reduce((sum, { minStock, quantity }) => {
                   const needed = Math.max(0, minStock - quantity)
                   return sum + needed
                 }, 0)
@@ -1906,7 +1828,7 @@ export default function StockInventoryPage() {
               })()}
               <div className="flex justify-between text-sm hidden">
                 <span className="text-muted-foreground font-medium">Orders:</span>
-                <span className="font-bold text-green-600">{categoryOrderTotals.groundnutOil} Units</span>
+                <span className="font-bold text-green-600">{categoryOrderTotals.zestyJeera} Units</span>
               </div>
             </div>
             <div className="space-y-0 rounded-md border overflow-hidden">
@@ -1921,7 +1843,7 @@ export default function StockInventoryPage() {
                   <div className="w-20 text-right py-1 px-2 border-l">Actual</div>
                 </div>
               </div>
-              {categoryVariants.groundnutOil.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
+              {categoryVariants.zestyJeera.map(({ variant, quantity, minStock, orderQuantity, variantId, categoryId }, index) => {
                 const needed = Math.max(0, orderQuantity - quantity)
                 return (
                   <div
@@ -1956,7 +1878,7 @@ export default function StockInventoryPage() {
         </Card>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Groundnut Oil stock overview - shows loose stock, packaged quantity, and pending orders</p>
+              <p>Zesty Jeera stock overview - shows loose stock, packaged quantity, and pending orders</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -2434,7 +2356,7 @@ export default function StockInventoryPage() {
                 id="category-name"
                 value={categoryName}
                 onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="e.g., Cow Ghee"
+                placeholder="e.g., Classic Sada Khakhra"
               />
             </div>
           </div>

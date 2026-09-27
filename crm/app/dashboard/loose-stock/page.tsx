@@ -38,8 +38,8 @@ import { format } from "date-fns"
 type LooseStock = {
   id: string
   category_id: string
-  quantity_liters: number
-  price_per_liter: number
+  quantity_kg: number
+  price_per_kg: number
   created_at: string
   updated_at: string
   product_categories: {
@@ -51,8 +51,8 @@ type LooseStockTransaction = {
   id: string
   loose_stock_id: string
   transaction_type: string
-  quantity_liters: number
-  price_per_liter: number
+  quantity_kg: number
+  price_per_kg: number
   total_amount: number
   vendor_id: string | null
   vendor_name: string | null
@@ -93,7 +93,7 @@ export default function LooseStockPage() {
 
   const openEditDialog = (stock: LooseStock) => {
     setEditStock(stock)
-    setEditQty(String(stock.quantity_liters))
+    setEditQty(String(stock.quantity_kg))
     setEditPassword("")
   }
 
@@ -138,13 +138,13 @@ export default function LooseStockPage() {
         return
       }
 
-      const oldQty = editStock.quantity_liters
+      const oldQty = editStock.quantity_kg
 
       // 1. Update loose stock quantity
       const { error: updateError } = await supabase
         .from("loose_stock")
         .update({
-          quantity_liters: newQty,
+          quantity_kg: newQty,
           updated_at: new Date().toISOString(),
         })
         .eq("id", editStock.id)
@@ -157,7 +157,7 @@ export default function LooseStockPage() {
         .insert([{
           loose_stock_id: editStock.id,
           transaction_type: "adjustment",
-          quantity_liters: newQty - oldQty,
+          quantity_kg: newQty - oldQty,
           transaction_notes: "Manual correction",
           user_id: user.id,
           user_email: user.email,
@@ -259,12 +259,12 @@ export default function LooseStockPage() {
 
   const calculateTotalValue = () => {
     return looseStocks.reduce((sum, stock) => {
-      return sum + (stock.quantity_liters * stock.price_per_liter)
+      return sum + (stock.quantity_kg * stock.price_per_kg)
     }, 0)
   }
 
-  const calculateTotalLiters = () => {
-    return looseStocks.reduce((sum, stock) => sum + stock.quantity_liters, 0)
+  const calculateTotalKg = () => {
+    return looseStocks.reduce((sum, stock) => sum + stock.quantity_kg, 0)
   }
 
   if (loading) {
@@ -275,7 +275,7 @@ export default function LooseStockPage() {
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
               <Droplets className="h-6 w-6" />
             </div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Loose Stock Management</h1>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Raw Material &amp; Flavor Stock</h1>
           </div>
         </div>
         <div className="flex items-center justify-center py-16">
@@ -304,9 +304,9 @@ export default function LooseStockPage() {
             <Droplets className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Loose Stock Management</h1>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Raw Material &amp; Flavor Stock</h1>
             <p className="text-sm text-muted-foreground">
-              View and manage bulk/loose stock inventory
+              Raw materials and flavor stock, in kg
             </p>
           </div>
         </div>
@@ -347,7 +347,7 @@ export default function LooseStockPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-orange-600">
-              {calculateTotalLiters().toFixed(2)}L
+              {calculateTotalKg().toFixed(2)}kg
             </div>
           </CardContent>
         </Card>
@@ -408,8 +408,8 @@ export default function LooseStockPage() {
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Category</TableHead>
-                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Quantity (Liters)</TableHead>
-                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Price per Liter</TableHead>
+                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Quantity (Kg)</TableHead>
+                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Price per Kg</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Total Value</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Last Updated</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Actions</TableHead>
@@ -432,13 +432,13 @@ export default function LooseStockPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold text-amber-600 dark:text-amber-400">
-                            {stock.quantity_liters.toFixed(2)}L
+                            {stock.quantity_kg.toFixed(2)}kg
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {formatCurrency(stock.price_per_liter)}
+                            {formatCurrency(stock.price_per_kg)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
-                            {formatCurrency(stock.quantity_liters * stock.price_per_liter)}
+                            {formatCurrency(stock.quantity_kg * stock.price_per_kg)}
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
                             {formatDate(stock.updated_at)}
@@ -495,8 +495,8 @@ export default function LooseStockPage() {
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Date</TableHead>
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Category</TableHead>
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Type</TableHead>
-                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Quantity (L)</TableHead>
-                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Price/L</TableHead>
+                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Quantity (Kg)</TableHead>
+                      <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Price/Kg</TableHead>
                       <TableHead className="text-right font-semibold uppercase tracking-wider text-[11px]">Total Amount</TableHead>
                       <TableHead className="font-semibold uppercase tracking-wider text-[11px]">Details</TableHead>
                     </TableRow>
@@ -529,11 +529,11 @@ export default function LooseStockPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-amber-600 dark:text-amber-400">
-                            {transaction.quantity_liters.toFixed(2)}L
+                            {transaction.quantity_kg.toFixed(2)}kg
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {transaction.price_per_liter
-                              ? formatCurrency(transaction.price_per_liter)
+                            {transaction.price_per_kg
+                              ? formatCurrency(transaction.price_per_kg)
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
@@ -595,12 +595,12 @@ export default function LooseStockPage() {
               <p className="text-sm text-muted-foreground">
                 Current quantity:{" "}
                 <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  {editStock.quantity_liters.toFixed(2)}L
+                  {editStock.quantity_kg.toFixed(2)}kg
                 </span>
               </p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="edit-qty">New quantity (liters)</Label>
+              <Label htmlFor="edit-qty">New quantity (kg)</Label>
               <Input
                 id="edit-qty"
                 type="number"
