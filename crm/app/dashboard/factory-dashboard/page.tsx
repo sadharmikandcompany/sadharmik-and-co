@@ -181,14 +181,13 @@ const countFormatter = new Intl.NumberFormat("en-IN")
 const formatINR = (amount: number) => `₹${inrFormatter.format(Math.round(amount || 0))}`
 // Compact INR on the Indian Cr / Lakh / K scale so large figures fit inside the
 // narrow overview tiles instead of overflowing. Tables/P&L keep full formatINR.
+// Despite the name, this shows the full amount (e.g. "₹20,320") rather than
+// abbreviating to K/L/Cr — kept as one function so every card on this
+// dashboard stays consistent if the format ever needs to change again.
 const formatINRCompact = (amount: number) => {
   const n = Math.round(amount || 0)
-  const abs = Math.abs(n)
   const sign = n < 0 ? "-" : ""
-  if (abs >= 1_00_00_000) return `${sign}₹${(abs / 1_00_00_000).toFixed(2)} Cr`
-  if (abs >= 1_00_000) return `${sign}₹${(abs / 1_00_000).toFixed(2)} L`
-  if (abs >= 1_000) return `${sign}₹${(abs / 1_000).toFixed(1)}K`
-  return `${sign}₹${inrFormatter.format(abs)}`
+  return `${sign}₹${inrFormatter.format(Math.abs(n))}`
 }
 const formatLitres = (litres: number) => `${litreFormatter.format(litres || 0)} Ltr`
 const formatNumber = (n: number) => countFormatter.format(n || 0)
