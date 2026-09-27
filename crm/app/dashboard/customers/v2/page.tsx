@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import {
@@ -677,7 +677,7 @@ function CustomerForm({
   )
 }
 
-export default function CustomersV2Page() {
+function CustomersV2Content() {
   // ?view=debtors (linked from the Factory Dashboard's Bills Receivable
   // card) shows every customer with an outstanding balance instead of the
   // normal recently-created-first list — "who do we need to collect from."
@@ -3268,5 +3268,13 @@ export default function CustomersV2Page() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function CustomersV2Page() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+      <CustomersV2Content />
+    </Suspense>
   )
 }
