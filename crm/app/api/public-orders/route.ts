@@ -141,6 +141,40 @@ export async function POST(request: Request) {
       }
     }
 
+    // Resolve which warehouse should fulfill this order: the distributor
+    // whose serviceable pincodes cover the address (same matching as the
+    // delivery partner above), falling back to the factory's own company
+    // godown. Warehouse Orders groups orders by source_godown_id, so without
+    // this an order never shows up under any warehouse even when a
+    // distributor's pincode list clearly covers it.
+    let sourceGodownId: string | null = null
+    const { data: distributorsForGodown } = await supabaseAdmin
+      .from("distributors")
+      .select("id, serviceable_pincodes")
+      .not("serviceable_pincodes", "is", null)
+    const matchedDistributor = (distributorsForGodown || []).find(
+      (d: any) => Array.isArray(d.serviceable_pincodes) && d.serviceable_pincodes.includes(pincodeMatch[0])
+    )
+    if (matchedDistributor) {
+      const { data: matchedGodown } = await supabaseAdmin
+        .from("godowns")
+        .select("id")
+        .eq("distributor_id", matchedDistributor.id)
+        .eq("is_active", true)
+        .maybeSingle()
+      if (matchedGodown) sourceGodownId = matchedGodown.id
+    }
+    if (!sourceGodownId) {
+      const { data: companyGodown } = await supabaseAdmin
+        .from("godowns")
+        .select("id")
+        .eq("godown_type", "company")
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle()
+      if (companyGodown) sourceGodownId = companyGodown.id
+    }
+
     const orderData = {
       order_number: orderNumber,
       customer_id: null,
@@ -172,6 +206,7 @@ export async function POST(request: Request) {
       total_amount: totalAmount,
       order_notes: `Placed via website. Phone: ${phone}`,
       order_date: new Date().toISOString(),
+      source_godown_id: sourceGodownId,
       delivery_partner_id: autoDeliveryPartnerId,
       assigned_to_delivery_at: autoDeliveryPartnerId ? new Date().toISOString() : null,
       delivery_status: autoDeliveryPartnerId ? "assigned" : null,
