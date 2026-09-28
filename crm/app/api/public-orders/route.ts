@@ -51,6 +51,21 @@ export async function POST(request: Request) {
       )
     }
 
+    // A PIN code is required to auto-assign the order to the right
+    // distributor and delivery partner — without one the order can never be
+    // routed, so it's rejected here instead of silently creating an order
+    // nobody picks up. Accepts an explicit `pincode` field if the checkout
+    // sends one, otherwise falls back to pulling a 6-digit PIN code out of
+    // the free-text address.
+    const explicitPincode = String(body.pincode || "").trim()
+    const pincodeMatch = /^\d{6}$/.test(explicitPincode) ? [explicitPincode] : address.match(/\b\d{6}\b/)
+    if (!pincodeMatch) {
+      return NextResponse.json(
+        { ok: false, error: "Please include a 6-digit PIN code in your delivery address." },
+        { status: 400, headers: CORS_HEADERS }
+      )
+    }
+
     const supabaseAdmin = getSupabaseAdmin()
 
     // Match each cart line to a real product record by name (case-insensitive)
@@ -107,7 +122,6 @@ export async function POST(request: Request) {
     const shippingCharges = totalQuantity >= 2 ? 0 : 70
     const totalAmount = subtotal + shippingCharges
 
-    const pincodeMatch = address.match(/\b\d{6}\b/)
     const [firstName, ...restName] = name.split(/\s+/)
     const orderNumber = `ORD-${Date.now()}`
 
