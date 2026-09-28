@@ -1554,16 +1554,23 @@ export default function ReconciliationPage() {
   const bankAccountsList = bankAccounts.filter(b => !isCashType(b.account_type))
   const cashAccountsList = bankAccounts.filter(b => isCashType(b.account_type))
 
-  // Compute balances from all transactions
+  // Compute balances from all transactions, starting from each account's own
+  // opening balance (falling back to back-deriving it from current_balance
+  // for accounts without one set yet, same as getBalanceBreakdown does per
+  // account below) — otherwise these summary cards only reflect transaction
+  // movement and silently drop the money each account started with, making
+  // Cash look far more overdrawn than it really is.
+  const baseBalance = (list: BankAccount[]) => list.reduce((s, b) => s + getBalanceBreakdown(b).opening, 0)
+
   const allCredits = transactions.filter(t => t.txn_type === "Cr").reduce((s, t) => s + Number(t.amount), 0)
   const allDebits = transactions.filter(t => t.txn_type === "Dr").reduce((s, t) => s + Number(t.amount), 0)
-  const totalBalance = allCredits - allDebits
+  const totalBalance = baseBalance(bankAccounts) + allCredits - allDebits
 
   // Per-account-type balances from transactions
   const bankAccountIds = new Set(bankAccountsList.map(b => b.id))
   const cashAccountIds = new Set(cashAccountsList.map(b => b.id))
-  const bankBalance = transactions.filter(t => bankAccountIds.has(t.bank_account_id)).reduce((s, t) => s + (t.txn_type === "Cr" ? Number(t.amount) : -Number(t.amount)), 0)
-  const cashBalance = transactions.filter(t => cashAccountIds.has(t.bank_account_id)).reduce((s, t) => s + (t.txn_type === "Cr" ? Number(t.amount) : -Number(t.amount)), 0)
+  const bankBalance = baseBalance(bankAccountsList) + transactions.filter(t => bankAccountIds.has(t.bank_account_id)).reduce((s, t) => s + (t.txn_type === "Cr" ? Number(t.amount) : -Number(t.amount)), 0)
+  const cashBalance = baseBalance(cashAccountsList) + transactions.filter(t => cashAccountIds.has(t.bank_account_id)).reduce((s, t) => s + (t.txn_type === "Cr" ? Number(t.amount) : -Number(t.amount)), 0)
 
   // Today's opening and closing balance
   const today = new Date().toISOString().split("T")[0]
@@ -1793,7 +1800,7 @@ export default function ReconciliationPage() {
                   </div>
                   <div className="mt-3 flex items-baseline justify-between border-t pt-3">
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</span>
-                    <span className="text-lg font-bold tabular-nums">{formatCurrency(Number(bank.current_balance))}</span>
+                    <span className="text-lg font-bold tabular-nums">{formatCurrency(breakdown.opening + breakdown.credit - breakdown.debit)}</span>
                   </div>
                   <div className="mt-1 text-[10px] text-muted-foreground font-mono tabular-nums break-words">
                     {formatCurrency(breakdown.opening)} + {formatCurrency(breakdown.credit)} − {formatCurrency(breakdown.debit)}
@@ -1856,7 +1863,7 @@ export default function ReconciliationPage() {
                   </div>
                   <div className="mt-3 flex items-baseline justify-between border-t pt-3">
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</span>
-                    <span className="text-lg font-bold tabular-nums">{formatCurrency(Number(bank.current_balance))}</span>
+                    <span className="text-lg font-bold tabular-nums">{formatCurrency(breakdown.opening + breakdown.credit - breakdown.debit)}</span>
                   </div>
                   <div className="mt-1 text-[10px] text-muted-foreground font-mono tabular-nums break-words">
                     {formatCurrency(breakdown.opening)} + {formatCurrency(breakdown.credit)} − {formatCurrency(breakdown.debit)}
