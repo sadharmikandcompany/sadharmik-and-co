@@ -404,12 +404,14 @@ export default function DistributorOrdersPage() {
 
   const handleCancelOrder = async (orderId: string, orderNumber: string) => {
     try {
+      // Only the status changes — the invoice number (if one was already
+      // issued) stays on the order as a record of the cancelled bill instead
+      // of being wiped. Deleting a bill outright is a separate, explicit
+      // action, never a side effect of cancelling.
       const { error } = await supabase
         .from("orders")
         .update({
           order_status: "cancelled",
-          invoice_number_gst: null,
-          invoice_number_non_gst: null,
         })
         .eq("id", orderId)
 
