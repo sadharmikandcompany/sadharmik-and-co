@@ -119,7 +119,7 @@ export const menuGroups: MenuGroup[] = [
     label: "People",
     items: [
       { title: "My Customers", url: "/dashboard/my-customers", icon: Users, roles: ["main_distributor", "sub_distributor", "retailer"] },
-      { title: "Customers", url: "/dashboard/customers", icon: Users, roles: ["admin", "warehouse", "customer_support"] },
+      { title: "Customers", url: "/dashboard/customers", icon: Users, roles: ["admin", "warehouse", "customer_support", "factories"] },
       { title: "Customers V2", url: "/dashboard/customers/v2", icon: Users, roles: ["admin", "customer_support", "factories"] },
       { title: "Users", url: "/dashboard/users", icon: User2, roles: ["admin"] },
       { title: "Attendance", url: "/dashboard/attendance", icon: CalendarCheck, roles: ["admin"] },
