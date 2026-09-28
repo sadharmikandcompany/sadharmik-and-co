@@ -285,8 +285,6 @@ export function OrdersTable({
   }, [initialOrders.map((o) => o.id).join(",")])
 
   // Dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deletingOrder, setDeletingOrder] = useState<{ id: string; orderNumber: string } | null>(null)
   const [bulkDeliveryDialogOpen, setBulkDeliveryDialogOpen] = useState(false)
   const [bulkCompleteDialogOpen, setBulkCompleteDialogOpen] = useState(false)
   const [bulkCompletePaymentMethod, setBulkCompletePaymentMethod] = useState("cash")
@@ -504,23 +502,6 @@ export function OrdersTable({
       toast.error("Failed to unassign driver")
     } finally {
       setAssigningDriver(null)
-    }
-  }
-
-  const handleDeleteOrder = async () => {
-    if (!deletingOrder) return
-    try {
-      await supabase.from("route_assignments").delete().eq("order_id", deletingOrder.id)
-      const { error: itemsError } = await supabase.from("order_items").delete().eq("order_id", deletingOrder.id)
-      if (itemsError) throw itemsError
-      const { error: orderError } = await supabase.from("orders").delete().eq("id", deletingOrder.id)
-      if (orderError) throw orderError
-      toast.success(`Order ${deletingOrder.orderNumber} deleted`)
-      setDeleteDialogOpen(false)
-      setDeletingOrder(null)
-      refresh()
-    } catch {
-      toast.error("Failed to delete order")
     }
   }
 
@@ -1364,9 +1345,6 @@ export function OrdersTable({
                                 <DropdownMenuItem onClick={() => handleCancelOrder(order.id, order.order_number)} disabled={order.order_status === "cancelled" || order.order_status === "completed"} className="text-destructive focus:text-destructive">
                                   <XCircle className="mr-2 h-4 w-4" />Cancel Order
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setDeletingOrder({ id: order.id, orderNumber: order.order_number }); setDeleteDialogOpen(true) }} className="text-destructive focus:text-destructive">
-                                  <Trash2 className="mr-2 h-4 w-4" />Delete Order
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -1528,22 +1506,6 @@ export function OrdersTable({
           </div>
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete order <strong>{deletingOrder?.orderNumber}</strong> and all its items. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingOrder(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteOrder} className="bg-destructive hover:bg-destructive/90">Delete Order</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Bulk Mark as Delivered Dialog */}
       <AlertDialog open={bulkDeliveryDialogOpen} onOpenChange={setBulkDeliveryDialogOpen}>
