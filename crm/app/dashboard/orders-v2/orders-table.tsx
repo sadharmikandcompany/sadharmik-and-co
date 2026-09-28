@@ -938,12 +938,12 @@ export function OrdersTable({
                 {filters.hideRetailer ? "Retailer Hidden" : "Hide Retailer"}
               </Button>
               <Button
-                variant={filters.websiteOnly ? "default" : "outline"}
-                onClick={() => updateParams({ websiteOnly: filters.websiteOnly ? "" : "1" })}
-                title={filters.websiteOnly ? "Showing only website orders — click for all" : "Show only website orders"}
+                variant="outline"
+                onClick={() => router.push("/dashboard/website-orders")}
+                title="Review website orders and convert them to bills"
               >
                 <Globe className="mr-2 h-4 w-4" />
-                {filters.websiteOnly ? "Website Only" : "Website Orders"}
+                Website Orders
               </Button>
               <Button variant="outline" onClick={() => router.push("/dashboard/failed-orders")}>
                 <AlertTriangle className="mr-2 h-4 w-4" />Failed

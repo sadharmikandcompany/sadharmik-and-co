@@ -184,35 +184,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Could not place the order." }, { status: 500, headers: CORS_HEADERS })
     }
 
-    // Auto-generate invoice number. Website checkouts are always guest/plain
-    // retail orders — never Mandir or Shop tier — so both flags stay false.
-    // If a distributor covers the extracted shipping pincode, the bill comes
-    // from their Invoice Code sequence instead of the plain "A" prefix, same
-    // as staff-created customer orders (see orders/new/page.tsx).
-    let websiteDistCode: string | null = null
-    if (orderData.shipping_pincode) {
-      const { data: matchedDistributors } = await supabaseAdmin
-        .from("distributors")
-        .select("invoice_code, serviceable_pincodes")
-        .not("serviceable_pincodes", "is", null)
-        .not("invoice_code", "is", null)
-      const match = (matchedDistributors || []).find(
-        (d: any) => Array.isArray(d.serviceable_pincodes) && d.serviceable_pincodes.includes(orderData.shipping_pincode)
-      )
-      if (match) websiteDistCode = match.invoice_code
-    }
-
-    const { data: nextInvoiceNumber, error: invoiceError } = await supabaseAdmin.rpc('get_next_invoice_number', {
-      is_gst: false,
-      dist_code: websiteDistCode,
-      force_kp: false,
-      p_is_mandir: false,
-      p_is_shop: false
-    })
-    
-    if (!invoiceError && nextInvoiceNumber) {
-      await supabaseAdmin.from("orders").update({ invoice_number_non_gst: nextInvoiceNumber }).eq("id", order.id)
-    }
+    // No invoice number is generated here anymore. Website orders often need
+    // corrections (address, items, GST) before a bill should exist, so they
+    // land in the "Website Orders — Pending Bill" review page
+    // (/dashboard/website-orders) with no invoice number, and staff convert
+    // each one to a bill manually after checking it over.
 
     return NextResponse.json({ ok: true, orderNumber: order.order_number }, { headers: CORS_HEADERS })
   } catch (error) {
