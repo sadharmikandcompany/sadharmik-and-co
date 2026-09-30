@@ -49,43 +49,39 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
     .select("*", { count: "exact" })
 
   if (isDistributor && entityId) {
-    // Resolve the distributor's serviceable pincodes, their retailers, and (for
-    // main distributors) their sub-distributors so we can scope the query the same
-    // way /dashboard/orders does.
-    const [distRes, retailersRes, subDistRes] = await Promise.all([
-      supabaseServer
-        .from("distributors")
-        .select("serviceable_pincodes")
-        .eq("id", entityId)
-        .maybeSingle(),
+    // Resolve the distributor's retailers and (for main distributors) their
+    // sub-distributors so we can scope the query the same way
+    // /dashboard/orders does.
+    const [retailersRes, subDistRes] = await Promise.all([
       supabaseServer.from("retailers").select("id").eq("distributor_id", entityId),
       isMainDistributor
         ? supabaseServer.from("distributors").select("id").eq("parent_id", entityId)
         : Promise.resolve({ data: [] as { id: string }[] }),
     ])
 
-    const pincodes: string[] = (distRes.data?.serviceable_pincodes as string[] | null) ?? []
     const retailerIds: string[] = (retailersRes.data ?? []).map((r) => r.id)
     const subDistributorIds: string[] = (subDistRes.data ?? []).map((d) => d.id)
 
+    // "In my territory" means the view's own serviceable_distributor_id
+    // match, not a raw shipping_pincode-in-list check — the view already
+    // accounts for this distributor opting out of Mandir/Shop customers, so
+    // an order that fell through to Sadharmik-direct for that reason won't
+    // resolve to this distributor's id even though the pincode overlaps.
+    // is_factory_order forces Sadharmik-direct regardless of pincode, so
+    // it's excluded here too (null-safe, since the column may be unset).
+    const territoryMatch = `and(serviceable_distributor_id.eq.${entityId},or(is_factory_order.is.null,is_factory_order.eq.false))`
+
     if (isSubDistributor) {
-      // Sub-distributors: customer/retailer orders in their pincodes only,
+      // Sub-distributors: customer/retailer orders in their territory only,
       // explicitly excluding any distributor-level orders.
-      const parts: string[] = []
-      if (pincodes.length) parts.push(`shipping_pincode.in.(${pincodes.join(",")})`)
+      const parts: string[] = [territoryMatch]
       if (retailerIds.length) parts.push(`retailer_id.in.(${retailerIds.join(",")})`)
-      if (parts.length) {
-        query = query.or(parts.join(","))
-      } else {
-        // No scope at all → show nothing rather than the global feed.
-        query = query.eq("id", "00000000-0000-0000-0000-000000000000")
-      }
+      query = query.or(parts.join(","))
       query = query.is("distributor_id", null)
     } else {
-      // Main distributors: pincode matches, their retailers, their own orders,
-      // and orders for any of their sub-distributors.
-      const parts: string[] = [`distributor_id.eq.${entityId}`]
-      if (pincodes.length) parts.push(`shipping_pincode.in.(${pincodes.join(",")})`)
+      // Main distributors: territory matches, their retailers, their own
+      // orders, and orders for any of their sub-distributors.
+      const parts: string[] = [`distributor_id.eq.${entityId}`, territoryMatch]
       if (retailerIds.length) parts.push(`retailer_id.in.(${retailerIds.join(",")})`)
       if (subDistributorIds.length) {
         parts.push(`distributor_id.in.(${subDistributorIds.join(",")})`)

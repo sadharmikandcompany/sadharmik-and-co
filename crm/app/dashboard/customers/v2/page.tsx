@@ -683,6 +683,30 @@ function CustomersV2Content() {
   // normal recently-created-first list — "who do we need to collect from."
   const searchParams = useSearchParams()
   const debtorsOnly = searchParams.get("view") === "debtors"
+  // Set by the Factory Dashboard's Debtors card — limit debtors and their
+  // balances to the factory's own bills, i.e. drop bills issued under a
+  // distributor's Invoice Code (e.g. "DD"), same rule as the dashboard.
+  const factoryScope = debtorsOnly && searchParams.get("scope") === "factory"
+  const fetchScopeCodes = async (): Promise<string[]> => {
+    if (!factoryScope) return []
+    const { data } = await supabase
+      .from("distributors")
+      .select("invoice_code")
+      .not("invoice_code", "is", null)
+    return (data || []).map((d: any) => (d.invoice_code || "").trim()).filter(Boolean)
+  }
+  // Not async on purpose — returning a query builder from an async function
+  // would execute it (builders are thenables) before .range() is chained.
+  const withFactoryScope = (q: any, codes: string[]) =>
+    // OR with `is.null` — `NULL NOT ILIKE 'DD%'` is NULL, which PostgREST
+    // would treat as excluded.
+    codes.reduce(
+      (query: any, code: string) =>
+        query
+          .or(`invoice_number_gst.is.null,invoice_number_gst.not.ilike.${code}%`)
+          .or(`invoice_number_non_gst.is.null,invoice_number_non_gst.not.ilike.${code}%`),
+      q
+    )
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
@@ -765,7 +789,7 @@ function CustomersV2Content() {
 
   useEffect(() => {
     fetchCustomers()
-  }, [currentPage, debouncedSearch, filterVip, filterDefaulter, debtorsOnly])
+  }, [currentPage, debouncedSearch, filterVip, filterDefaulter, debtorsOnly, factoryScope])
 
   // Fetch other entities on mount
   useEffect(() => {
@@ -821,16 +845,20 @@ function CustomersV2Content() {
         // every customer with an unpaid/partial non-cancelled order,
         // wherever they'd otherwise fall in the list.
         let debtorIds: string[] = []
+        const scopeCodes = await fetchScopeCodes()
         let from = 0
         const batchSize = 1000
         while (true) {
-          const { data, error } = await supabase
-            .from("orders")
-            .select("customer_id")
-            .not("customer_id", "is", null)
-            .in("payment_status", ["pending", "partial"])
-            .not("order_status", "eq", "cancelled")
-            .range(from, from + batchSize - 1)
+          const debtorQuery = withFactoryScope(
+            supabase
+              .from("orders")
+              .select("customer_id")
+              .not("customer_id", "is", null)
+              .in("payment_status", ["pending", "partial"])
+              .not("order_status", "eq", "cancelled"),
+            scopeCodes
+          )
+          const { data, error } = await debtorQuery.range(from, from + batchSize - 1)
           if (error) throw error
           if (!data || data.length === 0) break
           debtorIds.push(...data.map((o: any) => o.customer_id))
@@ -941,17 +969,21 @@ function CustomersV2Content() {
 
       // Fetch orders with pending/partial payment for current page's customers
       let allPendingOrders: any[] = []
+      const scopeCodes = await fetchScopeCodes()
       let from = 0
       const batchSize = 1000
 
       while (true) {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("id, customer_id, total_amount, payment_status, order_status, cod_collected_amount, cod_payment_method")
-          .in("customer_id", customerIds)
-          .in("payment_status", ["pending", "partial"])
-          .not("order_status", "eq", "cancelled")
-          .range(from, from + batchSize - 1)
+        const pendingQuery = withFactoryScope(
+          supabase
+            .from("orders")
+            .select("id, customer_id, total_amount, payment_status, order_status, cod_collected_amount, cod_payment_method")
+            .in("customer_id", customerIds)
+            .in("payment_status", ["pending", "partial"])
+            .not("order_status", "eq", "cancelled"),
+          scopeCodes
+        )
+        const { data, error } = await pendingQuery.range(from, from + batchSize - 1)
 
         if (error) throw error
         if (!data || data.length === 0) break
@@ -1978,7 +2010,7 @@ function CustomersV2Content() {
             {debtorsOnly && (
               <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs dark:border-red-900/40 dark:bg-red-950/30">
                 <span className="text-red-700 dark:text-red-300">
-                  Showing {totalCustomers} customer{totalCustomers === 1 ? "" : "s"} with an outstanding balance, sorted highest first
+                  Showing {totalCustomers} customer{totalCustomers === 1 ? "" : "s"} with an outstanding {factoryScope ? "factory " : ""}balance, sorted highest first
                 </span>
                 <a href="/dashboard/customers/v2" className="font-medium text-red-700 underline hover:no-underline dark:text-red-300">
                   Clear

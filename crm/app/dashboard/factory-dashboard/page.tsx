@@ -1108,6 +1108,7 @@ export default function FactoryDashboardPage() {
               .select("id, total_amount, remaining_amount, order_date, customer_name, distributor_id, payment_status")
           )
             .in("payment_status", ["pending", "partial", "processing"])
+            .neq("order_status", "cancelled")
             .range(f, t),
           "unpaid orders (AR)"
         )
@@ -1121,6 +1122,7 @@ export default function FactoryDashboardPage() {
                 .select("id, total_amount, order_date, customer_name, distributor_id, payment_status")
             )
               .in("payment_status", ["pending", "partial", "processing"])
+              .neq("order_status", "cancelled")
               .range(f, t),
             "unpaid orders (AR, no remaining_amount)"
           )
@@ -1713,7 +1715,7 @@ export default function FactoryDashboardPage() {
               rightValue={formatINRCompact(stats.arOverdue)}
               rightHint={`${formatNumber(stats.arCustomerCount)} customer${stats.arCustomerCount === 1 ? "" : "s"}`}
               valueTone="red-right"
-              href="/dashboard/customers/v2?view=debtors"
+              href="/dashboard/customers/v2?view=debtors&scope=factory"
             />
             <PLDualCard
               label="BILLS PAYABLE (CREDITORS)"

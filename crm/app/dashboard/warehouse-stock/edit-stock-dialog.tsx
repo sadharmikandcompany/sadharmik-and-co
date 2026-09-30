@@ -53,28 +53,33 @@ export function EditStockDialog({
     setLoading(true)
 
     try {
-      // First, get the current reserved quantity (if record exists)
-      const { data: existingStock } = await supabase
+      // Check whether a record already exists for this warehouse + product.
+      // godown_stock has no unique constraint on (godown_id, stock_inventory_id),
+      // so we can't use upsert/onConflict — update or insert explicitly instead.
+      const { data: existingStock, error: fetchError } = await supabase
         .from('godown_stock')
-        .select('reserved_quantity')
+        .select('id')
         .eq('godown_id', godownId)
         .eq('stock_inventory_id', stockInventoryId)
-        .single()
+        .limit(1)
+        .maybeSingle()
 
-      const reserved_quantity = existingStock?.reserved_quantity || 0
+      if (fetchError) throw fetchError
 
-      // Use upsert to handle both insert and update cases
       // Note: available_quantity is a generated column, so we don't set it manually
-      const { error } = await supabase
-        .from('godown_stock')
-        .upsert({
-          godown_id: godownId,
-          stock_inventory_id: stockInventoryId,
-          quantity,
-          reserved_quantity,
-        }, {
-          onConflict: 'godown_id,stock_inventory_id'
-        })
+      const { error } = existingStock
+        ? await supabase
+            .from('godown_stock')
+            .update({ quantity, updated_at: new Date().toISOString() })
+            .eq('id', existingStock.id)
+        : await supabase
+            .from('godown_stock')
+            .insert({
+              godown_id: godownId,
+              stock_inventory_id: stockInventoryId,
+              quantity,
+              reserved_quantity: 0,
+            })
 
       if (error) throw error
 
