@@ -24,9 +24,9 @@ type StockFiltersProps = {
   selectedWarehouse: string
   onWarehouseFilter: (warehouse: string) => void
   warehouses: string[]
-  categories: string[]
-  selectedCategory: string
-  onCategoryChange: (category: string) => void
+  categories?: string[]
+  selectedCategory?: string
+  onCategoryChange?: (category: string) => void
   distributors?: Distributor[]
   selectedDistributor?: string
   onDistributorChange?: (distributorId: string) => void
@@ -54,6 +54,7 @@ export function StockFilters({
   return (
     <div className="space-y-4 mb-6">
       {/* Category Filter Buttons */}
+      {categories && categories.length > 0 && onCategoryChange && (
       <div className="flex gap-2 flex-wrap">
         <Button
           variant={selectedCategory === 'all' ? 'default' : 'outline'}
@@ -73,6 +74,7 @@ export function StockFilters({
           </Button>
         ))}
       </div>
+      )}
 
       {/* Search, Distributor and Warehouse Filter */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -82,7 +84,7 @@ export function StockFilters({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               id="search"
-              placeholder="Search products..."
+              placeholder="Search flavours..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"

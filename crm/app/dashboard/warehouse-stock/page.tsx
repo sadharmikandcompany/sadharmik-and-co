@@ -21,34 +21,11 @@ import {
   IndianRupee,
   Layers,
   Wheat,
-  Boxes,
+  AlertTriangle,
 } from 'lucide-react'
 import Link from 'next/link'
-import { StockTableClient } from './stock-table-client'
-
-type WarehouseStock = {
-  product_id: string
-  product_name: string
-  variant_name: string
-  category_name: string
-  stock_inventory_id: string
-  warehouses: {
-    [key: string]: {
-      godown_id: string
-      warehouse_name: string
-      quantity: number
-      reserved_quantity: number
-      available_quantity: number
-    }
-  }
-  total_quantity: number
-  total_reserved: number
-  total_available: number
-  unit_weight_kg: number
-  unit_price: number
-  total_kg: number
-  total_amount: number
-}
+import { StockTableClient, type FlavourStock } from './stock-table-client'
+import { formatKg } from '@/lib/product-weight'
 
 type Distributor = {
   id: string
@@ -82,10 +59,12 @@ function WarehouseStockContent() {
   const searchParams = useSearchParams()
   const distributorIdFromUrl = searchParams.get('distributor')
 
-  const [products, setProducts] = useState<WarehouseStock[]>([])
+  const [flavours, setFlavours] = useState<FlavourStock[]>([])
   const [warehouseNames, setWarehouseNames] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Set when the godown_kg_stock table hasn't been created yet.
+  const [needsMigration, setNeedsMigration] = useState(false)
   const [distributors, setDistributors] = useState<Distributor[]>([])
   // Lifted up from the table so the summary cards below can also react to it
   // — e.g. picking "sadharmik&Company Bhyander" (the factory's own godown,
@@ -145,30 +124,26 @@ function WarehouseStockContent() {
         return
       }
 
-      // Fetch only product-based stock inventory (finished products)
-      // Filter: product_id IS NOT NULL (excludes material-based records)
+      // Finished products — used to find each flavour's category and its
+      // price per kg (pack price ÷ pack weight).
       const { data: productsData, error: productsError } = await supabase
         .from('stock_inventory')
         .select(`
           id,
-          product_id,
-          variant_id,
           products (
-            id,
             name,
             customer_price,
-            customer_sale_price
+            customer_sale_price,
+            net_weight_grams
           ),
           product_variants (
-            id,
-            variant_name,
             product_categories (
+              id,
               name
             )
           )
         `)
         .not('product_id', 'is', null)
-        .order('products(name)')
 
       if (productsError) {
         console.error('Error fetching products:', productsError)
@@ -176,24 +151,20 @@ function WarehouseStockContent() {
         return
       }
 
-      // Fetch all stock data
-      const { data: stockData, error: stockError } = await supabase
-        .from('godown_stock')
-        .select(`
-          godown_id,
-          stock_inventory_id,
-          quantity,
-          reserved_quantity,
-          available_quantity
-        `)
+      const { data: kgData, error: kgError } = await supabase
+        .from('godown_kg_stock')
+        .select('godown_id, category_id, quantity_kg')
 
-      if (stockError) {
-        console.error('Error fetching stock:', stockError)
-        setError('Error loading stock data')
-        return
+      if (kgError) {
+        // Table not created yet — show the flavours at 0 kg with a notice
+        // rather than failing the whole page.
+        console.error('Error fetching kg stock:', kgError)
+        setNeedsMigration(true)
+      } else {
+        setNeedsMigration(false)
       }
 
-      processStockData(productsData || [], warehousesData || [], stockData || [])
+      processStockData(productsData || [], warehousesData || [], kgError ? [] : kgData || [])
     } catch (err) {
       console.error('Error:', err)
       setError('Error loading stock data')
@@ -202,80 +173,53 @@ function WarehouseStockContent() {
     }
   }
 
-  const processStockData = (productsData: any[], warehousesData: any[], stockData: any[]) => {
-    // Create a lookup map for stock data: key = "stockInventoryId-godownId"
-    const stockLookup = new Map<string, any>()
-    stockData.forEach((stock: any) => {
-      const key = `${stock.stock_inventory_id}-${stock.godown_id}`
-      stockLookup.set(key, stock)
+  const processStockData = (productsData: any[], warehousesData: any[], kgData: any[]) => {
+    const kgLookup = new Map<string, number>()
+    kgData.forEach((row: any) => {
+      kgLookup.set(`${row.category_id}-${row.godown_id}`, Number(row.quantity_kg) || 0)
     })
 
-    // Create warehouse names array
-    const warehouseNames = warehousesData.map((w: any) => w.name)
-    setWarehouseNames(warehouseNames)
+    setWarehouseNames(warehousesData.map((w: any) => w.name))
 
-    // Process each product
-    const processedProducts: WarehouseStock[] = productsData.map((productInventory: any) => {
-      const stockInventoryId = productInventory.id
-      // Product info comes from direct product_id relation
-      const productId = productInventory.products?.id || productInventory.product_id
-      const productName = productInventory.products?.name || 'Unknown Product'
-      const variantName = productInventory.product_variants?.variant_name || 'Default'
-      const categoryName = productInventory.product_variants?.product_categories?.name || 'Uncategorized'
-
-      // Get price (prefer sale price if available)
-      const unitPrice = productInventory.products?.customer_sale_price
-        || productInventory.products?.customer_price
-        || 0
-
-      // Extract weight from product name
-      const unitWeightKg = extractWeightKg(productName)
-
-      const warehouses: { [key: string]: any } = {}
-      let total_quantity = 0
-      let total_reserved = 0
-      let total_available = 0
-
-      // For each warehouse, get the stock or default to 0
-      warehousesData.forEach((warehouse: any) => {
-        const key = `${stockInventoryId}-${warehouse.id}`
-        const stock = stockLookup.get(key)
-
-        const quantity = stock?.quantity || 0
-        const reserved_quantity = stock?.reserved_quantity || 0
-        const available_quantity = stock?.available_quantity || 0
-
-        warehouses[warehouse.name] = {
-          godown_id: warehouse.id,
-          warehouse_name: warehouse.name,
-          quantity,
-          reserved_quantity,
-          available_quantity,
-        }
-
-        total_quantity += quantity
-        total_reserved += reserved_quantity
-        total_available += available_quantity
-      })
-
-      return {
-        product_id: productId,
-        product_name: productName,
-        variant_name: variantName,
-        category_name: categoryName,
-        stock_inventory_id: stockInventoryId,
-        warehouses,
-        total_quantity,
-        total_reserved,
-        total_available,
-        unit_weight_kg: unitWeightKg,
-        unit_price: unitPrice,
-        total_kg: unitWeightKg * total_quantity,
-        total_amount: unitPrice * total_quantity,
+    // category name -> { id, best price per kg }
+    const categories = new Map<string, { id: string; pricePerKg: number }>()
+    productsData.forEach((item: any) => {
+      const category = item.product_variants?.product_categories
+      if (!category?.id) return
+      const packPrice = Number(item.products?.customer_sale_price || item.products?.customer_price) || 0
+      const netGrams = Number(item.products?.net_weight_grams) || 0
+      const packKg = netGrams > 0 ? netGrams / 1000 : extractWeightKg(item.products?.name || '')
+      const pricePerKg = packKg > 0 ? packPrice / packKg : 0
+      const existing = categories.get(category.name)
+      if (!existing || pricePerKg > existing.pricePerKg) {
+        categories.set(category.name, { id: category.id, pricePerKg })
       }
     })
 
-    setProducts(processedProducts)
+    const rows: FlavourStock[] = FLAVOR_CARDS.flatMap((flavor) => {
+      const category = categories.get(flavor.categoryName)
+      if (!category) return []
+
+      const warehouses: FlavourStock['warehouses'] = {}
+      let total_kg = 0
+      warehousesData.forEach((warehouse: any) => {
+        const kg = kgLookup.get(`${category.id}-${warehouse.id}`) || 0
+        warehouses[warehouse.name] = { godown_id: warehouse.id, warehouse_name: warehouse.name, kg }
+        total_kg += kg
+      })
+
+      return [{
+        category_id: category.id,
+        category_name: flavor.categoryName,
+        label: flavor.label,
+        price_per_kg: category.pricePerKg,
+        warehouses,
+        total_kg,
+        total_amount: total_kg * category.pricePerKg,
+      }]
+    })
+
+    setFlavours(rows)
   }
 
   if (loading) {
@@ -290,8 +234,8 @@ function WarehouseStockContent() {
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
@@ -321,35 +265,13 @@ function WarehouseStockContent() {
   // every total below should reflect just that warehouse, not the grand
   // total across the factory + every distributor's godown combined.
   const isFactoryOnly = warehouseFilter !== 'all'
-  const quantityFor = (p: WarehouseStock) =>
-    isFactoryOnly ? (p.warehouses[warehouseFilter]?.quantity || 0) : p.total_quantity
-  const reservedFor = (p: WarehouseStock) =>
-    isFactoryOnly ? (p.warehouses[warehouseFilter]?.reserved_quantity || 0) : p.total_reserved
-  const availableFor = (p: WarehouseStock) =>
-    isFactoryOnly ? (p.warehouses[warehouseFilter]?.available_quantity || 0) : p.total_available
-  const kgFor = (p: WarehouseStock) => p.unit_weight_kg * quantityFor(p)
-  const amountFor = (p: WarehouseStock) => p.unit_price * quantityFor(p)
+  const kgFor = (f: FlavourStock) =>
+    isFactoryOnly ? (f.warehouses[warehouseFilter]?.kg || 0) : f.total_kg
+  const amountFor = (f: FlavourStock) => kgFor(f) * f.price_per_kg
 
-  // Calculate flavor-wise totals
-  const getFlavorData = (categoryName: string) => {
-    const flavorProducts = products.filter(p => p.category_name === categoryName)
-    return {
-      products: flavorProducts,
-      totalQuantity: flavorProducts.reduce((sum, p) => sum + quantityFor(p), 0),
-      totalKg: flavorProducts.reduce((sum, p) => sum + kgFor(p), 0),
-      totalAmount: flavorProducts.reduce((sum, p) => sum + amountFor(p), 0),
-      totalAvailable: flavorProducts.reduce((sum, p) => sum + availableFor(p), 0),
-      totalReserved: flavorProducts.reduce((sum, p) => sum + reservedFor(p), 0),
-    }
-  }
-
-  // Grand totals (or factory-only totals, when a specific warehouse is picked)
   const grandTotals = {
-    totalQuantity: products.reduce((sum, p) => sum + quantityFor(p), 0),
-    totalKg: products.reduce((sum, p) => sum + kgFor(p), 0),
-    totalAmount: products.reduce((sum, p) => sum + amountFor(p), 0),
-    totalAvailable: products.reduce((sum, p) => sum + availableFor(p), 0),
-    totalReserved: products.reduce((sum, p) => sum + reservedFor(p), 0),
+    totalKg: flavours.reduce((sum, f) => sum + kgFor(f), 0),
+    totalAmount: flavours.reduce((sum, f) => sum + amountFor(f), 0),
   }
 
   return (
@@ -366,8 +288,8 @@ function WarehouseStockContent() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {isFactoryOnly
-                ? `Showing only ${warehouseFilter} (the factory) — clear the warehouse filter below to see all warehouses`
-                : `View and manage stock levels across ${selectedDistributorName ? `${selectedDistributorName}'s warehouses` : 'all warehouses'}`}
+                ? `Showing only ${warehouseFilter} — clear the warehouse filter below to see all warehouses`
+                : `Stock in kg across ${selectedDistributorName ? `${selectedDistributorName}'s warehouses` : 'all warehouses'}`}
             </p>
           </div>
         </div>
@@ -379,10 +301,22 @@ function WarehouseStockContent() {
         </Link>
       </div>
 
+      {needsMigration && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            Kg stock isn&apos;t set up yet — run <code className="font-mono">migrations/create_godown_kg_stock.sql</code> in
+            the Supabase SQL editor, then refresh this page.
+          </span>
+        </div>
+      )}
+
       {/* Flavor-wise Stock Cards — one line on desktop */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {FLAVOR_CARDS.map((flavor) => {
-          const data = getFlavorData(flavor.categoryName)
+          const row = flavours.find((f) => f.category_name === flavor.categoryName)
+          const kg = row ? kgFor(row) : 0
+          const amount = row ? amountFor(row) : 0
           return (
             <Card key={flavor.key} className={`${flavor.border} ${flavor.bg} gap-0 py-0`}>
               <CardContent className="py-3 px-4">
@@ -392,12 +326,8 @@ function WarehouseStockContent() {
                     <Wheat className="h-3 w-3" />
                   </div>
                 </div>
-                <p className="text-lg font-bold tabular-nums">{data.totalKg.toFixed(2)} kg</p>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                  <span>{data.totalQuantity.toLocaleString()} pcs</span>
-                  <span className="text-green-600 font-medium">{data.totalAvailable.toLocaleString()} avail.</span>
-                </div>
-                <p className="text-xs font-semibold text-primary mt-1 pt-1 border-t">₹{data.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                <p className="text-lg font-bold tabular-nums">{formatKg(kg)}</p>
+                <p className="text-xs font-semibold text-primary mt-1 pt-1 border-t">₹{amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
               </CardContent>
             </Card>
           )
@@ -405,24 +335,7 @@ function WarehouseStockContent() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Products</CardDescription>
-            <CardTitle className="text-2xl font-bold tabular-nums">
-              {products.length}
-            </CardTitle>
-            <CardAction>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Boxes className="h-4 w-4" />
-              </div>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Unique product variants
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardDescription>Warehouses</CardDescription>
@@ -444,7 +357,7 @@ function WarehouseStockContent() {
           <CardHeader>
             <CardDescription>Total Stock</CardDescription>
             <CardTitle className="text-2xl font-bold tabular-nums">
-              {grandTotals.totalKg.toFixed(2)} kg
+              {formatKg(grandTotals.totalKg)}
             </CardTitle>
             <CardAction>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -453,7 +366,7 @@ function WarehouseStockContent() {
             </CardAction>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            {grandTotals.totalQuantity.toLocaleString()} units
+            All {flavours.length} flavours
           </CardContent>
         </Card>
 
@@ -470,7 +383,7 @@ function WarehouseStockContent() {
             </CardAction>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Stock value at sale price
+            Stock value at sale price per kg
           </CardContent>
         </Card>
       </div>
@@ -487,19 +400,19 @@ function WarehouseStockContent() {
               <div>
                 <CardTitle className="text-base">Stock Distribution</CardTitle>
                 <CardDescription className="mt-0.5">
-                  Product quantities across {selectedDistributorName ? `${selectedDistributorName}'s warehouse locations` : 'all warehouse locations'}
+                  Kg per flavour across {selectedDistributorName ? `${selectedDistributorName}'s warehouse locations` : 'all warehouse locations'}
                 </CardDescription>
               </div>
             </div>
             <Badge variant="secondary" className="rounded-full self-start sm:self-auto">
-              {products.length} {products.length === 1 ? "product" : "products"}
+              {flavours.length} {flavours.length === 1 ? "flavour" : "flavours"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="p-0 min-w-0 max-w-full">
           <div className="w-0 min-w-full max-w-full overflow-hidden">
             <StockTableClient
-              products={products}
+              flavours={flavours}
               warehouseNames={warehouseNames}
               onStockUpdate={fetchStockData}
               distributors={distributors}
@@ -524,16 +437,16 @@ function WarehouseStockContent() {
         </CardHeader>
         <CardContent className="pt-4 text-sm space-y-2">
           <div className="flex items-center gap-2">
-            <div className="font-semibold">Total:</div>
-            <div className="text-muted-foreground">Total quantity in warehouse</div>
+            <div className="font-semibold">Warehouse columns:</div>
+            <div className="text-muted-foreground">Kg of that flavour in the warehouse — click ✏️ to change it</div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-orange-600 font-medium">Reserved:</div>
-            <div className="text-muted-foreground">Stock reserved for pending transfers</div>
+            <div className="text-blue-600 font-medium">Total Kg:</div>
+            <div className="text-muted-foreground">Kg across the warehouses shown</div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-green-600 font-medium">Available:</div>
-            <div className="text-muted-foreground">Stock available for transfer (Total - Reserved)</div>
+            <div className="text-purple-600 font-medium">Total Amount:</div>
+            <div className="text-muted-foreground">Total kg × sale price per kg</div>
           </div>
         </CardContent>
       </Card>
@@ -554,8 +467,8 @@ export default function WarehouseStockPage() {
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>

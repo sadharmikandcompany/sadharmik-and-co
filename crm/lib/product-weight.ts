@@ -20,6 +20,11 @@ export function totalKgForItems(
   }, 0)
 }
 
+/** "5 kg", "2.5 kg", "0.25 kg" — trims trailing zeros. */
+export function formatKg(kg: number): string {
+  return `${Number(kg.toFixed(3))} kg`
+}
+
 /** Kg for a single line item, given its weight in grams (line snapshot or product default). */
 export function kgForItem(weightGrams: number | null | undefined, quantity: number): number {
   if (!weightGrams || weightGrams <= 0) return 0
