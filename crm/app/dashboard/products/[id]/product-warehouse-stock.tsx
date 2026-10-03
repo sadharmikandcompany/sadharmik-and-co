@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Warehouse, Pencil, RefreshCw } from 'lucide-react'
-import { EditStockDialog } from '@/app/dashboard/warehouse-stock/edit-stock-dialog'
+import { EditPacketStockDialog } from './edit-packet-stock-dialog'
 
 type WarehouseStockData = {
   godown_id: string
@@ -270,7 +270,7 @@ export function ProductWarehouseStock({ productId, productName }: ProductWarehou
         </CardContent>
       </Card>
 
-      <EditStockDialog
+      <EditPacketStockDialog
         open={editDialog.open}
         onOpenChange={(open) => setEditDialog({ ...editDialog, open })}
         godownId={editDialog.godownId}
