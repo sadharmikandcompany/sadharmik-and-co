@@ -35,9 +35,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useUserRole } from "@/hooks/use-user-role"
+import { kgForItem } from "@/lib/product-weight"
 import { isOldGstConvention, splitItemGst } from "@/lib/purchase-item-gst"
 
 type DatePreset = "today" | "thisWeek" | "thisMonth" | "lastMonth" | "thisFY" | "lastFY" | "allTime"
+
+// Wheat Atta is sold alongside khakhra — split it out so the kg/₹ figures
+// show khakhra and atta separately. Anything not named "atta" is khakhra.
+const isAttaItem = (name?: string | null) => /\batta\b/i.test(name || "")
 
 interface MonthlyPoint {
   month: string
@@ -48,10 +53,13 @@ interface MonthlyPoint {
   // stats.salesReturnsAmount).
   kpSales: number
   salesReturns: number
-  // Litres sold, net of litres returned via credit note that month — same
+  // Kg sold, net of kg returned via credit note that month — same
   // reasoning as kpSales above, applied to quantity instead of ₹.
-  kpLitres: number
-  salesReturnLitres: number
+  kpKg: number
+  salesReturnKg: number
+  // Atta share of the month's sales (kg and ₹); khakhra = kpKg − attaKg.
+  attaKg: number
+  attaSales: number
   // Output GST on KP sales for the month.
   gst: number
   // Purchase, net of debit notes raised against vendors that month (purchase
@@ -59,17 +67,17 @@ interface MonthlyPoint {
   // stats.purchaseReturnsAmount).
   purchases: number
   purchaseReturns: number
-  // Litres purchased (bottle purchase_items + loose-stock litres).
-  purchaseLitres: number
+  // Kg purchased (bottle purchase_items + loose-stock kg).
+  purchaseKg: number
   // Total expense for the month (direct + indirect).
   expense: number
   // Net profit = KP sales − purchase − expense.
   netProfit: number
-  // Stock (litres) at month start/end — running balance seeded from the
-  // declared manufacturing opening stock, +purchase litres −KP sale litres.
-  openingLitres: number
-  closingLitres: number
-  // Stock (₹) at month start/end — openingLitres/closingLitres valued at
+  // Stock (kg) at month start/end — running balance seeded from the
+  // declared manufacturing opening stock, +purchase kg −KP sale kg.
+  openingKg: number
+  closingKg: number
+  // Stock (₹) at month start/end — openingKg/closingKg valued at
   // the average rate of the declared opening stock (openingStockAmount /
   // openingStockQty). An approximation, not true month-by-month costing —
   // there's no batch-level cost history to value stock precisely at each
@@ -168,11 +176,11 @@ const STATUS_COLORS: Record<string, string> = {
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 })
-// Always render litres with two decimals so 0.5 L doesn't appear as "1 L"
-// rounding artefacts. Suffix uses "Ltr" instead of "L" to avoid colliding
+// Always render kg with two decimals so 0.25 kg doesn't round away.
+// Spelled out as "kg" (not "L") to avoid colliding
 // visually with the Indian "L" (lakh) abbreviation we deliberately removed
 // from currency values.
-const litreFormatter = new Intl.NumberFormat("en-IN", {
+const kgFormatter = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
@@ -189,7 +197,7 @@ const formatINRCompact = (amount: number) => {
   const sign = n < 0 ? "-" : ""
   return `${sign}₹${inrFormatter.format(Math.abs(n))}`
 }
-const formatLitres = (litres: number) => `${litreFormatter.format(litres || 0)} Ltr`
+const formatKgQty = (kg: number) => `${kgFormatter.format(kg || 0)} kg`
 const formatNumber = (n: number) => countFormatter.format(n || 0)
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-IN", {
@@ -213,8 +221,11 @@ export default function FactoryDashboardPage() {
     kpSalesToday: 0,
     kpGstTotal: 0,
     kpGstToday: 0,
-    kpLitresTotal: 0,
-    kpLitresToday: 0,
+    kpKgTotal: 0,
+    kpKgToday: 0,
+    kpAttaKgTotal: 0,
+    kpAttaKgToday: 0,
+    kpAttaSalesTotal: 0,
     kpAvgOrderValue: 0,
     kpDistributorsServed: 0,
     // GST split (output tax on KP invoices) — powers the Profitability › GST card.
@@ -227,7 +238,7 @@ export default function FactoryDashboardPage() {
     kpItcTotal: 0,
     kpGstPayable: 0,
     // Current stock on hand (finished goods + loose) — Financial Overview › Stock.
-    stockLitres: 0,
+    stockKg: 0,
     stockAmount: 0,
     // Bills receivable — unpaid KP invoices distributors owe the factory.
     arOutstanding: 0,
@@ -243,7 +254,7 @@ export default function FactoryDashboardPage() {
     apOutstanding: 0,
     apOverdue: 0,
     apVendorCount: 0,
-    looseLitres: 0,
+    looseKg: 0,
     looseAmount: 0,
     // Opening stock — manufacturing entries dated on/before the FY start.
     openingStockAmount: 0,
@@ -265,14 +276,16 @@ export default function FactoryDashboardPage() {
   const [purchaseStatusBreakdown, setPurchaseStatusBreakdown] = useState<StatusBucket[]>([])
   const [monthly, setMonthly] = useState<MonthlyPoint[]>([])
   const [monthlyFYLabel, setMonthlyFYLabel] = useState<string>("")
+  // Monthly breakdown: show sales for everything, khakhra only, or atta only.
+  const [salesView, setSalesView] = useState<"all" | "khakhra" | "atta">("all")
   const [topDistributors, setTopDistributors] = useState<TopDistributor[]>([])
   const [topVendors, setTopVendors] = useState<TopVendor[]>([])
   const [recentOrders, setRecentOrders] = useState<RecentRow[]>([])
   const [recentPurchases, setRecentPurchases] = useState<RecentRow[]>([])
-  // Litres dispatched grouped by product (period). Powers the new
-  // "Top products by litres" horizontal bar chart.
-  const [litresByProduct, setLitresByProduct] = useState<
-    { product: string; litres: number }[]
+  // Kg dispatched grouped by product (period). Powers the new
+  // "Top products by kg" horizontal bar chart.
+  const [kgByProduct, setKgByProduct] = useState<
+    { product: string; kg: number }[]
   >([])
 
   // Factory and admin access. Send other roles back to their default dashboard.
@@ -328,34 +341,15 @@ export default function FactoryDashboardPage() {
     []
   )
 
-  // Variant string → litres. Product names look like
-  // "... - 500 ML" or "... - 1 LTR". The earlier regex used `\bl\b` which never
-  // matched "ltr" (the `l` is followed by `t`, no word boundary), so every
-  // bottle/tin/pouch in litres was silently dropped. Accept both spellings.
-  const variantToLitres = (variantName: string, qty: number): number => {
-    if (!variantName) return 0
-    const v = variantName.toLowerCase()
-    const mlMatch = v.match(/(\d+(?:\.\d+)?)\s*ml\b/)
-    if (mlMatch) return (parseFloat(mlMatch[1]) / 1000) * qty
-    const lMatch = v.match(/(\d+(?:\.\d+)?)\s*(?:ltr|l)\b/)
-    if (lMatch) return parseFloat(lMatch[1]) * qty
-    return 0
-  }
-
-  // Finished-goods variant string → litres for the current-stock tile. Mirrors
-  // /dashboard/dashboard-v2 :: convertStockVariantToLitres (handles ml / l / ltr,
-  // and a bare m|r suffix which means millilitres in this dataset).
-  const stockVariantToLitres = (variantName: string, qty: number): number => {
-    if (!variantName) return 0
-    const v = variantName.toLowerCase()
-    const mlMatch = v.match(/(\d+(?:\.\d+)?)\s*ml\b/)
-    if (mlMatch) return (parseFloat(mlMatch[1]) / 1000) * qty
-    const lMatch = v.match(/(\d+(?:\.\d+)?)\s*l(?:t|tr|iter|itre|iters|itres)?\b/)
-    if (lMatch) return parseFloat(lMatch[1]) * qty
-    const mrMatch = v.match(/(\d+(?:\.\d+)?)\s*[mr]\b/)
-    if (mrMatch) return (parseFloat(mrMatch[1]) / 1000) * qty
-    const numeric = parseFloat(v)
-    return isNaN(numeric) ? 0 : (numeric / 1000) * qty
+  // Product/variant name → kg, e.g. "500 GRAM Classic Sada", "250g", "1 kg".
+  // Fallback only — order lines use the product's saved net weight first
+  // (many order_items names carry no weight, e.g. just "Magic Methi").
+  const nameToKg = (name: string, qty: number): number => {
+    if (!name) return 0
+    const m = name.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|grams?|gms?|g)\b/)
+    if (!m) return 0
+    const value = parseFloat(m[1])
+    return (m[2].startsWith("k") ? value : value / 1000) * qty
   }
 
   const todayRange = useMemo(() => {
@@ -408,6 +402,20 @@ export default function FactoryDashboardPage() {
       const effectiveFrom = from && from > epoch ? from : epoch
       const fromIso = effectiveFrom.toISOString()
       const toIso = to.toISOString()
+
+      // Pack weight per product (grams) — order lines are converted to kg
+      // with the line's own weight snapshot, else the product's net weight.
+      const { data: productWeightRows } = await supabase
+        .from("products")
+        .select("id, net_weight_grams")
+      const weightByProductId: Record<string, number | null> = Object.fromEntries(
+        (productWeightRows || []).map((p: any) => [p.id, p.net_weight_grams])
+      )
+      const orderItemKg = (it: any): number => {
+        const qty = parseFloat(String(it.quantity)) || 0
+        const grams = it.weight_grams ?? (it.product_id ? weightByProductId[it.product_id] : null)
+        return grams && grams > 0 ? kgForItem(grams, qty) : nameToKg(it.product_name || "", qty)
+      }
 
       // Distributors with their own Invoice Code (e.g. "MS") bill under
       // their own sequence — those are the distributor's own sales, not the
@@ -528,7 +536,7 @@ export default function FactoryDashboardPage() {
         kpItcIgst += parseFloat(String(item.igst_amount)) || 0
       })
 
-      // Loose (litre-based) purchases carry their own GST — they never get a
+      // Loose (kg-based) purchases carry their own GST — they never get a
       // purchase_items row, so their ITC is summed separately here (all of
       // them, not just purchase_id-null ones — unlike the Total Purchase
       // figure above, GST is never duplicated in purchase_items for these).
@@ -638,8 +646,11 @@ export default function FactoryDashboardPage() {
         }))
       )
 
-      let kpLitresTotal = 0
-      let kpLitresToday = 0
+      let kpKgTotal = 0
+      let kpKgToday = 0
+      let kpAttaKgTotal = 0
+      let kpAttaKgToday = 0
+      let kpAttaSalesTotal = 0
       const fetchItemsForOrders = async (orderIds: string[]) => {
         const items: any[] = []
         for (let i = 0; i < orderIds.length; i += 500) {
@@ -647,7 +658,7 @@ export default function FactoryDashboardPage() {
           const rows = await fetchAllRows<any>((f, t) =>
             supabase
               .from("order_items")
-              .select("order_id, quantity, product_name")
+              .select("order_id, quantity, product_name, product_id, weight_grams, total")
               .in("order_id", batch)
               .range(f, t)
           )
@@ -659,28 +670,34 @@ export default function FactoryDashboardPage() {
         const items = await fetchItemsForOrders(kpOrdersActive.map((o) => o.id))
         const byProduct = new Map<string, number>()
         items.forEach((it) => {
-          const qty = parseFloat(String(it.quantity)) || 0
-          const litres = variantToLitres(it.product_name || "", qty)
-          kpLitresTotal += litres
-          if (litres > 0 && it.product_name) {
-            byProduct.set(it.product_name, (byProduct.get(it.product_name) || 0) + litres)
+          const kg = orderItemKg(it)
+          kpKgTotal += kg
+          if (isAttaItem(it.product_name)) {
+            kpAttaKgTotal += kg
+            kpAttaSalesTotal += parseFloat(String(it.total)) || 0
+          }
+          if (kg > 0 && it.product_name) {
+            byProduct.set(it.product_name, (byProduct.get(it.product_name) || 0) + kg)
           }
         })
         // Trim "Sadharmik & Company " brand prefix for chart legibility.
-        const cleaned = Array.from(byProduct.entries()).map(([name, litres]) => ({
+        const cleaned = Array.from(byProduct.entries()).map(([name, kg]) => ({
           product: name.replace(/^Sadharmik & Company\s+/i, ""),
-          litres,
+          kg,
         }))
-        cleaned.sort((a, b) => b.litres - a.litres)
-        setLitresByProduct(cleaned.slice(0, 8))
+        cleaned.sort((a, b) => b.kg - a.kg)
+        setKgByProduct(cleaned.slice(0, 8))
       } else {
-        setLitresByProduct([])
+        setKgByProduct([])
       }
       if (kpOrdersTodayActive.length) {
         const todayItems = await fetchItemsForOrders(kpOrdersTodayActive.map((o) => o.id))
-        kpLitresToday = todayItems.reduce(
-          (sum, it) =>
-            sum + variantToLitres(it.product_name || "", parseFloat(String(it.quantity)) || 0),
+        kpKgToday = todayItems.reduce(
+          (sum, it) => sum + orderItemKg(it),
+          0
+        )
+        kpAttaKgToday = todayItems.reduce(
+          (sum, it) => sum + (isAttaItem(it.product_name) ? orderItemKg(it) : 0),
           0
         )
       }
@@ -855,24 +872,24 @@ export default function FactoryDashboardPage() {
       // double-count that portion of the Total Purchase figure.
       const { data: looseTxn, error: looseErr } = await supabase
         .from("loose_stock_transactions")
-        .select("quantity_liters, total_amount, transaction_date, transaction_type")
+        .select("quantity_kg, total_amount, transaction_date, transaction_type")
         .eq("transaction_type", "purchase")
         .is("purchase_id", null)
       if (looseErr) {
         console.error("[Factory Dashboard] loose stock fetch failed:", looseErr)
       }
 
-      // Litres need a separate, unfiltered fetch: a loose purchase linked to a
+      // Kg need a separate, unfiltered fetch: a loose purchase linked to a
       // real `purchases` row (purchase_id set) never gets its own
       // purchase_items row (confirmed live — those purchases have zero
-      // items), so its litres aren't captured by litresByPurchase either.
+      // items), so its kg aren't captured by kgByPurchase either.
       // The purchase_id-null filter above exists only to avoid double
       // counting the ₹ amount (that purchase's total_amount already counts
-      // it) — litres have no such double-counting risk, so every loose
-      // purchase transaction's litres should count here regardless.
-      const { data: looseTxnAllForLitres, error: looseAllErr } = await supabase
+      // it) — kg have no such double-counting risk, so every loose
+      // purchase transaction's kg should count here regardless.
+      const { data: looseTxnAllForKg, error: looseAllErr } = await supabase
         .from("loose_stock_transactions")
-        .select("quantity_liters, transaction_date, transaction_type")
+        .select("quantity_kg, transaction_date, transaction_type")
         .eq("transaction_type", "purchase")
       if (looseAllErr) {
         console.error("[Factory Dashboard] loose stock (all) fetch failed:", looseAllErr)
@@ -881,17 +898,17 @@ export default function FactoryDashboardPage() {
       const toMs = to.getTime()
       const todayStartMs = new Date(todayRange.startIso).getTime()
       const todayEndMs = new Date(todayRange.endIso).getTime()
-      let looseLitres = 0
+      let looseKg = 0
       let looseAmount = 0
       let looseAmountToday = 0
       let looseAmountAll = 0
       ;(looseTxn || []).forEach((r: any) => {
         const amt = parseFloat(String(r.total_amount)) || 0
-        const ltr = parseFloat(String(r.quantity_liters)) || 0
+        const kg = parseFloat(String(r.quantity_kg)) || 0
         looseAmountAll += amt
         const ts = new Date(r.transaction_date).getTime()
         if (ts >= fromMs && ts <= toMs) {
-          looseLitres += ltr
+          looseKg += kg
           looseAmount += amt
         }
         if (ts >= todayStartMs && ts <= todayEndMs) {
@@ -1043,11 +1060,11 @@ export default function FactoryDashboardPage() {
       // Scoped to the factory's own warehouse (factory_warehouse_stock), not company-wide
       // stock_inventory — most stock has already moved out to distributor/retailer godowns,
       // so this dashboard should only reflect what's physically still at the factory.
-      // Valued the same way as /dashboard/stock's "Grand Total" card: packed + loose litres
-      // per category, priced at that category's loose_stock purchase rate per litre.
-      let stockLitres = 0
+      // Valued the same way as /dashboard/stock's "Grand Total" card: packed + loose kg
+      // per category, priced at that category's loose_stock purchase rate per kg.
+      let stockKg = 0
       let stockAmount = 0
-      const packedLitresByCategory: Record<string, number> = {}
+      const packedKgByCategory: Record<string, number> = {}
       const { data: factoryStockRows, error: factoryStockErr } = await supabase
         .from("factory_warehouse_stock")
         .select(`
@@ -1067,29 +1084,64 @@ export default function FactoryDashboardPage() {
         const qty = parseFloat(String(item.quantity)) || 0
         const inv = item.stock_inventory
         // "content" packaging is the raw fill, not a sellable bottle — exclude
-        // it from the litres tally so we don't double-count against loose stock.
+        // it from the kg tally so we don't double-count against loose stock.
         if (inv?.packaging_materials?.material_type !== "content") {
-          const litres = stockVariantToLitres(inv?.product_variants?.variant_name || "", qty)
-          stockLitres += litres
+          const kg = nameToKg(inv?.product_variants?.variant_name || "", qty)
+          stockKg += kg
           const categoryName = inv?.product_variants?.product_categories?.name
           if (categoryName) {
-            packedLitresByCategory[categoryName] = (packedLitresByCategory[categoryName] || 0) + litres
+            packedKgByCategory[categoryName] = (packedKgByCategory[categoryName] || 0) + kg
           }
         }
       })
       const { data: looseStockRows, error: looseStockErr } = await supabase
         .from("loose_stock")
-        .select("quantity_liters, price_per_liter, product_categories (name)")
+        .select("quantity_kg, price_per_kg, product_categories (name)")
       if (looseStockErr) {
         console.error("[Factory Dashboard] loose stock balance fetch failed:", looseStockErr)
       }
       ;(looseStockRows || []).forEach((item: any) => {
-        const qty = parseFloat(String(item.quantity_liters)) || 0
-        const price = parseFloat(String(item.price_per_liter)) || 0
+        const qty = parseFloat(String(item.quantity_kg)) || 0
+        const price = parseFloat(String(item.price_per_kg)) || 0
         const categoryName = item.product_categories?.name
-        stockLitres += qty
-        stockAmount += (qty + (categoryName ? packedLitresByCategory[categoryName] || 0 : 0)) * price
+        stockKg += qty
+        stockAmount += (qty + (categoryName ? packedKgByCategory[categoryName] || 0 : 0)) * price
       })
+
+      // Kg stock entered on /dashboard/warehouse-stock (godown_kg_stock) for
+      // the company's own godown(s), valued at each flavour's sale price per kg.
+      const { data: companyGodowns } = await supabase
+        .from("godowns")
+        .select("id")
+        .eq("godown_type", "company")
+      const companyGodownIds = (companyGodowns || []).map((g: any) => g.id)
+      if (companyGodownIds.length > 0) {
+        const { data: kgStockRows, error: kgStockErr } = await supabase
+          .from("godown_kg_stock")
+          .select("quantity_kg, category_id")
+          .in("godown_id", companyGodownIds)
+        if (kgStockErr) {
+          console.error("[Factory Dashboard] kg stock fetch failed:", kgStockErr)
+        }
+        const { data: priceRows } = await supabase
+          .from("stock_inventory")
+          .select("products (customer_price, customer_sale_price, net_weight_grams), product_variants (category_id)")
+          .not("product_id", "is", null)
+        const pricePerKgByCategory: Record<string, number> = {}
+        ;(priceRows || []).forEach((r: any) => {
+          const grams = Number(r.products?.net_weight_grams) || 0
+          const price = Number(r.products?.customer_sale_price || r.products?.customer_price) || 0
+          const categoryId = r.product_variants?.category_id
+          if (!categoryId || grams <= 0) return
+          const perKg = price / (grams / 1000)
+          if (perKg > (pricePerKgByCategory[categoryId] || 0)) pricePerKgByCategory[categoryId] = perKg
+        })
+        ;(kgStockRows || []).forEach((r: any) => {
+          const kg = Number(r.quantity_kg) || 0
+          stockKg += kg
+          stockAmount += kg * (pricePerKgByCategory[r.category_id] || 0)
+        })
+      }
 
       // ===== BILLS RECEIVABLE (unpaid orders — customers/distributors owe the factory) =====
       // All unpaid orders, current snapshot (all-time, ignores the date
@@ -1153,8 +1205,11 @@ export default function FactoryDashboardPage() {
         kpSalesToday,
         kpGstTotal,
         kpGstToday,
-        kpLitresTotal,
-        kpLitresToday,
+        kpKgTotal,
+        kpKgToday,
+        kpAttaKgTotal,
+        kpAttaKgToday,
+        kpAttaSalesTotal,
         kpAvgOrderValue: kpOrdersActive.length > 0 ? kpSalesTotal / kpOrdersActive.length : 0,
         kpDistributorsServed: distributorMap.size,
         myPurchaseTotal,
@@ -1165,7 +1220,7 @@ export default function FactoryDashboardPage() {
         apOutstanding,
         apOverdue,
         apVendorCount: apVendorKeys.size,
-        looseLitres,
+        looseKg,
         looseAmount,
         openingStockAmount,
         openingStockQty,
@@ -1180,7 +1235,7 @@ export default function FactoryDashboardPage() {
         kpIgst,
         kpItcTotal,
         kpGstPayable,
-        stockLitres,
+        stockKg,
         stockAmount,
         arOutstanding,
         arOverdue,
@@ -1211,22 +1266,27 @@ export default function FactoryDashboardPage() {
       )
 
       const fyKpOrderIds = fyKpOrders.map((o) => o.id)
-      const litresByOrder = new Map<string, number>()
+      const kgByOrder = new Map<string, number>()
+      const attaKgByOrder = new Map<string, number>()
+      const attaSalesByOrder = new Map<string, number>()
       for (let i = 0; i < fyKpOrderIds.length; i += 500) {
         const batch = fyKpOrderIds.slice(i, i + 500)
         const rows = await fetchAllRows<any>((f, t) =>
           supabase
             .from("order_items")
-            .select("order_id, quantity, product_name")
+            .select("order_id, quantity, product_name, product_id, weight_grams, total")
             .in("order_id", batch)
             .range(f, t)
         )
         rows.forEach((it: any) => {
-          const q = parseFloat(String(it.quantity)) || 0
-          litresByOrder.set(
-            it.order_id,
-            (litresByOrder.get(it.order_id) || 0) + variantToLitres(it.product_name || "", q)
-          )
+          kgByOrder.set(it.order_id, (kgByOrder.get(it.order_id) || 0) + orderItemKg(it))
+          if (isAttaItem(it.product_name)) {
+            attaKgByOrder.set(it.order_id, (attaKgByOrder.get(it.order_id) || 0) + orderItemKg(it))
+            attaSalesByOrder.set(
+              it.order_id,
+              (attaSalesByOrder.get(it.order_id) || 0) + (parseFloat(String(it.total)) || 0)
+            )
+          }
         })
       }
 
@@ -1246,11 +1306,11 @@ export default function FactoryDashboardPage() {
         "FY purchases"
       )
 
-      // Litres purchased per bottle-purchase, via purchase_items (mirrors the
-      // KP-order litres calc above). Loose-stock litres are folded in from
+      // Kg purchased per bottle-purchase, via purchase_items (mirrors the
+      // KP-order kg calc above). Loose-stock kg are folded in from
       // looseTxn during bucketing below.
       const fyPurchaseIds = fyPurchases.map((p: any) => p.id).filter(Boolean)
-      const litresByPurchase = new Map<string, number>()
+      const kgByPurchase = new Map<string, number>()
       for (let i = 0; i < fyPurchaseIds.length; i += 500) {
         const batch = fyPurchaseIds.slice(i, i + 500)
         const rows = await fetchAllRows<any>((f, t) =>
@@ -1262,9 +1322,9 @@ export default function FactoryDashboardPage() {
         )
         rows.forEach((it: any) => {
           const q = parseFloat(String(it.quantity)) || 0
-          litresByPurchase.set(
+          kgByPurchase.set(
             it.purchase_id,
-            (litresByPurchase.get(it.purchase_id) || 0) + variantToLitres(it.product_name || "", q)
+            (kgByPurchase.get(it.purchase_id) || 0) + nameToKg(it.product_name || "", q)
           )
         })
       }
@@ -1333,12 +1393,12 @@ export default function FactoryDashboardPage() {
         "FY credit notes"
       )
 
-      // Litres returned via credit note, per note — a credit note is stock
-      // coming BACK in (a sales return), so it must reduce the litres counted
-      // as sold, not just the ₹ amount, or Closing Ltr silently overstates
+      // Kg returned via credit note, per note — a credit note is stock
+      // coming BACK in (a sales return), so it must reduce the kg counted
+      // as sold, not just the ₹ amount, or Closing kg silently overstates
       // how much stock actually left.
       const fyCreditNoteIds = fyCreditNotes.map((n: any) => n.id).filter(Boolean)
-      const litresByCreditNote = new Map<string, number>()
+      const kgByCreditNote = new Map<string, number>()
       for (let i = 0; i < fyCreditNoteIds.length; i += 500) {
         const batch = fyCreditNoteIds.slice(i, i + 500)
         const rows = await fetchAllRows<any>((f, t) =>
@@ -1350,9 +1410,9 @@ export default function FactoryDashboardPage() {
         )
         rows.forEach((it: any) => {
           const q = parseFloat(String(it.quantity)) || 0
-          litresByCreditNote.set(
+          kgByCreditNote.set(
             it.credit_note_id,
-            (litresByCreditNote.get(it.credit_note_id) || 0) + variantToLitres(it.item_name || "", q)
+            (kgByCreditNote.get(it.credit_note_id) || 0) + nameToKg(it.item_name || "", q)
           )
         })
       }
@@ -1371,16 +1431,18 @@ export default function FactoryDashboardPage() {
           kpOrders: 0,
           kpSales: 0,
           salesReturns: 0,
-          kpLitres: 0,
-          salesReturnLitres: 0,
+          kpKg: 0,
+          salesReturnKg: 0,
+          attaKg: 0,
+          attaSales: 0,
           gst: 0,
           purchases: 0,
           purchaseReturns: 0,
-          purchaseLitres: 0,
+          purchaseKg: 0,
           expense: 0,
           netProfit: 0,
-          openingLitres: 0,
-          closingLitres: 0,
+          openingKg: 0,
+          closingKg: 0,
           openingStockAmount: 0,
           closingStockAmount: 0,
           inputGst: 0,
@@ -1394,7 +1456,9 @@ export default function FactoryDashboardPage() {
         if (bucket) {
           bucket.kpOrders += 1
           bucket.kpSales += parseFloat(String(o.total_amount)) || 0
-          bucket.kpLitres += litresByOrder.get(o.id) || 0
+          bucket.kpKg += kgByOrder.get(o.id) || 0
+          bucket.attaKg += attaKgByOrder.get(o.id) || 0
+          bucket.attaSales += attaSalesByOrder.get(o.id) || 0
           bucket.gst += parseFloat(String(o.gst_amount)) || 0
         }
       })
@@ -1405,7 +1469,7 @@ export default function FactoryDashboardPage() {
         const bucket = fyMap.get(key)
         if (bucket) {
           bucket.purchases += parseFloat(String(p.total_amount)) || 0
-          bucket.purchaseLitres += litresByPurchase.get(p.id) || 0
+          bucket.purchaseKg += kgByPurchase.get(p.id) || 0
           bucket.inputGst += parseFloat(String(p.gst_amount)) || 0
         }
       })
@@ -1422,18 +1486,18 @@ export default function FactoryDashboardPage() {
           bucket.purchases += parseFloat(String(r.total_amount)) || 0
         }
       })
-      // Litres, by contrast, come from EVERY loose purchase transaction
+      // Kg, by contrast, come from EVERY loose purchase transaction
       // regardless of purchase_id — a loose purchase linked to a real
       // `purchases` row never gets its own purchase_items row, so
-      // litresByPurchase is 0 for it and its litres would otherwise vanish
+      // kgByPurchase is 0 for it and its kg would otherwise vanish
       // entirely instead of just being "already counted elsewhere".
-      ;(looseTxnAllForLitres || []).forEach((r: any) => {
+      ;(looseTxnAllForKg || []).forEach((r: any) => {
         if (!r.transaction_date) return
         const d = new Date(r.transaction_date)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
         const bucket = fyMap.get(key)
         if (bucket) {
-          bucket.purchaseLitres += parseFloat(String(r.quantity_liters)) || 0
+          bucket.purchaseKg += parseFloat(String(r.quantity_kg)) || 0
         }
       })
       fyExpenses.forEach((e: any) => {
@@ -1470,38 +1534,38 @@ export default function FactoryDashboardPage() {
         const bucket = fyMap.get(key)
         if (bucket) {
           bucket.salesReturns += parseFloat(String(n.total_amount)) || 0
-          bucket.salesReturnLitres += litresByCreditNote.get(n.id) || 0
+          bucket.salesReturnKg += kgByCreditNote.get(n.id) || 0
         }
       })
-      // Net debit/credit notes into Purchase / KP sales (₹ and litres) so the
-      // Monthly Breakdown table (and the Net Profit / Closing Ltr derived
+      // Net debit/credit notes into Purchase / KP sales (₹ and kg) so the
+      // Monthly Breakdown table (and the Net Profit / Closing kg derived
       // from it) matches the top-level Net Purchase / Net Sales figures
       // instead of gross totals — a credit note is stock coming back in, so
-      // it must reduce Sale Ltr too, not just KP sales ₹.
+      // it must reduce Sale kg too, not just KP sales ₹.
       fyMap.forEach((bucket) => {
         bucket.purchases -= bucket.purchaseReturns
         bucket.kpSales -= bucket.salesReturns
-        bucket.kpLitres -= bucket.salesReturnLitres
+        bucket.kpKg -= bucket.salesReturnKg
       })
       // Net profit per month = KP sales − purchase − expense (the columns shown).
       fyMap.forEach((bucket) => {
         bucket.netProfit = bucket.kpSales - bucket.purchases - bucket.expense
       })
-      // Opening/closing stock (litres) per month — running balance seeded from
+      // Opening/closing stock (kg) per month — running balance seeded from
       // the declared manufacturing opening stock; each month adds purchase
-      // litres and removes KP sale litres. fyMap iterates in FY month order.
-      // Stock (₹) uses the same running litres valued at a constant rate —
-      // the average of the declared opening stock (₹ ÷ litres at the time
+      // kg and removes KP sale kg. fyMap iterates in FY month order.
+      // Stock (₹) uses the same running kg valued at a constant rate —
+      // the average of the declared opening stock (₹ ÷ kg at the time
       // it was entered) — since there's no per-batch cost history to value
       // stock precisely at each month's boundary.
       const avgStockRate = openingStockQty > 0 ? openingStockAmount / openingStockQty : 0
-      let runningLitres = openingStockQty
+      let runningKg = openingStockQty
       fyMap.forEach((bucket) => {
-        bucket.openingLitres = runningLitres
-        bucket.openingStockAmount = runningLitres * avgStockRate
-        runningLitres += bucket.purchaseLitres - bucket.kpLitres
-        bucket.closingLitres = runningLitres
-        bucket.closingStockAmount = runningLitres * avgStockRate
+        bucket.openingKg = runningKg
+        bucket.openingStockAmount = runningKg * avgStockRate
+        runningKg += bucket.purchaseKg - bucket.kpKg
+        bucket.closingKg = runningKg
+        bucket.closingStockAmount = runningKg * avgStockRate
       })
 
       setMonthly(Array.from(fyMap.values()))
@@ -1550,26 +1614,40 @@ export default function FactoryDashboardPage() {
   const overviewProfitMargin = netSales > 0 ? (netProfit / netSales) * 100 : 0
   const totalExpenses = stats.directExpensesAmount + stats.indirectExpensesAmount
 
+  // Sales ₹ / kg for the selected view (credit notes stay netted into khakhra).
+  const viewSales = (sales: number, attaSales: number) =>
+    salesView === "atta" ? attaSales : salesView === "khakhra" ? sales - attaSales : sales
+  const viewKg = (kg: number, attaKg: number) =>
+    salesView === "atta" ? attaKg : salesView === "khakhra" ? kg - attaKg : kg
+  // Stock columns are a running balance from the declared opening stock +
+  // purchases − sales; without either, it would only show sales as negative
+  // stock, so show "—" until opening stock or purchases exist.
+  const hasStockBasis = stats.openingStockQty > 0 || monthly.some((m) => m.purchaseKg > 0)
+
   const monthlyTotals = monthly.reduce(
     (acc, m) => ({
       kpOrders: acc.kpOrders + m.kpOrders,
       kpSales: acc.kpSales + m.kpSales,
-      kpLitres: acc.kpLitres + m.kpLitres,
+      kpKg: acc.kpKg + m.kpKg,
+      attaKg: acc.attaKg + m.attaKg,
+      attaSales: acc.attaSales + m.attaSales,
       gst: acc.gst + m.gst,
       inputGst: acc.inputGst + m.inputGst,
       purchases: acc.purchases + m.purchases,
-      purchaseLitres: acc.purchaseLitres + m.purchaseLitres,
+      purchaseKg: acc.purchaseKg + m.purchaseKg,
       expense: acc.expense + m.expense,
       netProfit: acc.netProfit + m.netProfit,
     }),
     {
       kpOrders: 0,
       kpSales: 0,
-      kpLitres: 0,
+      kpKg: 0,
+      attaKg: 0,
+      attaSales: 0,
       gst: 0,
       inputGst: 0,
       purchases: 0,
-      purchaseLitres: 0,
+      purchaseKg: 0,
       expense: 0,
       netProfit: 0,
     }
@@ -1645,7 +1723,7 @@ export default function FactoryDashboardPage() {
               icon="💰"
               leftLabel="Total"
               leftValue={formatINRCompact(stats.kpSalesTotal - stats.salesReturnsAmount)}
-              leftHint={`${formatINR(stats.kpSalesTotal - stats.salesReturnsAmount)} · Net of credit notes`}
+              leftHint={`Khakhra ${formatINR(stats.kpSalesTotal - stats.salesReturnsAmount - stats.kpAttaSalesTotal)} · Atta ${formatINR(stats.kpAttaSalesTotal)}`}
               rightLabel="Today"
               rightValue={formatINRCompact(stats.kpSalesToday)}
               rightHint={formatINR(stats.kpSalesToday)}
@@ -1675,8 +1753,8 @@ export default function FactoryDashboardPage() {
               label="FACTORY WAREHOUSE STOCK"
               accent="violet"
               icon="📦"
-              leftLabel="Litres"
-              leftValue={formatLitres(stats.stockLitres)}
+              leftLabel="Kg"
+              leftValue={formatKgQty(stats.stockKg)}
               leftHint="On hand at factory"
               rightLabel="Amount"
               rightValue={formatINRCompact(stats.stockAmount)}
@@ -1800,13 +1878,15 @@ export default function FactoryDashboardPage() {
               href="/dashboard/orders"
             />
             <PLDualCard
-              label="LITRES SOLD"
+              label="KG SOLD"
               accent="cyan"
-              icon="🥛"
+              icon="📦"
               leftLabel="Total"
-              leftValue={formatLitres(stats.kpLitresTotal)}
+              leftValue={formatKgQty(stats.kpKgTotal)}
+              leftHint={`Khakhra ${formatKgQty(stats.kpKgTotal - stats.kpAttaKgTotal)} · Atta ${formatKgQty(stats.kpAttaKgTotal)}`}
               rightLabel="Today"
-              rightValue={formatLitres(stats.kpLitresToday)}
+              rightValue={formatKgQty(stats.kpKgToday)}
+              rightHint={`Khakhra ${formatKgQty(stats.kpKgToday - stats.kpAttaKgToday)} · Atta ${formatKgQty(stats.kpAttaKgToday)}`}
               compact
               href="/dashboard/orders"
             />
@@ -1861,7 +1941,7 @@ export default function FactoryDashboardPage() {
               accent="fuchsia"
               icon="📦"
               valueLabel="Total SKUs"
-              value={formatNumber(litresByProduct.length)}
+              value={formatNumber(kgByProduct.length)}
               hint="Distinct products (period)"
               compact
               href="/dashboard/products"
@@ -2110,16 +2190,41 @@ export default function FactoryDashboardPage() {
 
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-base">
-            Monthly breakdown
-            {monthlyFYLabel && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                ({monthlyFYLabel})
-              </span>
-            )}
-          </CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle className="text-base">
+              Monthly breakdown
+              {monthlyFYLabel && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  ({monthlyFYLabel})
+                </span>
+              )}
+            </CardTitle>
+            <div className="inline-flex self-start rounded-md border bg-muted/40 p-0.5 text-xs">
+              {([
+                ["all", "All"],
+                ["khakhra", "Khakhra"],
+                ["atta", "Atta"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSalesView(value)}
+                  className={`rounded px-3 py-1 font-medium transition-colors ${
+                    salesView === value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
-            KP sales & Sale Ltr are net of credit notes · Purchase is net of debit notes · Expense = direct + indirect · Net profit = KP sales − purchase − expense · Stock ₹ approximated at the declared opening stock&apos;s average rate (no per-batch cost history), Ltr shown below each ₹ figure
+            {salesView === "all"
+              ? "Sales are net of credit notes · Purchase is net of debit notes · Expense = direct + indirect · Net profit = sales − purchase − expense · kg shown below each ₹ figure"
+              : `Sales column shows ${salesView === "atta" ? "Atta" : "khakhra"} only · Net profit is shown in the All view, since expenses aren't split by product`}
+            {!hasStockBasis && " · Stock shows — until opening stock is set in Manufacturing Opening Stock"}
           </p>
         </CardHeader>
         <CardContent>
@@ -2152,8 +2257,14 @@ export default function FactoryDashboardPage() {
                         </Link>
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums">
-                        <div>{formatINR(m.openingStockAmount)}</div>
-                        <div className="text-muted-foreground">{formatLitres(m.openingLitres)}</div>
+                        {hasStockBasis ? (
+                          <>
+                            <div>{formatINR(m.openingStockAmount)}</div>
+                            <div className="text-muted-foreground">{formatKgQty(m.openingKg)}</div>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td
                         className="py-2 pr-4 text-right tabular-nums"
@@ -2171,12 +2282,12 @@ export default function FactoryDashboardPage() {
                             {formatINR(m.purchases)}
                           </Link>
                         </div>
-                        <div className="text-muted-foreground">{formatLitres(m.purchaseLitres)}</div>
+                        <div className="text-muted-foreground">{formatKgQty(m.purchaseKg)}</div>
                       </td>
                       <td
                         className="py-2 pr-4 text-right tabular-nums"
                         title={
-                          m.salesReturns > 0
+                          salesView === "all" && m.salesReturns > 0
                             ? `${formatINR(m.kpSales + m.salesReturns)} gross − ${formatINR(m.salesReturns)} credit notes = ${formatINR(m.kpSales)} net`
                             : undefined
                         }
@@ -2186,10 +2297,10 @@ export default function FactoryDashboardPage() {
                             href={`/dashboard/orders-v2?${monthOrdersV2Params(m.key)}`}
                             className="hover:underline text-blue-600 dark:text-blue-400"
                           >
-                            {formatINR(m.kpSales)}
+                            {formatINR(viewSales(m.kpSales, m.attaSales))}
                           </Link>
                         </div>
-                        <div className="text-muted-foreground">{formatLitres(m.kpLitres)}</div>
+                        <div className="text-muted-foreground">{formatKgQty(viewKg(m.kpKg, m.attaKg))}</div>
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums">
                         <Link
@@ -2200,8 +2311,14 @@ export default function FactoryDashboardPage() {
                         </Link>
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums">
-                        <div>{formatINR(m.closingStockAmount)}</div>
-                        <div className="text-muted-foreground">{formatLitres(m.closingLitres)}</div>
+                        {hasStockBasis ? (
+                          <>
+                            <div>{formatINR(m.closingStockAmount)}</div>
+                            <div className="text-muted-foreground">{formatKgQty(m.closingKg)}</div>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td
                         className="py-2 pr-4 text-right tabular-nums text-xs text-muted-foreground"
@@ -2216,7 +2333,7 @@ export default function FactoryDashboardPage() {
                             : "text-emerald-600 dark:text-emerald-400"
                         }`}
                       >
-                        {formatINR(m.netProfit)}
+                        {salesView === "all" ? formatINR(m.netProfit) : <span className="font-normal text-muted-foreground">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -2228,23 +2345,35 @@ export default function FactoryDashboardPage() {
                       {formatNumber(monthlyTotals.kpOrders)}
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums">
-                      <div>{formatINR(monthly[0]?.openingStockAmount ?? 0)}</div>
-                      <div className="font-normal text-muted-foreground">{formatLitres(monthly[0]?.openingLitres ?? 0)}</div>
+                      {hasStockBasis ? (
+                        <>
+                          <div>{formatINR(monthly[0]?.openingStockAmount ?? 0)}</div>
+                          <div className="font-normal text-muted-foreground">{formatKgQty(monthly[0]?.openingKg ?? 0)}</div>
+                        </>
+                      ) : (
+                        <span className="font-normal text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums">
                       <div>{formatINR(monthlyTotals.purchases)}</div>
-                      <div className="font-normal text-muted-foreground">{formatLitres(monthlyTotals.purchaseLitres)}</div>
+                      <div className="font-normal text-muted-foreground">{formatKgQty(monthlyTotals.purchaseKg)}</div>
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums">
-                      <div>{formatINR(monthlyTotals.kpSales)}</div>
-                      <div className="font-normal text-muted-foreground">{formatLitres(monthlyTotals.kpLitres)}</div>
+                      <div>{formatINR(viewSales(monthlyTotals.kpSales, monthlyTotals.attaSales))}</div>
+                      <div className="font-normal text-muted-foreground">{formatKgQty(viewKg(monthlyTotals.kpKg, monthlyTotals.attaKg))}</div>
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums">
                       {formatINR(monthlyTotals.expense)}
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums">
-                      <div>{formatINR(monthly[monthly.length - 1]?.closingStockAmount ?? 0)}</div>
-                      <div className="font-normal text-muted-foreground">{formatLitres(monthly[monthly.length - 1]?.closingLitres ?? 0)}</div>
+                      {hasStockBasis ? (
+                        <>
+                          <div>{formatINR(monthly[monthly.length - 1]?.closingStockAmount ?? 0)}</div>
+                          <div className="font-normal text-muted-foreground">{formatKgQty(monthly[monthly.length - 1]?.closingKg ?? 0)}</div>
+                        </>
+                      ) : (
+                        <span className="font-normal text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="pt-3 pr-4 text-right tabular-nums text-xs text-muted-foreground">
                       {formatINR(monthlyTotals.inputGst - monthlyTotals.gst)}
@@ -2256,7 +2385,7 @@ export default function FactoryDashboardPage() {
                           : "text-emerald-600 dark:text-emerald-400"
                       }`}
                     >
-                      {formatINR(monthlyTotals.netProfit)}
+                      {salesView === "all" ? formatINR(monthlyTotals.netProfit) : <span className="font-normal text-muted-foreground">—</span>}
                     </td>
                   </tr>
                 </tfoot>
@@ -2311,7 +2440,7 @@ export default function FactoryDashboardPage() {
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="text-base">
-            Litres dispatched via KP invoices
+            Kg dispatched via KP invoices
             {monthlyFYLabel && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 ({monthlyFYLabel})
@@ -2327,13 +2456,13 @@ export default function FactoryDashboardPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis
                   tick={{ fontSize: 12 }}
-                  tickFormatter={(v) => `${litreFormatter.format(Number(v))} Ltr`}
+                  tickFormatter={(v) => `${kgFormatter.format(Number(v))} kg`}
                 />
-                <Tooltip formatter={(v: any) => `${litreFormatter.format(Number(v))} Ltr`} />
+                <Tooltip formatter={(v: any) => `${kgFormatter.format(Number(v))} kg`} />
                 <Line
                   type="monotone"
-                  dataKey="kpLitres"
-                  name="Litres"
+                  dataKey="kpKg"
+                  name="Kg"
                   stroke="#06b6d4"
                   strokeWidth={2}
                   dot={{ r: 4 }}
@@ -2351,20 +2480,20 @@ export default function FactoryDashboardPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Top products by litres dispatched
+            Top products by kg dispatched
             <span className="ml-2 text-xs font-normal text-muted-foreground">
               (period)
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {litresByProduct.length > 0 ? (
+          {kgByProduct.length > 0 ? (
             <ResponsiveContainer
               width="100%"
-              height={Math.max(220, litresByProduct.length * 38)}
+              height={Math.max(220, kgByProduct.length * 38)}
             >
               <BarChart
-                data={litresByProduct}
+                data={kgByProduct}
                 layout="vertical"
                 margin={{ top: 5, right: 60, left: 10, bottom: 5 }}
               >
@@ -2372,7 +2501,7 @@ export default function FactoryDashboardPage() {
                 <XAxis
                   type="number"
                   tick={{ fontSize: 12 }}
-                  tickFormatter={(v) => `${litreFormatter.format(Number(v))} Ltr`}
+                  tickFormatter={(v) => `${kgFormatter.format(Number(v))} kg`}
                 />
                 <YAxis
                   type="category"
@@ -2380,10 +2509,10 @@ export default function FactoryDashboardPage() {
                   tick={{ fontSize: 11 }}
                   width={260}
                 />
-                <Tooltip formatter={(v: any) => `${litreFormatter.format(Number(v))} Ltr`} />
+                <Tooltip formatter={(v: any) => `${kgFormatter.format(Number(v))} kg`} />
                 <Bar
-                  dataKey="litres"
-                  name="Litres"
+                  dataKey="kg"
+                  name="Kg"
                   fill="#06b6d4"
                   radius={[0, 6, 6, 0]}
                 />
@@ -2391,7 +2520,7 @@ export default function FactoryDashboardPage() {
             </ResponsiveContainer>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {loading ? "Loading product data…" : "No litres data in this range"}
+              {loading ? "Loading product data…" : "No kg data in this range"}
             </p>
           )}
         </CardContent>
