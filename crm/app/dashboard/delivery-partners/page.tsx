@@ -506,6 +506,22 @@ export default function DeliveryPartnersPage() {
     if (!deletingPartner) return
 
     try {
+      const { count: linkedOrderCount, error: countError } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("delivery_partner_id", deletingPartner.id)
+
+      if (countError) throw countError
+
+      if ((linkedOrderCount ?? 0) > 0) {
+        toast.error(
+          `${deletingPartner.name} has ${linkedOrderCount} order(s) linked to it, so it can't be deleted. Mark them Inactive instead.`
+        )
+        setDeleteDialogOpen(false)
+        setDeletingPartner(null)
+        return
+      }
+
       const { error } = await supabase
         .from("delivery_partners")
         .delete()

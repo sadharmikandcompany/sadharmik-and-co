@@ -815,7 +815,7 @@ export function OrdersTable({
     Address: order.customer_full_address || "",
     "Shipping Address": order.shipping_full_address || `${order.shipping_city}, ${order.shipping_state}`,
     Pincode: order.shipping_pincode || "",
-    Distributor: (order.distributor_id || order.is_factory_order) ? FACTORY_COMPANY_INFO.name : (order.serviceable_distributor_name || FACTORY_COMPANY_INFO.name),
+    Distributor: order.is_factory_order ? FACTORY_COMPANY_INFO.name : (order.distributor_id && order.order_distributor_name) ? order.order_distributor_name : (order.serviceable_distributor_name || FACTORY_COMPANY_INFO.name),
     Amount: `₹${order.total_amount.toFixed(2)}`,
     "Order Status": order.order_status,
     "Payment Status": order.payment_status,
@@ -1170,14 +1170,17 @@ export function OrdersTable({
                             </div>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {order.distributor_id || order.is_factory_order ? (
-                              // A distributor's own order, or an order
-                              // explicitly flagged as factory-direct — either
-                              // way, the factory supplies them directly.
+                            {order.is_factory_order ? (
+                              // Explicitly flagged as factory-direct.
                               <div className="flex flex-col">
                                 <span className="font-medium text-sm">{FACTORY_COMPANY_INFO.name}</span>
                                 <span className="text-xs text-muted-foreground">{FACTORY_COMPANY_INFO.city} Factory (direct)</span>
                               </div>
+                            ) : order.distributor_id && order.order_distributor_name ? (
+                              // Assigned to a distributor directly (e.g. DD bills).
+                              <button onClick={() => router.push(`/dashboard/distributors/${order.distributor_id}`)} className="flex flex-col text-left hover:text-primary transition-colors">
+                                <span className="font-medium hover:underline">{order.order_distributor_name}</span>
+                              </button>
                             ) : order.serviceable_distributor_name && order.serviceable_distributor_id ? (
                               // A regular customer order (including Shop-tier)
                               // — the distributor covering this shipping
