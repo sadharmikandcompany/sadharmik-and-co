@@ -574,7 +574,13 @@ export default function DistributorOrdersPage() {
         : (distributorData.invoice_code && distributorData.invoice_code.trim() !== '' ? distributorData.invoice_code : null)
 
       const { data: invoiceData, error: invoiceError } = await supabase
-        .rpc('get_next_invoice_number', { is_gst: hasGST, dist_code: distCode })
+        .rpc('get_next_invoice_number', {
+          is_gst: hasGST,
+          dist_code: distCode,
+          force_kp: false,
+          p_is_mandir: false,
+          p_is_shop: false,
+        })
 
       if (invoiceError) throw invoiceError
 
