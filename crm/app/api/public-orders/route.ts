@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { deductKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
 
 // Public, unauthenticated endpoint the website's checkout posts to
 // (sadharmikandcompany.com -> crm.sadharmikandcompany.com) so orders placed
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
     const productNames = items.map((i) => i.productName)
     const { data: products, error: productsError } = await supabaseAdmin
       .from("products")
-      .select("id, name, hsn_code, gst_percentage, customer_price, customer_sale_price")
+      .select("id, name, hsn_code, gst_percentage, customer_price, customer_sale_price, net_weight_grams")
       .in("name", productNames)
       .eq("is_active", true)
 
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
         sgst_amount: gstAmount / 2,
         subtotal,
         total: subtotal,
+        weight_grams: product.net_weight_grams || null,
       }
     })
 
@@ -232,6 +234,10 @@ export async function POST(request: Request) {
       await supabaseAdmin.from("orders").delete().eq("id", order.id)
       return NextResponse.json({ ok: false, error: "Could not place the order." }, { status: 500, headers: CORS_HEADERS })
     }
+
+    // Take the kg sold off the shelf at whichever warehouse is fulfilling
+    // this order — selling a 500g pack deducts 0.5kg, a 1kg pack 1kg, etc.
+    await deductKgStockForOrder(supabaseAdmin, sourceGodownId, orderItemsData)
 
     // No invoice number is generated here anymore. Website orders often need
     // corrections (address, items, GST) before a bill should exist, so they

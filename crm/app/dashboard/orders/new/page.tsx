@@ -65,6 +65,7 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { lookupPincode } from "@/lib/pincode-lookup"
+import { deductKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
 import { WarehouseSelector } from "@/components/orders/warehouse-selector"
 import { DeliveryPartnerSuggestions } from "@/components/orders/delivery-partner-suggestions"
 import { useEntityData } from "@/hooks/use-entity-data"
@@ -2005,6 +2006,10 @@ export default function NewOrderPage() {
         .insert(orderItemsData)
 
       if (itemsError) throw itemsError
+
+      // Take the kg sold off the shelf at whichever warehouse is fulfilling
+      // this order — selling a 500g pack deducts 0.5kg, a 1kg pack 1kg, etc.
+      await deductKgStockForOrder(supabase, selectedWarehouseId, orderItemsData)
 
       // --- Auto-generate invoice number ---
       try {

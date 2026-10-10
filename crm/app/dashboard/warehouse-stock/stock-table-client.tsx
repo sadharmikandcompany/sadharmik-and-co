@@ -39,6 +39,9 @@ type StockTableClientProps = {
   onDistributorChange?: (distributorId: string) => void
   warehouseFilter: string
   onWarehouseFilterChange: (warehouse: string) => void
+  // Factory role: only ever one warehouse, so the distributor/warehouse
+  // pickers are pointless (and would otherwise expose other warehouses).
+  lockWarehouseFilter?: boolean
 }
 
 type EditDialogState = {
@@ -59,6 +62,7 @@ export function StockTableClient({
   onDistributorChange,
   warehouseFilter,
   onWarehouseFilterChange,
+  lockWarehouseFilter = false,
 }: StockTableClientProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [editDialog, setEditDialog] = useState<EditDialogState>({
@@ -89,15 +93,27 @@ export function StockTableClient({
 
   return (
     <div className="space-y-4 min-w-0 max-w-full">
-      <StockFilters
-        onSearchChange={setSearchQuery}
-        selectedWarehouse={warehouseFilter}
-        onWarehouseFilter={onWarehouseFilterChange}
-        warehouses={warehouseNames}
-        distributors={distributors}
-        selectedDistributor={selectedDistributor}
-        onDistributorChange={onDistributorChange}
-      />
+      {lockWarehouseFilter ? (
+        <div className="relative max-w-sm">
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          />
+        </div>
+      ) : (
+        <StockFilters
+          onSearchChange={setSearchQuery}
+          selectedWarehouse={warehouseFilter}
+          onWarehouseFilter={onWarehouseFilterChange}
+          warehouses={warehouseNames}
+          distributors={distributors}
+          selectedDistributor={selectedDistributor}
+          onDistributorChange={onDistributorChange}
+        />
+      )}
 
       <div className="w-0 min-w-full max-w-full overflow-x-auto">
         <Table>

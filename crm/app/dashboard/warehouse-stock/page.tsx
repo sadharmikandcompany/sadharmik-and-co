@@ -1,8 +1,9 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useUserRole } from '@/hooks/use-user-role'
 import {
   Card,
   CardAction,
@@ -22,9 +23,11 @@ import {
   Layers,
   Wheat,
   AlertTriangle,
+  Plus,
 } from 'lucide-react'
 import Link from 'next/link'
 import { StockTableClient, type FlavourStock } from './stock-table-client'
+import { AddProductionDialog } from './add-production-dialog'
 import { formatKg } from '@/lib/product-weight'
 
 type Distributor = {
@@ -33,14 +36,16 @@ type Distributor = {
   company_name: string
 }
 
-// The 4 khakhra flavors — each is a product_categories row backing a pair of
-// pack-size products (e.g. "500 GRAM Classic Sada"). Colors/icons match the
-// scheme already used elsewhere for these same 4 flavors.
-const FLAVOR_CARDS = [
-  { key: 'classicSada', categoryName: 'Classic Sada Khakhra', label: 'Classic Sada', border: 'border-amber-200', bg: 'bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20', text: 'text-amber-700 dark:text-amber-400', iconBg: 'bg-amber-100 text-amber-600 dark:bg-amber-950/60' },
-  { key: 'spicyMasala', categoryName: 'Spicy Masala Khakhra', label: 'Spicy Masala', border: 'border-violet-200', bg: 'bg-violet-50/50 dark:border-violet-900 dark:bg-violet-950/20', text: 'text-violet-700 dark:text-violet-400', iconBg: 'bg-violet-100 text-violet-600 dark:bg-violet-950/60' },
-  { key: 'magicMethi', categoryName: 'Magic Methi Khakhra', label: 'Magic Methi', border: 'border-emerald-200', bg: 'bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', iconBg: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60' },
-  { key: 'zestyJeera', categoryName: 'Zesty Jeera Khakhra', label: 'Zesty Jeera', border: 'border-orange-200', bg: 'bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20', text: 'text-orange-700 dark:text-orange-400', iconBg: 'bg-orange-100 text-orange-600 dark:bg-orange-950/60' },
+// Cycled by category index so any number of flavours/categories gets a
+// distinct card color — no more hardcoding which 4 flavours exist.
+const CARD_STYLES = [
+  { border: 'border-amber-200', bg: 'bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20', text: 'text-amber-700 dark:text-amber-400', iconBg: 'bg-amber-100 text-amber-600 dark:bg-amber-950/60' },
+  { border: 'border-violet-200', bg: 'bg-violet-50/50 dark:border-violet-900 dark:bg-violet-950/20', text: 'text-violet-700 dark:text-violet-400', iconBg: 'bg-violet-100 text-violet-600 dark:bg-violet-950/60' },
+  { border: 'border-emerald-200', bg: 'bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', iconBg: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60' },
+  { border: 'border-orange-200', bg: 'bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20', text: 'text-orange-700 dark:text-orange-400', iconBg: 'bg-orange-100 text-orange-600 dark:bg-orange-950/60' },
+  { border: 'border-sky-200', bg: 'bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/20', text: 'text-sky-700 dark:text-sky-400', iconBg: 'bg-sky-100 text-sky-600 dark:bg-sky-950/60' },
+  { border: 'border-rose-200', bg: 'bg-rose-50/50 dark:border-rose-900 dark:bg-rose-950/20', text: 'text-rose-700 dark:text-rose-400', iconBg: 'bg-rose-100 text-rose-600 dark:bg-rose-950/60' },
+  { border: 'border-lime-200', bg: 'bg-lime-50/50 dark:border-lime-900 dark:bg-lime-950/20', text: 'text-lime-700 dark:text-lime-400', iconBg: 'bg-lime-100 text-lime-600 dark:bg-lime-950/60' },
 ] as const
 
 // Extract weight in kg from a product name like "500 GRAM Classic Sada" or "250g Spicy Masala"
@@ -58,9 +63,13 @@ function extractWeightKg(productName: string): number {
 function WarehouseStockContent() {
   const searchParams = useSearchParams()
   const distributorIdFromUrl = searchParams.get('distributor')
+  const { role } = useUserRole()
+  const isFactoryRole = role === 'factories'
 
   const [flavours, setFlavours] = useState<FlavourStock[]>([])
   const [warehouseNames, setWarehouseNames] = useState<string[]>([])
+  const [companyGodownId, setCompanyGodownId] = useState<string | null>(null)
+  const [companyGodownName, setCompanyGodownName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // Set when the godown_kg_stock table hasn't been created yet.
@@ -72,6 +81,7 @@ function WarehouseStockContent() {
   // totals across the factory + every distributor's godown combined.
   const [warehouseFilter, setWarehouseFilter] = useState('all')
   const [selectedDistributor, setSelectedDistributor] = useState<string>('all')
+  const [addProductionOpen, setAddProductionOpen] = useState(false)
 
   useEffect(() => {
     fetchDistributors()
@@ -86,6 +96,15 @@ function WarehouseStockContent() {
   useEffect(() => {
     fetchStockData()
   }, [selectedDistributor])
+
+  // The factory role only ever deals with their own warehouse — lock the
+  // filter to it instead of leaving the full distributor-by-distributor view
+  // (and its other distributors' stock) visible.
+  useEffect(() => {
+    if (isFactoryRole && companyGodownName) {
+      setWarehouseFilter(companyGodownName)
+    }
+  }, [isFactoryRole, companyGodownName])
 
   const fetchDistributors = async () => {
     const { data, error } = await supabase
@@ -109,7 +128,7 @@ function WarehouseStockContent() {
       // Fetch warehouses - filter by distributor if selected
       let warehouseQuery = supabase
         .from('godowns')
-        .select('id, name, distributor_id')
+        .select('id, name, distributor_id, godown_type')
         .order('name')
 
       if (selectedDistributor && selectedDistributor !== 'all') {
@@ -124,8 +143,14 @@ function WarehouseStockContent() {
         return
       }
 
-      // Finished products — used to find each flavour's category and its
-      // price per kg (pack price ÷ pack weight).
+      const company = (warehousesData || []).find((w: any) => w.godown_type === 'company')
+      setCompanyGodownId(company?.id || null)
+      setCompanyGodownName(company?.name || null)
+
+      // Finished products — used to find every category that actually has
+      // stock-tracked products (khakhra flavours, ghee, and anything added
+      // later) and its price per kg (pack price ÷ pack weight). No category
+      // is hardcoded, so a new product category shows up automatically.
       const { data: productsData, error: productsError } = await supabase
         .from('stock_inventory')
         .select(`
@@ -181,7 +206,8 @@ function WarehouseStockContent() {
 
     setWarehouseNames(warehousesData.map((w: any) => w.name))
 
-    // category name -> { id, best price per kg }
+    // category name -> { id, best price per kg } — discovered entirely from
+    // whatever finished products exist in stock_inventory, not a fixed list.
     const categories = new Map<string, { id: string; pricePerKg: number }>()
     productsData.forEach((item: any) => {
       const category = item.product_variants?.product_categories
@@ -196,31 +222,35 @@ function WarehouseStockContent() {
       }
     })
 
-    const rows: FlavourStock[] = FLAVOR_CARDS.flatMap((flavor) => {
-      const category = categories.get(flavor.categoryName)
-      if (!category) return []
+    const rows: FlavourStock[] = Array.from(categories.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([categoryName, category]) => {
+        const warehouses: FlavourStock['warehouses'] = {}
+        let total_kg = 0
+        warehousesData.forEach((warehouse: any) => {
+          const kg = kgLookup.get(`${category.id}-${warehouse.id}`) || 0
+          warehouses[warehouse.name] = { godown_id: warehouse.id, warehouse_name: warehouse.name, kg }
+          total_kg += kg
+        })
 
-      const warehouses: FlavourStock['warehouses'] = {}
-      let total_kg = 0
-      warehousesData.forEach((warehouse: any) => {
-        const kg = kgLookup.get(`${category.id}-${warehouse.id}`) || 0
-        warehouses[warehouse.name] = { godown_id: warehouse.id, warehouse_name: warehouse.name, kg }
-        total_kg += kg
+        return {
+          category_id: category.id,
+          category_name: categoryName,
+          label: categoryName,
+          price_per_kg: category.pricePerKg,
+          warehouses,
+          total_kg,
+          total_amount: total_kg * category.pricePerKg,
+        }
       })
-
-      return [{
-        category_id: category.id,
-        category_name: flavor.categoryName,
-        label: flavor.label,
-        price_per_kg: category.pricePerKg,
-        warehouses,
-        total_kg,
-        total_amount: total_kg * category.pricePerKg,
-      }]
-    })
 
     setFlavours(rows)
   }
+
+  const categoryOptions = useMemo(
+    () => flavours.map((f) => ({ id: f.category_id, name: f.label })),
+    [flavours]
+  )
 
   if (loading) {
     return (
@@ -288,17 +318,27 @@ function WarehouseStockContent() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {isFactoryOnly
-                ? `Showing only ${warehouseFilter} — clear the warehouse filter below to see all warehouses`
+                ? `Showing only ${warehouseFilter}${isFactoryRole ? '' : ' — clear the warehouse filter below to see all warehouses'}`
                 : `Stock in kg across ${selectedDistributorName ? `${selectedDistributorName}'s warehouses` : 'all warehouses'}`}
             </p>
           </div>
         </div>
-        <Link href="/dashboard/stock-transfers/new">
-          <Button>
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
-            Transfer Stock
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          {companyGodownId && (
+            <Button variant="outline" onClick={() => setAddProductionOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Production
+            </Button>
+          )}
+          {!isFactoryRole && (
+            <Link href="/dashboard/stock-transfers/new">
+              <Button>
+                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                Transfer Stock
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {needsMigration && (
@@ -313,16 +353,16 @@ function WarehouseStockContent() {
 
       {/* Flavor-wise Stock Cards — one line on desktop */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        {FLAVOR_CARDS.map((flavor) => {
-          const row = flavours.find((f) => f.category_name === flavor.categoryName)
-          const kg = row ? kgFor(row) : 0
-          const amount = row ? amountFor(row) : 0
+        {flavours.map((flavour, i) => {
+          const style = CARD_STYLES[i % CARD_STYLES.length]
+          const kg = kgFor(flavour)
+          const amount = amountFor(flavour)
           return (
-            <Card key={flavor.key} className={`${flavor.border} ${flavor.bg} gap-0 py-0`}>
+            <Card key={flavour.category_id} className={`${style.border} ${style.bg} gap-0 py-0`}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between mb-1">
-                  <p className={`text-xs font-semibold ${flavor.text}`}>{flavor.label}</p>
-                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${flavor.iconBg}`}>
+                  <p className={`text-xs font-semibold ${style.text}`}>{flavour.label}</p>
+                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${style.iconBg}`}>
                     <Wheat className="h-3 w-3" />
                   </div>
                 </div>
@@ -340,7 +380,7 @@ function WarehouseStockContent() {
           <CardHeader>
             <CardDescription>Warehouses</CardDescription>
             <CardTitle className="text-2xl font-bold tabular-nums">
-              {warehouseNames.length}
+              {isFactoryRole ? 1 : warehouseNames.length}
             </CardTitle>
             <CardAction>
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -349,7 +389,7 @@ function WarehouseStockContent() {
             </CardAction>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Active warehouse locations
+            {isFactoryRole ? 'Your warehouse' : 'Active warehouse locations'}
           </CardContent>
         </Card>
 
@@ -366,7 +406,7 @@ function WarehouseStockContent() {
             </CardAction>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            All {flavours.length} flavours
+            All {flavours.length} {flavours.length === 1 ? 'product' : 'products'}
           </CardContent>
         </Card>
 
@@ -400,12 +440,12 @@ function WarehouseStockContent() {
               <div>
                 <CardTitle className="text-base">Stock Distribution</CardTitle>
                 <CardDescription className="mt-0.5">
-                  Kg per flavour across {selectedDistributorName ? `${selectedDistributorName}'s warehouse locations` : 'all warehouse locations'}
+                  Kg per product across {selectedDistributorName ? `${selectedDistributorName}'s warehouse locations` : 'all warehouse locations'}
                 </CardDescription>
               </div>
             </div>
             <Badge variant="secondary" className="rounded-full self-start sm:self-auto">
-              {flavours.length} {flavours.length === 1 ? "flavour" : "flavours"}
+              {flavours.length} {flavours.length === 1 ? "product" : "products"}
             </Badge>
           </div>
         </CardHeader>
@@ -413,13 +453,14 @@ function WarehouseStockContent() {
           <div className="w-0 min-w-full max-w-full overflow-hidden">
             <StockTableClient
               flavours={flavours}
-              warehouseNames={warehouseNames}
+              warehouseNames={isFactoryRole && companyGodownName ? [companyGodownName] : warehouseNames}
               onStockUpdate={fetchStockData}
-              distributors={distributors}
+              distributors={isFactoryRole ? undefined : distributors}
               selectedDistributor={selectedDistributor}
               onDistributorChange={handleDistributorChange}
               warehouseFilter={warehouseFilter}
-              onWarehouseFilterChange={setWarehouseFilter}
+              onWarehouseFilterChange={isFactoryRole ? () => {} : setWarehouseFilter}
+              lockWarehouseFilter={isFactoryRole}
             />
           </div>
         </CardContent>
@@ -438,7 +479,7 @@ function WarehouseStockContent() {
         <CardContent className="pt-4 text-sm space-y-2">
           <div className="flex items-center gap-2">
             <div className="font-semibold">Warehouse columns:</div>
-            <div className="text-muted-foreground">Kg of that flavour in the warehouse — click ✏️ to change it</div>
+            <div className="text-muted-foreground">Kg of that product in the warehouse — click ✏️ to change it</div>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-blue-600 font-medium">Total Kg:</div>
@@ -450,6 +491,17 @@ function WarehouseStockContent() {
           </div>
         </CardContent>
       </Card>
+
+      {companyGodownId && (
+        <AddProductionDialog
+          open={addProductionOpen}
+          onOpenChange={setAddProductionOpen}
+          godownId={companyGodownId}
+          godownName={companyGodownName || 'Factory'}
+          categories={categoryOptions}
+          onSuccess={fetchStockData}
+        />
+      )}
     </div>
   )
 }
