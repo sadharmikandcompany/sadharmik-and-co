@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { format } from "date-fns"
+import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
 import { cn } from "@/lib/utils"
 import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-range-preset-filter"
 import { ExportButtons } from "@/components/export-buttons"
@@ -423,14 +424,28 @@ export function OrdersTable({
   }
 
   const handleCompleteOrder = async (orderId: string, orderNumber: string) => {
+    const now = new Date().toISOString()
     const { error } = await supabase
       .from("orders")
       .update({
         order_status: "delivered", payment_status: "completed",
-        delivery_status: "delivered", delivered_date: new Date().toISOString(),
+        delivery_status: "delivered", delivered_date: now,
       })
       .eq("id", orderId)
     if (error) { toast.error("Failed to complete order"); return }
+
+    const order = initialOrders.find((o) => o.id === orderId)
+    if (order) {
+      const { data: { user } } = await supabase.auth.getUser()
+      await postOrderPaymentTransaction(supabase, {
+        orderNumber,
+        amount: order.total_amount || 0,
+        paymentMethod: order.payment_method,
+        orderDate: now,
+        createdBy: user?.id,
+      })
+    }
+
     toast.success(`Order ${orderNumber} completed`)
     refresh()
   }
@@ -783,11 +798,22 @@ export function OrdersTable({
         delivery_status: "delivered", delivered_date: now,
       }).in("id", ids)
       if (error) throw error
+      const { data: { user } } = await supabase.auth.getUser()
       for (const orderId of ids) {
-        const orderAmount = ordersToUpdate.find((o) => o.id === orderId)?.total_amount || 0
+        const matchedOrder = ordersToUpdate.find((o) => o.id === orderId)
+        const orderAmount = matchedOrder?.total_amount || 0
         await supabase.from("route_assignments").update({
           status: "delivered", delivery_time: now, collected_payment_method: bulkCompletePaymentMethod, collected_amount: orderAmount,
         }).eq("order_id", orderId)
+        if (matchedOrder) {
+          await postOrderPaymentTransaction(supabase, {
+            orderNumber: matchedOrder.order_number,
+            amount: orderAmount,
+            paymentMethod: bulkCompletePaymentMethod,
+            orderDate: now,
+            createdBy: user?.id,
+          })
+        }
       }
       toast.dismiss()
       toast.success(`Completed ${ordersToUpdate.length} order${ordersToUpdate.length > 1 ? "s" : ""} with ${bulkCompletePaymentMethod.replace(/_/g, " ")}`)

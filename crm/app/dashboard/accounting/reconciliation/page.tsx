@@ -374,18 +374,21 @@ export default function ReconciliationPage() {
     ])
 
     const rawBanks = banksRes.data || []
-    // Factories role should not see Federal Bank or Saraswat Bank in the
-    // accounts list — they only deal with their own scoped transactions.
+    // Factories role should only see cash accounts, not real bank accounts
+    // — matched by account_type rather than bank name (a name match missed
+    // "Fedral Bank", a typo'd entry, and would miss any future bank too).
     const banks = isFactory
-      ? rawBanks.filter(b => !/federal\s*bank|saraswat\s*bank/i.test(b.bank_name || ""))
+      ? rawBanks.filter(b => b.account_type === "cash")
       : rawBanks
     setBankAccounts(banks)
     setGodowns(godownsRes.data || [])
 
-    // Find Federal Bank (Easebuzz settlement account) — use rawBanks so
-    // Easebuzz settlement mapping still works even when the bank is hidden
-    // from the factories view.
-    const federalBank = rawBanks.find(b => b.account_no === "15050200012563")
+    // The real bank account (Easebuzz settlement destination for online
+    // payments) — use rawBanks so this still resolves even when the
+    // account is hidden from the factories view. Matched by account_type,
+    // not a specific bank name/number, so it keeps working if the account
+    // is ever renamed or a typo (like "Fedral Bank") gets fixed.
+    const federalBank = rawBanks.find(b => b.account_type !== "cash")
     const federalBankId = federalBank?.id || ""
 
     // Find first cash account for expense/delivery cash mapping
@@ -674,6 +677,19 @@ export default function ReconciliationPage() {
     setTxnDate(new Date().toISOString().split("T")[0])
     setTxnOrderSearch("")
     setTxnOrderResults([])
+
+    // Auto-pick the matching account for this order's payment method —
+    // previously the bank account field was left exactly as it was before
+    // (often still "Main Cash" from the last transaction), so a UPI order
+    // would silently get logged as cash unless staff remembered to switch
+    // it by hand. Cash orders go to the cash account; anything else (UPI,
+    // card, bank transfer, cheque, online) goes to the first real bank
+    // account, same as Easebuzz settlements use elsewhere on this page.
+    const isCashOrder = order.payment_method === "cash"
+    const matchingAccount = bankAccounts.find((b) =>
+      isCashOrder ? b.account_type === "cash" : b.account_type !== "cash"
+    )
+    if (matchingAccount) setTxnBankId(matchingAccount.id)
   }
 
   // Picks from the FULL real distributors/customers tables (via

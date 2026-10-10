@@ -66,6 +66,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { lookupPincode } from "@/lib/pincode-lookup"
 import { deductKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
+import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
 import { WarehouseSelector } from "@/components/orders/warehouse-selector"
 import { DeliveryPartnerSuggestions } from "@/components/orders/delivery-partner-suggestions"
 import { useEntityData } from "@/hooks/use-entity-data"
@@ -2010,6 +2011,20 @@ export default function NewOrderPage() {
       // Take the kg sold off the shelf at whichever warehouse is fulfilling
       // this order — selling a 500g pack deducts 0.5kg, a 1kg pack 1kg, etc.
       await deductKgStockForOrder(supabase, selectedWarehouseId, orderItemsData)
+
+      // Payment marked received right at order creation (e.g. counter sale
+      // paid on the spot) needs an actual Reconciliation entry — nothing did
+      // this before for plain cash/UPI/etc., only the Easebuzz gateway and
+      // rider-verified cash collections.
+      if (order.payment_status === "completed") {
+        await postOrderPaymentTransaction(supabase, {
+          orderNumber: order.order_number,
+          amount: Number(order.total_amount) || 0,
+          paymentMethod: order.payment_method,
+          orderDate: order.order_date,
+          createdBy: currentUserId,
+        })
+      }
 
       // --- Auto-generate invoice number ---
       try {
