@@ -374,20 +374,17 @@ export default function ReconciliationPage() {
     ])
 
     const rawBanks = banksRes.data || []
-    // Factories role should only see cash accounts, not real bank accounts
-    // — matched by account_type rather than bank name (a name match missed
-    // "Fedral Bank", a typo'd entry, and would miss any future bank too).
-    const banks = isFactory
-      ? rawBanks.filter(b => b.account_type === "cash")
-      : rawBanks
+    // Every role sees every account — the factories login is this
+    // business's day-to-day operating account, so it needs to see Fedral
+    // Bank to verify UPI payments actually land there.
+    const banks = rawBanks
     setBankAccounts(banks)
     setGodowns(godownsRes.data || [])
 
     // The real bank account (Easebuzz settlement destination for online
-    // payments) — use rawBanks so this still resolves even when the
-    // account is hidden from the factories view. Matched by account_type,
-    // not a specific bank name/number, so it keeps working if the account
-    // is ever renamed or a typo (like "Fedral Bank") gets fixed.
+    // payments). Matched by account_type, not a specific bank name/number,
+    // so it keeps working if the account is ever renamed or a typo (like
+    // "Fedral Bank") gets fixed.
     const federalBank = rawBanks.find(b => b.account_type !== "cash")
     const federalBankId = federalBank?.id || ""
 
