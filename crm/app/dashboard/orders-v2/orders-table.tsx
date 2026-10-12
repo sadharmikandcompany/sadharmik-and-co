@@ -233,17 +233,22 @@ export function OrdersTable({
   // reused by the expanded per-item rows below (same page of orders, so
   // every product that can appear there is already covered).
   const [productWeights, setProductWeights] = useState<Record<string, number | null>>({})
+  // order_id -> its line items, for the "Items"/"Qty"/"Subtotal" export
+  // columns — populated from the same fetch as the Kg column above instead
+  // of a second round trip over the same rows.
+  const [orderItemsForExport, setOrderItemsForExport] = useState<Record<string, { product_name: string; quantity: number; subtotal: number }[]>>({})
 
   useEffect(() => {
     const orderIds = initialOrders.map((o) => o.id)
     if (orderIds.length === 0) {
       setOrderKg({})
+      setOrderItemsForExport({})
       return
     }
     let cancelled = false
     supabase
       .from("order_items")
-      .select("order_id, product_id, quantity, weight_grams")
+      .select("order_id, product_id, product_name, quantity, weight_grams, subtotal")
       .in("order_id", orderIds)
       .then(async ({ data, error }) => {
         if (cancelled || error) {
@@ -252,11 +257,19 @@ export function OrdersTable({
         }
         const byOrder: Record<string, { product_id: string | null; quantity: number; weight_grams: number | null }[]> = {}
         const productIds = new Set<string>()
+        const exportItems: Record<string, { product_name: string; quantity: number; subtotal: number }[]> = {}
         ;(data || []).forEach((row: any) => {
           if (!byOrder[row.order_id]) byOrder[row.order_id] = []
           byOrder[row.order_id].push({ product_id: row.product_id, quantity: row.quantity, weight_grams: row.weight_grams })
           if (row.product_id) productIds.add(row.product_id)
+          if (!exportItems[row.order_id]) exportItems[row.order_id] = []
+          exportItems[row.order_id].push({
+            product_name: row.product_name || "Unknown item",
+            quantity: Number(row.quantity) || 0,
+            subtotal: Number(row.subtotal) || 0,
+          })
         })
+        setOrderItemsForExport(exportItems)
 
         const { data: productsData, error: productsError } = await supabase
           .from("products")
@@ -829,7 +842,9 @@ export function OrdersTable({
 
   // ─── Export data (current page) ──────────────────────────────────────
 
-  const currentExportData = initialOrders.map((order) => ({
+  const currentExportData = initialOrders.map((order) => {
+    const items = orderItemsForExport[order.id] || []
+    return {
     "Order Number": order.order_number,
     Source: order.source || "",
     "Created By": order.created_by_agent_name || "",
@@ -842,6 +857,9 @@ export function OrdersTable({
     "Shipping Address": order.shipping_full_address || `${order.shipping_city}, ${order.shipping_state}`,
     Pincode: order.shipping_pincode || "",
     Distributor: order.is_factory_order ? FACTORY_COMPANY_INFO.name : (order.distributor_id && order.order_distributor_name) ? order.order_distributor_name : (order.serviceable_distributor_name || FACTORY_COMPANY_INFO.name),
+    Items: items.map((i) => `${i.product_name} x${i.quantity}`).join(", "),
+    "Total Qty": items.reduce((sum, i) => sum + i.quantity, 0),
+    Subtotal: `₹${items.reduce((sum, i) => sum + i.subtotal, 0).toFixed(2)}`,
     Amount: `₹${order.total_amount.toFixed(2)}`,
     "Order Status": order.order_status,
     "Payment Status": order.payment_status,
@@ -851,7 +869,8 @@ export function OrdersTable({
     "Delivery Driver": order.delivery_partner_name || "Not assigned",
     "Delivery Status": order.route_assignment_status ? order.route_assignment_status.replace(/_/g, " ") : order.delivery_partner_id ? "Assigned" : "Not assigned",
     "Order Date": format(new Date(order.order_date || order.created_at), "PPP"),
-  }))
+    }
+  })
 
   const exportColumns = [
     { header: "Order #", dataKey: "Order Number" }, { header: "Source", dataKey: "Source" },
