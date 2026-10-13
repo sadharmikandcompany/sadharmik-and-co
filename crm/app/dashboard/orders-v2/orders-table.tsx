@@ -19,7 +19,7 @@ import {
   XCircle, Truck, CheckCircle, MoreVertical, Users, Printer, UserCheck,
   AlertTriangle, DollarSign, Trash2, Star, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, QrCode, Copy, Loader2, Store, Globe,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, ArrowUpDown, FileText, FileSpreadsheet, FileDown,
 } from "lucide-react"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -34,7 +34,7 @@ import { format } from "date-fns"
 import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
 import { cn } from "@/lib/utils"
 import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-range-preset-filter"
-import { ExportButtons } from "@/components/export-buttons"
+import { exportToCSV, exportSaleReportExcel, exportTableToPDF } from "@/lib/export-utils"
 import {
   generateOrderInvoice, generateBulkOrderInvoices,
   generateThermalReceipt, generateBulkThermalReceipts,
@@ -840,11 +840,22 @@ export function OrdersTable({
     }
   }
 
-  // ─── Export data (current page) ──────────────────────────────────────
+  // ─── Export (all orders matching the current filters, not just this page) ──
 
-  const currentExportData = initialOrders.map((order) => {
-    const items = orderItemsForExport[order.id] || []
-    return {
+  type ExportItem = {
+    product_name: string
+    quantity: number
+    subtotal: number
+    unit_price: number
+    hsn_code: string
+    discount_percent: number
+    discount_amount: number
+    gst_percentage: number
+    gst_amount: number
+    total: number
+  }
+
+  const buildOrderExportRow = (order: any, items: ExportItem[]) => ({
     "Order Number": order.order_number,
     Source: order.source || "",
     "Created By": order.created_by_agent_name || "",
@@ -860,7 +871,7 @@ export function OrdersTable({
     Items: items.map((i) => `${i.product_name} x${i.quantity}`).join(", "),
     "Total Qty": items.reduce((sum, i) => sum + i.quantity, 0),
     Subtotal: `₹${items.reduce((sum, i) => sum + i.subtotal, 0).toFixed(2)}`,
-    Amount: `₹${order.total_amount.toFixed(2)}`,
+    Amount: `₹${(Number(order.total_amount) || 0).toFixed(2)}`,
     "Order Status": order.order_status,
     "Payment Status": order.payment_status,
     "Payment Method": order.payment_method ? order.payment_method.replace(/_/g, " ") : "",
@@ -869,7 +880,6 @@ export function OrdersTable({
     "Delivery Driver": order.delivery_partner_name || "Not assigned",
     "Delivery Status": order.route_assignment_status ? order.route_assignment_status.replace(/_/g, " ") : order.delivery_partner_id ? "Assigned" : "Not assigned",
     "Order Date": format(new Date(order.order_date || order.created_at), "PPP"),
-    }
   })
 
   const exportColumns = [
@@ -886,6 +896,129 @@ export function OrdersTable({
     { header: "Driver", dataKey: "Delivery Driver" }, { header: "Delivery", dataKey: "Delivery Status" },
     { header: "Date", dataKey: "Order Date" },
   ]
+
+  // Fetches every order matching the current filters (search, status,
+  // date range, etc. — whatever's in the URL right now), not just the page
+  // on screen, by calling the same filter logic the page itself uses
+  // (lib/orders-v2-query.ts) with no pagination limit.
+  const fetchAllOrdersForExport = async (): Promise<{ orders: any[]; itemsByOrder: Record<string, ExportItem[]>; truncated: boolean }> => {
+    const res = await fetch(`/api/orders-v2/export${window.location.search}`)
+    if (!res.ok) throw new Error("Failed to fetch orders for export")
+    const { orders, items, truncated } = await res.json()
+    const itemsByOrder: Record<string, ExportItem[]> = {}
+    ;(items || []).forEach((row: any) => {
+      if (!itemsByOrder[row.order_id]) itemsByOrder[row.order_id] = []
+      itemsByOrder[row.order_id].push({
+        product_name: row.product_name || "Unknown item",
+        quantity: Number(row.quantity) || 0,
+        subtotal: Number(row.subtotal) || 0,
+        unit_price: Number(row.unit_price) || 0,
+        hsn_code: row.hsn_code || "",
+        discount_percent: Number(row.discount_percent) || 0,
+        discount_amount: Number(row.discount_amount) || 0,
+        gst_percentage: Number(row.gst_percentage) || 0,
+        gst_amount: Number(row.gst_amount) || 0,
+        total: Number(row.total) || 0,
+      })
+    })
+    return { orders: orders || [], itemsByOrder, truncated: !!truncated }
+  }
+
+  // Vyapar-style "Sale Report" row — one per order.
+  const buildSaleReportRow = (order: any): (string | number)[] => {
+    const isPaid = order.payment_status === "completed"
+    const amount = Number(order.total_amount) || 0
+    return [
+      format(new Date(order.order_date || order.created_at), "dd/MM/yyyy"),
+      order.order_number || "",
+      order.invoice_number_gst || order.invoice_number_non_gst || order.invoice_number || "",
+      order.customer_name || "Unknown",
+      "",
+      "Sale ",
+      amount,
+      order.payment_method ? order.payment_method.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : "",
+      isPaid ? amount : 0,
+      isPaid ? 0 : amount,
+      isPaid ? "Paid" : "Unpaid",
+      order.order_notes || "",
+    ]
+  }
+
+  // Vyapar-style "Item Details" row — one per line item.
+  const buildItemDetailRow = (order: any, item: ExportItem): (string | number)[] => [
+    format(new Date(order.order_date || order.created_at), "dd/MM/yyyy"),
+    order.invoice_number_gst || order.invoice_number_non_gst || order.invoice_number || "",
+    order.customer_name || "Unknown",
+    item.product_name,
+    "",
+    item.hsn_code,
+    "",
+    "",
+    "",
+    "",
+    order.order_number || "",
+    item.quantity,
+    "Pkt",
+    item.unit_price,
+    item.discount_percent,
+    item.discount_amount,
+    item.gst_percentage,
+    item.gst_amount,
+    "Sale ",
+    item.total || item.subtotal,
+  ]
+
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportCSV = async () => {
+    setExporting(true)
+    try {
+      const { orders, itemsByOrder, truncated } = await fetchAllOrdersForExport()
+      if (orders.length === 0) { toast.error("No orders match the current filters"); return }
+      exportToCSV(orders.map((o) => buildOrderExportRow(o, itemsByOrder[o.id] || [])), "orders")
+      toast.success(`Exported ${orders.length} order${orders.length === 1 ? "" : "s"} to CSV`)
+      if (truncated) toast.warning(`Capped at ${orders.length} rows — narrow your filters to get the rest`)
+    } catch (err) {
+      console.error("CSV export error:", err)
+      toast.error("Failed to export CSV")
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    setExporting(true)
+    try {
+      const { orders, itemsByOrder, truncated } = await fetchAllOrdersForExport()
+      if (orders.length === 0) { toast.error("No orders match the current filters"); return }
+      const saleRows = orders.map((o) => buildSaleReportRow(o))
+      const itemRows = orders.flatMap((o) => (itemsByOrder[o.id] || []).map((item) => buildItemDetailRow(o, item)))
+      exportSaleReportExcel(saleRows, itemRows, "SaleReport")
+      toast.success(`Exported ${orders.length} order${orders.length === 1 ? "" : "s"} to Excel`)
+      if (truncated) toast.warning(`Capped at ${orders.length} rows — narrow your filters to get the rest`)
+    } catch (err) {
+      console.error("Excel export error:", err)
+      toast.error("Failed to export Excel")
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    setExporting(true)
+    try {
+      const { orders, itemsByOrder, truncated } = await fetchAllOrdersForExport()
+      if (orders.length === 0) { toast.error("No orders match the current filters"); return }
+      exportTableToPDF(orders.map((o) => buildOrderExportRow(o, itemsByOrder[o.id] || [])), exportColumns, "orders", "Orders Report")
+      toast.success(`Exported ${orders.length} order${orders.length === 1 ? "" : "s"} to PDF`)
+      if (truncated) toast.warning(`Capped at ${orders.length} rows — narrow your filters to get the rest`)
+    } catch (err) {
+      console.error("PDF export error:", err)
+      toast.error("Failed to export PDF")
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -1001,12 +1134,25 @@ export function OrdersTable({
               </Button>
             </>
           )}
-          <ExportButtons
-            data={currentExportData}
-            filename="orders"
-            columns={exportColumns}
-            pdfTitle="Orders Report"
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={exporting}>
+                {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportCSV}>
+                <FileText className="mr-2 h-4 w-4" />Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />Export as Excel (Orders / Items / Party)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF}>
+                <FileDown className="mr-2 h-4 w-4" />Export as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => router.push("/dashboard/orders/new")}>
             <Plus className="mr-2 h-4 w-4" />Create Order
           </Button>

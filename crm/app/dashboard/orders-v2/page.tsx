@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { supabaseServer } from "@/lib/supabase-server"
 import { OrdersTable } from "./orders-table"
+import { buildOrdersV2Query, parseOrdersV2Filters } from "@/lib/orders-v2-query"
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>
 
@@ -13,261 +14,13 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
   const cookieStore = await cookies()
   const userRole = cookieStore.get("user_role")?.value ?? ""
   const entityId = cookieStore.get("user_entity_id")?.value ?? ""
-  const isMainDistributor = userRole === "main_distributor"
-  const isSubDistributor = userRole === "sub_distributor"
-  const isDistributor = isMainDistributor || isSubDistributor
-  const isRetailer = userRole === "retailer"
-  const isFactory = userRole === "factories"
-  // Distributors and retailers must not see factory-issued ("KP") invoices.
-  const hidesKpInvoices = isDistributor || isRetailer
 
   // Parse filter params from URL
   const page = Math.max(1, parseInt(String(params.page || "1")))
   const pageSize = Math.max(1, Math.min(100, parseInt(String(params.pageSize || "15"))))
-  const search = String(params.search || "").trim()
-  const orderStatus = String(params.orderStatus || "all")
-  const deliveryStatus = String(params.deliveryStatus || "all")
-  const paymentMethod = String(params.paymentMethod || "all")
-  const paymentStatus = String(params.paymentStatus || "all")
-  const distributorId = String(params.distributorId || "all")
-  const deliveryPartnerId = String(params.deliveryPartnerId || "all")
-  const dateFrom = String(params.dateFrom || "")
-  const dateTo = String(params.dateTo || "")
-  const amountFrom = String(params.amountFrom || "")
-  const amountTo = String(params.amountTo || "")
-  // Visibility toggles: hide retailer orders / show only website orders
-  const hideRetailer = String(params.hideRetailer || "") === "1"
-  const websiteOnly = String(params.websiteOnly || "") === "1"
-  // Sortable columns: order number and amount. Anything else (or no
-  // sortBy) keeps the original default of newest-first by order_date.
-  const sortBy = String(params.sortBy || "")
-  const sortOrder = String(params.sortOrder || "desc") === "asc" ? "asc" : "desc"
+  const filters = parseOrdersV2Filters(params)
 
-  // Build query on enriched view
-  let query = supabaseServer
-    .from("orders_v")
-    .select("*", { count: "exact" })
-
-  if (isDistributor && entityId) {
-    // Resolve the distributor's pincodes and Mandir/Shop opt-outs, their
-    // retailers, and (for main distributors) their sub-distributors so we can
-    // scope the query the same way /dashboard/orders does.
-    const [distRes, retailersRes, subDistRes] = await Promise.all([
-      supabaseServer
-        .from("distributors")
-        .select("serviceable_pincodes, serves_mandir_customers, serves_shop_customers")
-        .eq("id", entityId)
-        .maybeSingle(),
-      supabaseServer.from("retailers").select("id").eq("distributor_id", entityId),
-      isMainDistributor
-        ? supabaseServer.from("distributors").select("id").eq("parent_id", entityId)
-        : Promise.resolve({ data: [] as { id: string }[] }),
-    ])
-
-    const pincodes: string[] = (distRes.data?.serviceable_pincodes as string[] | null) ?? []
-    const retailerIds: string[] = (retailersRes.data ?? []).map((r) => r.id)
-    const subDistributorIds: string[] = (subDistRes.data ?? []).map((d) => d.id)
-
-    // In-territory orders: shipping pincode covered by this distributor, not
-    // factory-direct (is_factory_order forces Sadharmik-direct regardless of
-    // pincode), and not a Shop/Mandir customer this distributor opted out of.
-    // Null-safe checks because these columns may be unset on older rows.
-    const territoryClauses: string[] = []
-    if (pincodes.length) {
-      const conditions = [
-        `shipping_pincode.in.(${pincodes.join(",")})`,
-        `or(is_factory_order.is.null,is_factory_order.eq.false)`,
-      ]
-      if (!distRes.data?.serves_shop_customers) {
-        conditions.push(`or(customer_is_shop.is.null,customer_is_shop.eq.false)`)
-      }
-      if (!distRes.data?.serves_mandir_customers) {
-        conditions.push(`or(customer_is_mandir.is.null,customer_is_mandir.eq.false)`)
-      }
-      territoryClauses.push(`and(${conditions.join(",")})`)
-    }
-
-    if (isSubDistributor) {
-      // Sub-distributors: customer/retailer orders in their territory only,
-      // explicitly excluding any distributor-level orders.
-      const parts: string[] = [...territoryClauses]
-      if (retailerIds.length) parts.push(`retailer_id.in.(${retailerIds.join(",")})`)
-      if (parts.length) {
-        query = query.or(parts.join(","))
-      } else {
-        query = query.eq("id", "00000000-0000-0000-0000-000000000000")
-      }
-      query = query.is("distributor_id", null)
-    } else {
-      // Main distributors: territory matches, their retailers, their own
-      // orders, and orders for any of their sub-distributors.
-      const parts: string[] = [`distributor_id.eq.${entityId}`, ...territoryClauses]
-      if (retailerIds.length) parts.push(`retailer_id.in.(${retailerIds.join(",")})`)
-      if (subDistributorIds.length) {
-        parts.push(`distributor_id.in.(${subDistributorIds.join(",")})`)
-      }
-      query = query.or(parts.join(","))
-    }
-  } else if (isRetailer && entityId) {
-    // Retailers: only their own orders.
-    query = query.eq("retailer_id", entityId)
-  } else {
-    // Default scope: any order that belongs to a customer, retailer, or
-    // distributor — plus guest website checkouts, which have all three of
-    // those columns null and only customer_full_name set instead (see
-    // app/api/public-orders/route.ts). Without this last clause, every
-    // website order was silently invisible here regardless of role.
-    query = query.or("customer_id.not.is.null,retailer_id.not.is.null,distributor_id.not.is.null,customer_full_name.not.is.null")
-  }
-
-  // Factory users: see every order except ones billed under a distributor's
-  // own Invoice Code (e.g. "MS") — those are the distributor's own sale, not
-  // the factory's, even though Sadharmik physically supplies the product
-  // either way. They otherwise fall through to the same default scope as
-  // everyone else above, since factories is neither a distributor nor a
-  // retailer role.
-  if (isFactory) {
-    const { data: distributorCodeRows } = await supabaseServer
-      .from("distributors")
-      .select("invoice_code")
-      .not("invoice_code", "is", null)
-    const distributorInvoiceCodes = (distributorCodeRows || [])
-      .map((d: any) => (d.invoice_code || "").trim())
-      .filter(Boolean)
-    // OR with `is.null` so rows missing that invoice type aren't dropped —
-    // Postgres evaluates `NULL NOT ILIKE 'MS%'` as NULL (not TRUE), which
-    // PostgREST treats as "exclude this row" same as an actual match.
-    for (const code of distributorInvoiceCodes) {
-      query = query
-        .or(`invoice_number_gst.is.null,invoice_number_gst.not.ilike.${code}%`)
-        .or(`invoice_number_non_gst.is.null,invoice_number_non_gst.not.ilike.${code}%`)
-    }
-  }
-
-  // Distributors and retailers must not see KP-prefixed (factory-issued) invoices.
-  // We OR with `is.null` so rows where the invoice column is null aren't excluded —
-  // PostgREST treats `null NOT ILIKE 'KP%'` as null (i.e. row excluded), which would
-  // otherwise drop every non-GST or non-invoiced order.
-  if (hidesKpInvoices) {
-    query = query
-      .or("invoice_number_gst.is.null,invoice_number_gst.not.ilike.KP%")
-      .or("invoice_number_non_gst.is.null,invoice_number_non_gst.not.ilike.KP%")
-  }
-
-  // Text search across enriched columns
-  if (search) {
-    const s = search.replace(/%/g, "\\%").replace(/_/g, "\\_")
-    const conditions = [
-      `order_number.ilike.%${s}%`,
-      `customer_name.ilike.%${s}%`,
-      `customer_phone.ilike.%${s}%`,
-      `customer_phone_secondary_1.ilike.%${s}%`,
-      `customer_phone_secondary_2.ilike.%${s}%`,
-      `customer_vip_number.ilike.%${s}%`,
-      `customer_full_address.ilike.%${s}%`,
-      `shipping_full_address.ilike.%${s}%`,
-      `shipping_city.ilike.%${s}%`,
-      `shipping_pincode.ilike.%${s}%`,
-      `invoice_number_gst.ilike.%${s}%`,
-      `invoice_number_non_gst.ilike.%${s}%`,
-    ]
-    // Phone searches must tolerate spaces/dashes (e.g. "99676 93914"
-    // should match "9967693914"), so retry phone columns digits-only
-    const sDigits = search.replace(/\D/g, "")
-    if (sDigits.length >= 4 && sDigits !== search) {
-      conditions.push(
-        `customer_phone.ilike.%${sDigits}%`,
-        `customer_phone_secondary_1.ilike.%${sDigits}%`,
-        `customer_phone_secondary_2.ilike.%${sDigits}%`
-      )
-    }
-    query = query.or(conditions.join(","))
-  }
-
-  // Visibility toggles — retailer orders flood the list with daily bills, and
-  // website orders sometimes need to be reviewed in isolation (factory request)
-  if (hideRetailer) {
-    query = query.is("retailer_id", null)
-  }
-  if (websiteOnly) {
-    query = query.eq("source", "website")
-  }
-
-  // Order status filter
-  if (orderStatus !== "all") {
-    query = query.eq("order_status", orderStatus)
-  }
-
-  // Payment status filter — collapsed to just completed vs not, since that's
-  // the actual question people have ("is this paid or not"), not which of
-  // the underlying pending/processing/failed/refunded states it's in.
-  if (paymentStatus === "completed") {
-    query = query.eq("payment_status", "completed")
-  } else if (paymentStatus === "not_completed") {
-    query = query.neq("payment_status", "completed")
-  }
-
-  // Delivery status filter (complex logic)
-  if (deliveryStatus !== "all") {
-    if (deliveryStatus === "not_assigned") {
-      query = query.is("route_assignment_status", null).is("delivery_partner_id", null)
-    } else if (deliveryStatus === "assigned") {
-      query = query.or(
-        "route_assignment_status.eq.assigned,and(route_assignment_status.is.null,delivery_partner_id.not.is.null)"
-      )
-    } else {
-      query = query.eq("route_assignment_status", deliveryStatus)
-    }
-  }
-
-  // Payment method filter
-  if (paymentMethod !== "all") {
-    query = query.or(
-      `collected_payment_method.eq.${paymentMethod},and(collected_payment_method.is.null,payment_method.eq.${paymentMethod})`
-    )
-  }
-
-  // Distributor filter
-  if (distributorId !== "all") {
-    query = query.eq("serviceable_distributor_id", distributorId)
-  }
-
-  // Delivery partner filter
-  if (deliveryPartnerId !== "all") {
-    if (deliveryPartnerId === "not_assigned") {
-      query = query.is("delivery_partner_id", null)
-    } else {
-      query = query.eq("delivery_partner_id", deliveryPartnerId)
-    }
-  }
-
-  // Date range filter
-  if (dateFrom) {
-    query = query.gte("order_date", dateFrom)
-  }
-  if (dateTo) {
-    query = query.lte("order_date", dateTo + "T23:59:59.999Z")
-  }
-
-  // Amount range filter
-  if (amountFrom && !isNaN(parseFloat(amountFrom))) {
-    query = query.gte("total_amount", parseFloat(amountFrom))
-  }
-  if (amountTo && !isNaN(parseFloat(amountTo))) {
-    query = query.lte("total_amount", parseFloat(amountTo))
-  }
-
-  // Sort and paginate. Default: order_date (the date shown in the table),
-  // not created_at, so orders appear in the same order as their visible
-  // date. Order Number and Amount are explicit user-chosen sorts instead.
-  const ascending = sortOrder === "asc"
-  if (sortBy === "orderNumber") {
-    query = query.order("order_number", { ascending })
-  } else if (sortBy === "amount") {
-    query = query.order("total_amount", { ascending })
-  } else {
-    query = query.order("order_date", { ascending: false }).order("created_at", { ascending: false })
-  }
+  const { query } = await buildOrdersV2Query(filters, { userRole, entityId })
   const { data: orders, count, error } = await query
     .range((page - 1) * pageSize, page * pageSize - 1)
 
@@ -296,21 +49,21 @@ export default async function OrdersV2Page({ searchParams }: { searchParams: Sea
       deliveryPartners={dpRes.data || []}
       distributors={distRes.data || []}
       filters={{
-        search,
-        orderStatus,
-        deliveryStatus,
-        paymentMethod,
-        paymentStatus,
-        distributorId,
-        deliveryPartnerId,
-        dateFrom,
-        dateTo,
-        amountFrom,
-        amountTo,
-        hideRetailer: hideRetailer ? "1" : "",
-        websiteOnly: websiteOnly ? "1" : "",
-        sortBy,
-        sortOrder,
+        search: filters.search,
+        orderStatus: filters.orderStatus,
+        deliveryStatus: filters.deliveryStatus,
+        paymentMethod: filters.paymentMethod,
+        paymentStatus: filters.paymentStatus,
+        distributorId: filters.distributorId,
+        deliveryPartnerId: filters.deliveryPartnerId,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        amountFrom: filters.amountFrom,
+        amountTo: filters.amountTo,
+        hideRetailer: filters.hideRetailer ? "1" : "",
+        websiteOnly: filters.websiteOnly ? "1" : "",
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
       }}
       error={error?.message}
     />

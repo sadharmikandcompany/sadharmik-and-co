@@ -59,6 +59,39 @@ export function exportToExcel(data: any[], filename: string, sheetName: string =
 }
 
 /**
+ * Export a Vyapar-style Sale Report workbook: a "Sale Report" sheet (one row
+ * per order) and an "Item Details" sheet (one row per line item), each with
+ * the "Generated on ..." + blank preamble rows before the header, matching
+ * the reference report this was modeled on.
+ */
+export function exportSaleReportExcel(
+  saleRows: (string | number)[][],
+  itemRows: (string | number)[][],
+  filename: string
+) {
+  const generatedOn = `Generated on ${new Date().toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  })}`
+
+  const saleHeader = [
+    'Date', 'Order No', 'Invoice No', 'Party Name', 'GSTIN', 'Transaction Type',
+    'Total Amount', 'Payment Type', 'Received/Paid Amount', 'Balance Due', 'Payment Status', 'Description',
+  ]
+  const itemHeader = [
+    'Date', 'Invoice No./Txn No.', 'Party Name', 'Item Name', 'Item Code', 'HSN/SAC',
+    'Category', 'Ltr', 'Count', 'Description', 'Challan/Order No.', 'Quantity', 'Unit',
+    'UnitPrice', 'Discount Percent', 'Discount', 'Tax Percent', 'Tax', 'Transaction Type', 'Amount',
+  ]
+
+  const wb = XLSX.utils.book_new()
+  const saleSheet = XLSX.utils.aoa_to_sheet([[generatedOn], [], saleHeader, ...saleRows])
+  const itemSheet = XLSX.utils.aoa_to_sheet([[generatedOn], [], itemHeader, ...itemRows])
+  XLSX.utils.book_append_sheet(wb, saleSheet, 'Sale Report')
+  XLSX.utils.book_append_sheet(wb, itemSheet, 'Item Details')
+  XLSX.writeFile(wb, `${filename}.xlsx`)
+}
+
+/**
  * Export data to PDF with table format
  */
 export function exportTableToPDF(
