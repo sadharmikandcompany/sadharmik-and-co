@@ -8,19 +8,22 @@ type OrderItemForStock = {
 }
 
 /**
- * Deducts kg stock from a warehouse's godown_kg_stock for each item sold —
- * selling a 500g pack takes 0.5kg off, a 1kg pack takes 1kg off, etc. Stock
- * is tracked per product category (one row per flavour/product per
- * warehouse), so this groups line items by their product's category first.
- * Products that aren't linked to a category yet (raw ingredients, anything
- * not onboarded into the kg-stock system) are silently skipped — there's
- * nothing to deduct from for them. Allowed to go negative, same as manual
- * edits — that's the signal a warehouse oversold what it had on hand.
+ * Adjusts kg stock in a warehouse's godown_kg_stock for a set of order line
+ * items — selling a 500g pack takes 0.5kg off, a 1kg pack takes 1kg off,
+ * etc. Stock is tracked per product category (one row per flavour/product
+ * per warehouse), so this groups line items by their product's category
+ * first. Products that aren't linked to a category yet (raw ingredients,
+ * anything not onboarded into the kg-stock system) are silently skipped —
+ * there's nothing to adjust for them. Allowed to go negative, same as
+ * manual edits — that's the signal a warehouse oversold what it had on
+ * hand. `direction: -1` deducts (a sale), `1` adds back (a cancellation or
+ * a return).
  */
-export async function deductKgStockForOrder(
+async function adjustKgStockForOrder(
   supabase: SupabaseClient,
   godownId: string | null | undefined,
-  items: OrderItemForStock[]
+  items: OrderItemForStock[],
+  direction: 1 | -1
 ): Promise<void> {
   if (!godownId) return
   const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))] as string[]
@@ -46,7 +49,7 @@ export async function deductKgStockForOrder(
     kgByCategory.set(categoryId, (kgByCategory.get(categoryId) || 0) + kg)
   }
 
-  for (const [categoryId, kgToDeduct] of kgByCategory) {
+  for (const [categoryId, kg] of kgByCategory) {
     const { data: existing } = await supabase
       .from("godown_kg_stock")
       .select("quantity_kg")
@@ -59,9 +62,29 @@ export async function deductKgStockForOrder(
       {
         godown_id: godownId,
         category_id: categoryId,
-        quantity_kg: Number((current - kgToDeduct).toFixed(3)),
+        quantity_kg: Number((current + direction * kg).toFixed(3)),
       },
       { onConflict: "godown_id,category_id" }
     )
   }
+}
+
+export async function deductKgStockForOrder(
+  supabase: SupabaseClient,
+  godownId: string | null | undefined,
+  items: OrderItemForStock[]
+): Promise<void> {
+  return adjustKgStockForOrder(supabase, godownId, items, -1)
+}
+
+/**
+ * Reverses deductKgStockForOrder — adds the kg back when an order that
+ * already deducted stock is cancelled, or when part of it is returned.
+ */
+export async function restoreKgStockForOrder(
+  supabase: SupabaseClient,
+  godownId: string | null | undefined,
+  items: OrderItemForStock[]
+): Promise<void> {
+  return adjustKgStockForOrder(supabase, godownId, items, 1)
 }

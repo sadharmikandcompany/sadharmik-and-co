@@ -19,7 +19,7 @@ import {
   XCircle, Truck, CheckCircle, MoreVertical, Users, Printer, UserCheck,
   AlertTriangle, DollarSign, Trash2, Star, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, QrCode, Copy, Loader2, Store, Globe,
-  ArrowUp, ArrowDown, ArrowUpDown, FileText, FileSpreadsheet, FileDown,
+  ArrowUp, ArrowDown, ArrowUpDown, FileText, FileSpreadsheet, FileDown, RotateCcw,
 } from "lucide-react"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -32,6 +32,8 @@ import {
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
+import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
+import { ProcessReturnDialog } from "./process-return-dialog"
 import { cn } from "@/lib/utils"
 import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-range-preset-filter"
 import { exportToCSV, exportSaleReportExcel, exportTableToPDF } from "@/lib/export-utils"
@@ -302,6 +304,7 @@ export function OrdersTable({
   const [bulkDeliveryDialogOpen, setBulkDeliveryDialogOpen] = useState(false)
   const [bulkCompleteDialogOpen, setBulkCompleteDialogOpen] = useState(false)
   const [bulkCompletePaymentMethod, setBulkCompletePaymentMethod] = useState("cash")
+  const [returnDialogOrderId, setReturnDialogOrderId] = useState<string | null>(null)
 
   // Loading states for bulk operations
   const [bulkPrintLoading, setBulkPrintLoading] = useState(false)
@@ -422,6 +425,16 @@ export function OrdersTable({
   const handleCancelOrder = async (orderId: string, orderNumber: string) => {
     const { error } = await supabase.from("orders").update({ order_status: "cancelled" }).eq("id", orderId)
     if (error) { toast.error("Failed to cancel order"); return }
+
+    // The order never shipped, so whatever stock it deducted needs to go
+    // back — nothing did this before, which is why cancelling never moved
+    // Warehouse Stock.
+    const { data: cancelledOrder } = await supabase.from("orders").select("source_godown_id").eq("id", orderId).single()
+    const { data: cancelledItems } = await supabase.from("order_items").select("product_id, quantity, weight_grams").eq("order_id", orderId)
+    if (cancelledOrder?.source_godown_id && cancelledItems) {
+      await restoreKgStockForOrder(supabase, cancelledOrder.source_godown_id, cancelledItems)
+    }
+
     toast.success(`Order ${orderNumber} cancelled`)
     refresh()
   }
@@ -1535,6 +1548,9 @@ export function OrdersTable({
                                 <DropdownMenuItem onClick={() => handleCompleteOrder(order.id, order.order_number)} disabled={order.order_status === "completed" || order.order_status === "cancelled"}>
                                   <CheckCircle className="mr-2 h-4 w-4" />Complete Order
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setReturnDialogOrderId(order.id)} disabled={order.order_status === "cancelled" || order.order_status === "pending"}>
+                                  <RotateCcw className="mr-2 h-4 w-4" />Process Return
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleCancelOrder(order.id, order.order_number)} disabled={order.order_status === "cancelled" || order.order_status === "completed"} className="text-destructive focus:text-destructive">
                                   <XCircle className="mr-2 h-4 w-4" />Cancel Order
@@ -1700,6 +1716,15 @@ export function OrdersTable({
           </div>
         </CardContent>
       </Card>
+
+      {returnDialogOrderId && (
+        <ProcessReturnDialog
+          open={!!returnDialogOrderId}
+          onOpenChange={(open) => !open && setReturnDialogOrderId(null)}
+          orderId={returnDialogOrderId}
+          onSuccess={refresh}
+        />
+      )}
 
       {/* Bulk Mark as Delivered Dialog */}
       <AlertDialog open={bulkDeliveryDialogOpen} onOpenChange={setBulkDeliveryDialogOpen}>

@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { X, ExternalLink, ChevronDown, Edit, Download, XCircle, Truck, CheckCircle, MoreVertical, ArrowLeft, FileText, Printer, IndianRupee } from "lucide-react"
+import { X, ExternalLink, ChevronDown, Edit, Download, XCircle, Truck, CheckCircle, MoreVertical, ArrowLeft, FileText, Printer, IndianRupee, RotateCcw } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,8 @@ import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-ran
 import { ExportButtons } from "@/components/export-buttons"
 import { generateOrderInvoice, generateBulkOrderInvoices, FACTORY_COMPANY_INFO } from "@/lib/invoice-generator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
+import { ProcessReturnDialog } from "@/app/dashboard/orders-v2/process-return-dialog"
 
 type Order = {
   id: string
@@ -114,6 +116,7 @@ export default function DistributorOrdersPage() {
 
   // Record Payment dialog (distributors often pay bills in part payments)
   const [paymentDialogOrder, setPaymentDialogOrder] = useState<Order | null>(null)
+  const [returnDialogOrderId, setReturnDialogOrderId] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentMethodInput, setPaymentMethodInput] = useState("cash")
   const [paymentReference, setPaymentReference] = useState("")
@@ -416,6 +419,15 @@ export default function DistributorOrdersPage() {
         .eq("id", orderId)
 
       if (error) throw error
+
+      // The order never shipped, so whatever stock it deducted needs to go
+      // back — nothing did this before, which is why cancelling never moved
+      // Warehouse Stock.
+      const { data: cancelledOrder } = await supabase.from("orders").select("source_godown_id").eq("id", orderId).single()
+      const { data: cancelledItems } = await supabase.from("order_items").select("product_id, quantity, weight_grams").eq("order_id", orderId)
+      if (cancelledOrder?.source_godown_id && cancelledItems) {
+        await restoreKgStockForOrder(supabase, cancelledOrder.source_godown_id, cancelledItems)
+      }
 
       toast.success(`Order ${orderNumber} has been cancelled`)
       fetchDistributorOrders() // Refresh the list
@@ -1290,6 +1302,13 @@ export default function DistributorOrdersPage() {
                                   <IndianRupee className="mr-2 h-4 w-4" />
                                   Record Payment
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setReturnDialogOrderId(order.id)}
+                                  disabled={order.order_status === "cancelled" || order.order_status === "pending"}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Process Return
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => handleCancelOrder(order.id, order.order_number)}
@@ -1401,6 +1420,15 @@ export default function DistributorOrdersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {returnDialogOrderId && (
+        <ProcessReturnDialog
+          open={!!returnDialogOrderId}
+          onOpenChange={(open) => !open && setReturnDialogOrderId(null)}
+          orderId={returnDialogOrderId}
+          onSuccess={fetchDistributorOrders}
+        />
+      )}
 
       {/* Record Payment dialog — supports part payments against a bill */}
       <Dialog open={!!paymentDialogOrder} onOpenChange={(open) => !open && setPaymentDialogOrder(null)}>
