@@ -33,7 +33,6 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
 import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
-import { ProcessReturnDialog } from "./process-return-dialog"
 import { cn } from "@/lib/utils"
 import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-range-preset-filter"
 import { exportToCSV, exportSaleReportExcel, exportTableToPDF } from "@/lib/export-utils"
@@ -304,7 +303,6 @@ export function OrdersTable({
   const [bulkDeliveryDialogOpen, setBulkDeliveryDialogOpen] = useState(false)
   const [bulkCompleteDialogOpen, setBulkCompleteDialogOpen] = useState(false)
   const [bulkCompletePaymentMethod, setBulkCompletePaymentMethod] = useState("cash")
-  const [returnDialogOrderId, setReturnDialogOrderId] = useState<string | null>(null)
 
   // Loading states for bulk operations
   const [bulkPrintLoading, setBulkPrintLoading] = useState(false)
@@ -1131,6 +1129,9 @@ export function OrdersTable({
           <Button variant="outline" onClick={() => router.push("/dashboard/orders/invoice-management")}>
             <Edit className="mr-2 h-4 w-4" />Invoices
           </Button>
+          <Button variant="outline" onClick={() => router.push("/dashboard/credit-notes/new")}>
+            <RotateCcw className="mr-2 h-4 w-4" />Returns
+          </Button>
           {selectedOrders.size > 0 && (
             <>
               <Button variant="outline" onClick={confirmBulkMarkAsDelivered} disabled={bulkDeliveredLoading}>
@@ -1471,6 +1472,17 @@ export function OrdersTable({
                             </Badge>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Process Return"
+                                disabled={order.order_status === "cancelled" || order.order_status === "pending"}
+                                onClick={() => router.push(`/dashboard/credit-notes/new?orderId=${order.id}`)}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
@@ -1548,15 +1560,13 @@ export function OrdersTable({
                                 <DropdownMenuItem onClick={() => handleCompleteOrder(order.id, order.order_number)} disabled={order.order_status === "completed" || order.order_status === "cancelled"}>
                                   <CheckCircle className="mr-2 h-4 w-4" />Complete Order
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setReturnDialogOrderId(order.id)} disabled={order.order_status === "cancelled" || order.order_status === "pending"}>
-                                  <RotateCcw className="mr-2 h-4 w-4" />Process Return
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleCancelOrder(order.id, order.order_number)} disabled={order.order_status === "cancelled" || order.order_status === "completed"} className="text-destructive focus:text-destructive">
                                   <XCircle className="mr-2 h-4 w-4" />Cancel Order
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
 
@@ -1716,15 +1726,6 @@ export function OrdersTable({
           </div>
         </CardContent>
       </Card>
-
-      {returnDialogOrderId && (
-        <ProcessReturnDialog
-          open={!!returnDialogOrderId}
-          onOpenChange={(open) => !open && setReturnDialogOrderId(null)}
-          orderId={returnDialogOrderId}
-          onSuccess={refresh}
-        />
-      )}
 
       {/* Bulk Mark as Delivered Dialog */}
       <AlertDialog open={bulkDeliveryDialogOpen} onOpenChange={setBulkDeliveryDialogOpen}>

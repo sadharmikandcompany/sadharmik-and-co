@@ -711,6 +711,10 @@ function CustomersV2Content() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerOrders, setCustomerOrders] = useState<Order[]>([])
+  // Credit notes against this party (returns) reduce what they owe, even
+  // when the note isn't tied to one specific invoice (a general credit
+  // against their running account) — orders alone don't carry this.
+  const [partyCreditNotesTotal, setPartyCreditNotesTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -808,6 +812,15 @@ function CustomersV2Content() {
   useEffect(() => {
     if (selectedCustomer) {
       fetchCustomerOrders(selectedCustomer.id)
+      supabase
+        .from("credit_notes")
+        .select("total_amount")
+        .eq("party_id", selectedCustomer.id)
+        .then(({ data }) => {
+          setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
+        })
+    } else {
+      setPartyCreditNotesTotal(0)
     }
     setIsEditingOpeningBalance(false)
     setOpeningBalanceInput("")
@@ -953,6 +966,18 @@ function CustomersV2Content() {
       allOrders.forEach((order) => {
         if (order.customer_id) {
           spendMap[order.customer_id] = (spendMap[order.customer_id] || 0) + (order.total_amount || 0)
+        }
+      })
+
+      // Credit notes (returns) reduce what each customer owes, including
+      // ones not tied to a specific order.
+      const { data: notes } = await supabase
+        .from("credit_notes")
+        .select("party_id, total_amount")
+        .in("party_id", customerIds)
+      ;(notes || []).forEach((n: any) => {
+        if (n.party_id) {
+          spendMap[n.party_id] = (spendMap[n.party_id] || 0) - (Number(n.total_amount) || 0)
         }
       })
 
@@ -1242,6 +1267,24 @@ function CustomersV2Content() {
             if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
             balanceMap[key].totalPending += p.total_amount || 0
             balanceMap[key].balanceAmount += p.remaining_amount || 0
+          })
+        }
+      }
+
+      // Credit notes (returns) reduce what each party owes — subtract them
+      // from the balance shown in the list, same as the detail panel does.
+      const creditNoteParties = [...distIds, ...retIds]
+      if (creditNoteParties.length > 0) {
+        const { data: notes } = await supabase
+          .from("credit_notes")
+          .select("party_id, party_type, total_amount")
+          .in("party_id", creditNoteParties)
+        if (notes) {
+          notes.forEach((n: any) => {
+            if (!n.party_id || !n.party_type) return
+            const key = `${n.party_type}_${n.party_id}`
+            if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
+            balanceMap[key].balanceAmount -= Number(n.total_amount) || 0
           })
         }
       }
@@ -1964,7 +2007,7 @@ function CustomersV2Content() {
     return sum + Math.max(0, (order.total_amount || 0) - payOut)
   }, 0)
   const totalPaid = totalBilled - unpaidFromOrders
-  const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0)
+  const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0) - partyCreditNotesTotal
 
   return (
     <div className="flex gap-3 -mx-6 -my-4 max-w-none w-[calc(100%+3rem)] px-3 py-3">

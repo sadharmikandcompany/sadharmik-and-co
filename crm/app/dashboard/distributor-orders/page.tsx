@@ -49,7 +49,6 @@ import { ExportButtons } from "@/components/export-buttons"
 import { generateOrderInvoice, generateBulkOrderInvoices, FACTORY_COMPANY_INFO } from "@/lib/invoice-generator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
-import { ProcessReturnDialog } from "@/app/dashboard/orders-v2/process-return-dialog"
 
 type Order = {
   id: string
@@ -116,7 +115,6 @@ export default function DistributorOrdersPage() {
 
   // Record Payment dialog (distributors often pay bills in part payments)
   const [paymentDialogOrder, setPaymentDialogOrder] = useState<Order | null>(null)
-  const [returnDialogOrderId, setReturnDialogOrderId] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentMethodInput, setPaymentMethodInput] = useState("cash")
   const [paymentReference, setPaymentReference] = useState("")
@@ -997,6 +995,9 @@ export default function DistributorOrdersPage() {
               Print Selected ({selectedOrders.size})
             </Button>
           )}
+          <Button variant="outline" onClick={() => router.push("/dashboard/credit-notes/new")}>
+            <RotateCcw className="mr-2 h-4 w-4" />Returns
+          </Button>
           <ExportButtons
             data={exportData}
             filename="distributor-orders"
@@ -1250,6 +1251,17 @@ export default function DistributorOrdersPage() {
                             </Badge>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Process Return"
+                                disabled={order.order_status === "cancelled" || order.order_status === "pending"}
+                                onClick={() => router.push(`/dashboard/credit-notes/new?orderId=${order.id}`)}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1302,13 +1314,6 @@ export default function DistributorOrdersPage() {
                                   <IndianRupee className="mr-2 h-4 w-4" />
                                   Record Payment
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => setReturnDialogOrderId(order.id)}
-                                  disabled={order.order_status === "cancelled" || order.order_status === "pending"}
-                                >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Process Return
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => handleCancelOrder(order.id, order.order_number)}
@@ -1320,6 +1325,7 @@ export default function DistributorOrdersPage() {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
 
@@ -1420,15 +1426,6 @@ export default function DistributorOrdersPage() {
           </div>
         </CardContent>
       </Card>
-
-      {returnDialogOrderId && (
-        <ProcessReturnDialog
-          open={!!returnDialogOrderId}
-          onOpenChange={(open) => !open && setReturnDialogOrderId(null)}
-          orderId={returnDialogOrderId}
-          onSuccess={fetchDistributorOrders}
-        />
-      )}
 
       {/* Record Payment dialog — supports part payments against a bill */}
       <Dialog open={!!paymentDialogOrder} onOpenChange={(open) => !open && setPaymentDialogOrder(null)}>

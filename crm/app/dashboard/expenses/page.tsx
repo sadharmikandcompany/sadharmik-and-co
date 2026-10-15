@@ -54,6 +54,11 @@ import { cn } from "@/lib/utils"
 import { DateRangePresetFilter, type DatePreset } from "@/components/ui/date-range-preset-filter"
 import Link from "next/link"
 import { isOldGstConvention, splitItemGst } from "@/lib/purchase-item-gst"
+import { ExpenseTypeCombobox } from "@/components/ui/expense-type-combobox"
+import { expenseTypeLabel } from "@/lib/expense-types"
+
+const EXPENSE_TYPE_FILTER_LEADING = [{ value: "all", label: "All Types" }]
+const EXPENSE_TYPE_FILTER_TRAILING = [{ value: "purchase", label: "Purchase (from Purchases)" }]
 
 type Expense = {
   id: string
@@ -662,24 +667,7 @@ export default function ExpensesPage() {
                 {/* Expense Type */}
                 <div className="space-y-2">
                   <Label htmlFor="expenseType">Expense Type *</Label>
-                  <Select value={expenseType} onValueChange={setExpenseType}>
-                    <SelectTrigger id="expenseType">
-                      <SelectValue placeholder="Select expense type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="loan">Loan Payment</SelectItem>
-                      <SelectItem value="daily_expenses">Daily Expenses</SelectItem>
-                      <SelectItem value="rent">Rent</SelectItem>
-                      <SelectItem value="utilities">Utilities (Electricity, Water, etc.)</SelectItem>
-                      <SelectItem value="salary">Salary</SelectItem>
-                      <SelectItem value="wages">Wages</SelectItem>
-                      <SelectItem value="transportation">Transportation</SelectItem>
-                      <SelectItem value="maintenance">Maintenance & Repairs</SelectItem>
-                      <SelectItem value="marketing">Marketing & Advertising</SelectItem>
-                      <SelectItem value="insurance">Insurance</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ExpenseTypeCombobox id="expenseType" value={expenseType} onValueChange={setExpenseType} />
                 </div>
 
                 {/* Expense Category */}
@@ -815,24 +803,7 @@ export default function ExpensesPage() {
             {/* Expense Type */}
             <div className="space-y-2">
               <Label htmlFor="editExpenseType">Expense Type *</Label>
-              <Select value={editExpenseType} onValueChange={setEditExpenseType}>
-                <SelectTrigger id="editExpenseType">
-                  <SelectValue placeholder="Select expense type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="loan">Loan Payment</SelectItem>
-                  <SelectItem value="daily_expenses">Daily Expenses</SelectItem>
-                  <SelectItem value="rent">Rent</SelectItem>
-                  <SelectItem value="utilities">Utilities (Electricity, Water, etc.)</SelectItem>
-                  <SelectItem value="salary">Salary</SelectItem>
-                  <SelectItem value="wages">Wages</SelectItem>
-                  <SelectItem value="transportation">Transportation</SelectItem>
-                  <SelectItem value="maintenance">Maintenance & Repairs</SelectItem>
-                  <SelectItem value="marketing">Marketing & Advertising</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <ExpenseTypeCombobox id="editExpenseType" value={editExpenseType} onValueChange={setEditExpenseType} />
             </div>
 
             {/* Expense Category */}
@@ -966,7 +937,7 @@ export default function ExpensesPage() {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Expense Type:</span>
                 <Badge variant={getExpenseTypeVariant(expenseToDelete.expense_type)}>
-                  {expenseToDelete.expense_type.replace(/_/g, " ")}
+                  {expenseTypeLabel(expenseToDelete.expense_type)}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
@@ -1114,26 +1085,14 @@ export default function ExpensesPage() {
               </div>
 
               {/* Expense Type Filter */}
-              <Select value={expenseTypeFilter} onValueChange={setExpenseTypeFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Expense Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="loan">Loan Payment</SelectItem>
-                  <SelectItem value="daily_expenses">Daily Expenses</SelectItem>
-                  <SelectItem value="rent">Rent</SelectItem>
-                  <SelectItem value="utilities">Utilities</SelectItem>
-                  <SelectItem value="salary">Salary</SelectItem>
-                  <SelectItem value="wages">Wages</SelectItem>
-                  <SelectItem value="transportation">Transportation</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                  <SelectItem value="purchase">Purchase (from Purchases)</SelectItem>
-                </SelectContent>
-              </Select>
+              <ExpenseTypeCombobox
+                value={expenseTypeFilter}
+                onValueChange={setExpenseTypeFilter}
+                placeholder="Expense Type"
+                className="sm:w-[180px]"
+                leadingOptions={EXPENSE_TYPE_FILTER_LEADING}
+                trailingOptions={EXPENSE_TYPE_FILTER_TRAILING}
+              />
 
               {/* Expense Category Filter (Direct / Indirect) */}
               <Select value={expenseCategoryFilter} onValueChange={setExpenseCategoryFilter}>
@@ -1230,7 +1189,7 @@ export default function ExpensesPage() {
                           </Badge>
                         ) : (
                           <Badge variant={getExpenseTypeVariant(row.data.expense_type)} className="rounded-full capitalize">
-                            {row.data.expense_type.replace(/_/g, " ")}
+                            {expenseTypeLabel(row.data.expense_type)}
                           </Badge>
                         )}
                       </TableCell>

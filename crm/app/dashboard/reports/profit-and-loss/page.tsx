@@ -208,7 +208,7 @@ export default function ProfitAndLossPage() {
       let directExpenseTotal = 0
       let indirectExpenseTotal = 0
 
-      const directExpenseTypes = ["freight", "shipping", "transport", "loading", "unloading", "packaging"]
+      const directExpenseTypes = ["freight", "shipping", "transport", "loading", "unloading", "packaging", "wheat", "oil", "ghee", "spices", "pp_bag", "box", "sticker"]
 
       expenses.forEach(e => {
         const type = e.expense_type || "Other"
@@ -287,7 +287,7 @@ export default function ProfitAndLossPage() {
   const netProfitPositive = netProfit > 0 ? netProfit : 0
 
   // Get indirect expenses (non-direct)
-  const directExpenseTypes = ["freight", "shipping", "transport", "loading", "unloading", "packaging"]
+  const directExpenseTypes = ["freight", "shipping", "transport", "loading", "unloading", "packaging", "wheat", "oil", "ghee", "spices", "pp_bag", "box", "sticker"]
   const indirectExpenses = Object.entries(data.expensesByType).filter(
     ([type]) => !directExpenseTypes.some(d => type.toLowerCase().includes(d))
   )

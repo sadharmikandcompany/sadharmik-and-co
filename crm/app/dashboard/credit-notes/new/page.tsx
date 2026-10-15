@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,7 +50,10 @@ import {
   FileImage,
   ChevronUp,
   ChevronDown,
+  RotateCcw,
 } from "lucide-react"
+import { applyOrderReturnEffects, type OrderForReturn, type OrderReturnLine } from "@/lib/accounting/apply-order-return"
+import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -81,10 +84,20 @@ type Category = {
   parent_category_id: string | null
 }
 
-export default function NewCreditNotePage() {
+function NewCreditNotePageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnOrderId = searchParams.get("orderId")
   const { role } = useUserRole()
   const [saving, setSaving] = useState(false)
+  // Set when this credit note is being created against one of our own sales
+  // (opened via the "Process Return" button on an order) — carries what's
+  // needed to shrink that order and restock the warehouse once the note is
+  // saved. itemOrderMeta maps each pre-filled NoteItem's id back to its
+  // source order_items row, so edits to quantity in the form (returning
+  // less than what was originally sold) still return the right amount.
+  const [returnOrderMeta, setReturnOrderMeta] = useState<OrderForReturn | null>(null)
+  const [itemOrderMeta, setItemOrderMeta] = useState<Record<string, { orderItemId: string; productId: string | null; weightGrams: number | null; originalQty: number }>>({})
   const [selectedPartyId, setSelectedPartyId] = useState<string>("")
   const [selectedParty, setSelectedParty] = useState<Party | null>(null)
   const [showPartyDetails, setShowPartyDetails] = useState(false)
@@ -185,6 +198,97 @@ export default function NewCreditNotePage() {
     setSelectedPartyId(partyId)
     setSelectedParty(party)
   }
+
+  // Pre-fill from the order this return is against (opened via "Process
+  // Return" on an order in Orders V2 / Distributor Orders). Direct ID
+  // lookup for distributor/retailer/customer orders; guest orders (no
+  // linked party) are left for the user to pick manually rather than risk
+  // a wrong fuzzy name match on a real sale.
+  useEffect(() => {
+    if (!returnOrderId) return
+    let cancelled = false
+    ;(async () => {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, subtotal, gst_amount, cgst_amount, sgst_amount, source_godown_id, payment_status, payment_method, customer_id, distributor_id, retailer_id")
+        .eq("id", returnOrderId)
+        .single()
+      if (cancelled || !order) return
+
+      const { data: orderItems } = await supabase
+        .from("order_items")
+        .select("id, product_id, product_name, quantity, unit_price, weight_grams, hsn_code, gst_percentage, subtotal, discount_amount, gst_amount, cgst_amount, sgst_amount, total")
+        .eq("order_id", order.id)
+      if (cancelled) return
+
+      setReturnOrderMeta({
+        id: order.id,
+        order_number: order.order_number,
+        total_amount: Number(order.total_amount) || 0,
+        subtotal: Number(order.subtotal) || 0,
+        gst_amount: Number(order.gst_amount) || 0,
+        cgst_amount: Number(order.cgst_amount) || 0,
+        sgst_amount: Number(order.sgst_amount) || 0,
+        source_godown_id: order.source_godown_id,
+        payment_status: order.payment_status,
+        payment_method: order.payment_method,
+      })
+
+      setInvoiceNumber(order.invoice_number_gst || order.invoice_number_non_gst || order.order_number)
+      if (order.order_date) setInvoiceDate(new Date(order.order_date))
+
+      if (order.distributor_id) {
+        const { data: d } = await supabase.from("distributors").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.distributor_id).single()
+        if (d && !cancelled) handlePartyChange(d.id, { id: d.id, name: d.name, phone: d.phone_primary, email: d.email, company_name: d.company_name, gst_number: d.gst_number, type: "distributor" })
+      } else if (order.retailer_id) {
+        const { data: r } = await supabase.from("retailers").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.retailer_id).single()
+        if (r && !cancelled) handlePartyChange(r.id, { id: r.id, name: r.name, phone: r.phone_primary, email: r.email, company_name: r.company_name, gst_number: r.gst_number, type: "retailer" })
+      } else if (order.customer_id) {
+        const { data: c } = await supabase.from("customers").select("id, first_name, last_name, mobile_primary, email, company_name, gst_number").eq("id", order.customer_id).single()
+        if (c && !cancelled) handlePartyChange(c.id, { id: c.id, name: `${c.first_name} ${c.last_name}`.trim(), phone: c.mobile_primary, email: c.email, company_name: c.company_name, gst_number: c.gst_number, type: "customer" })
+      }
+
+      const meta: typeof itemOrderMeta = {}
+      const noteItems: NoteItem[] = (orderItems || []).map((item: any) => {
+        const id = Math.random().toString(36).substring(2, 9)
+        meta[id] = {
+          orderItemId: item.id,
+          productId: item.product_id,
+          weightGrams: item.weight_grams,
+          originalQty: Number(item.quantity) || 0,
+        }
+        const gstPct = Number(item.gst_percentage) || 0
+        // order_items.unit_price is GST-inclusive; NoteItem's price_per_unit
+        // is the excl.-tax rate calculateNoteItemAmount expects, so back
+        // the tax out before handing it off.
+        const priceExclTax = gstPct > 0 ? Number(item.unit_price) / (1 + gstPct / 100) : Number(item.unit_price)
+        return calculateNoteItemAmount({
+          id,
+          product_id: item.product_id || "",
+          item_name: item.product_name,
+          hsn_code: item.hsn_code || "",
+          description: "",
+          quantity: Number(item.quantity) || 0,
+          unit: "PCS",
+          price_per_unit: priceExclTax,
+          discount_percent: 0,
+          discount_amount: 0,
+          tax_percent: gstPct,
+          tax_amount: 0,
+          amount: 0,
+        })
+      })
+      if (!cancelled) {
+        setItemOrderMeta(meta)
+        setItems(noteItems)
+        setDescription(`Return against order ${order.order_number}`)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnOrderId])
 
   const filteredCatalogProducts = catalogProducts.filter((p) => {
     if (selectedCategory !== "all" && p.parent_category_id !== selectedCategory) return false
@@ -456,6 +560,65 @@ export default function NewCreditNotePage() {
 
       if (itemsError) throw itemsError
 
+      // This credit note is against one of our own sales — shrink that
+      // order to match what's actually being returned, restock the
+      // warehouse, and reverse the payment in Reconciliation if it was
+      // already marked paid.
+      if (returnOrderMeta) {
+        const returnLines: OrderReturnLine[] = validItems
+          .map((item) => {
+            const meta = itemOrderMeta[item.id]
+            if (!meta) return null
+            return {
+              orderItemId: meta.orderItemId,
+              productId: meta.productId,
+              weightGrams: meta.weightGrams,
+              returnQty: Math.min(item.quantity, meta.originalQty),
+            }
+          })
+          .filter((l): l is OrderReturnLine => l !== null)
+
+        const returnedValue = await applyOrderReturnEffects(supabase, returnOrderMeta, returnLines)
+        if (returnedValue > 0) {
+          toast.success(`Order ${returnOrderMeta.order_number} reduced by ₹${returnedValue.toFixed(2)} and stock restocked`)
+        }
+      } else {
+        // Freeform credit note (not opened from a specific order) — still
+        // restock whatever items have a real catalog product, since a
+        // credit note always means goods physically came back. There's no
+        // order to reduce or payment to reverse without one, so only the
+        // warehouse side applies — into the factory's own godown, same
+        // default Add Production uses.
+        const itemsWithProduct = validItems.filter((item) => item.product_id)
+        if (itemsWithProduct.length > 0) {
+          const { data: companyGodown } = await supabase
+            .from("godowns")
+            .select("id")
+            .eq("godown_type", "company")
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle()
+          if (companyGodown) {
+            const productIds = [...new Set(itemsWithProduct.map((item) => item.product_id))]
+            const { data: products } = await supabase
+              .from("products")
+              .select("id, net_weight_grams")
+              .in("id", productIds)
+            const weightByProduct = new Map((products || []).map((p) => [p.id, p.net_weight_grams]))
+            await restoreKgStockForOrder(
+              supabase,
+              companyGodown.id,
+              itemsWithProduct.map((item) => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                weight_grams: weightByProduct.get(item.product_id) ?? null,
+              }))
+            )
+            toast.success("Stock restocked at the factory warehouse")
+          }
+        }
+      }
+
       toast.success("Credit Note created successfully")
       router.push("/dashboard/credit-notes")
     } catch (error) {
@@ -470,6 +633,16 @@ export default function NewCreditNotePage() {
 
   return (
     <div className="space-y-6">
+      {returnOrderMeta && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          <RotateCcw className="h-4 w-4 shrink-0" />
+          <span>
+            Returning against order <strong>{returnOrderMeta.order_number}</strong> — saving this note will reduce
+            that order&apos;s total, add the returned stock back to its warehouse, and reverse the payment in
+            Reconciliation if it was already paid.
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/credit-notes")}>
           <ArrowLeft className="h-4 w-4" />
@@ -961,5 +1134,13 @@ export default function NewCreditNotePage() {
           </div>
       </div>
     </div>
+  )
+}
+
+export default function NewCreditNotePage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+      <NewCreditNotePageContent />
+    </Suspense>
   )
 }

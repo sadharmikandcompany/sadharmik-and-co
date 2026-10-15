@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { ExpenseTypeCombobox } from "@/components/ui/expense-type-combobox"
+import { expenseTypeLabel } from "@/lib/expense-types"
 import { useUserRole } from "@/hooks/use-user-role"
 import {
   Card,
@@ -78,18 +80,6 @@ type Expense = {
   created_at: string
   added_by: string | null
 }
-
-const EXPENSE_TYPES = [
-  "Rent",
-  "Salary",
-  "Utilities",
-  "Travel",
-  "Fuel",
-  "Maintenance",
-  "Office Supplies",
-  "Marketing",
-  "Other",
-]
 
 const PAYMENT_METHODS = ["Cash", "Cheque", "RTGS", "G Pay", "UPI", "Bank Transfer"]
 
@@ -270,6 +260,7 @@ export default function MyExpensesPage() {
     const q = searchTerm.toLowerCase()
     return (
       e.expense_type.toLowerCase().includes(q) ||
+      expenseTypeLabel(e.expense_type).toLowerCase().includes(q) ||
       e.payment_method.toLowerCase().includes(q) ||
       (e.description || "").toLowerCase().includes(q)
     )
@@ -385,7 +376,7 @@ export default function MyExpensesPage() {
                       <TableRow key={e.id}>
                         <TableCell>{format(new Date(e.expense_date), "dd MMM yyyy")}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{e.expense_type}</Badge>
+                          <Badge variant="outline">{expenseTypeLabel(e.expense_type)}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
                         <TableCell className="text-sm capitalize">{e.payment_method}</TableCell>
@@ -429,12 +420,7 @@ export default function MyExpensesPage() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={form.expense_type} onValueChange={(v) => setForm({ ...form, expense_type: v })}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {EXPENSE_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <ExpenseTypeCombobox value={form.expense_type} onValueChange={(v) => setForm({ ...form, expense_type: v })} placeholder="Select type" />
             </div>
             <div className="space-y-1.5">
               <Label>Amount (₹)</Label>
@@ -493,12 +479,7 @@ export default function MyExpensesPage() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={editForm.expense_type} onValueChange={(v) => setEditForm({ ...editForm, expense_type: v })}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {EXPENSE_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <ExpenseTypeCombobox value={editForm.expense_type} onValueChange={(v) => setEditForm({ ...editForm, expense_type: v })} placeholder="Select type" />
             </div>
             <div className="space-y-1.5">
               <Label>Amount (₹)</Label>

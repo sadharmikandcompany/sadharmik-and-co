@@ -24,6 +24,7 @@ import {
   Wheat,
   AlertTriangle,
   Plus,
+  RotateCcw,
 } from 'lucide-react'
 import Link from 'next/link'
 import { StockTableClient, type FlavourStock } from './stock-table-client'
@@ -330,6 +331,12 @@ function WarehouseStockContent() {
               Add Production
             </Button>
           )}
+          <Link href="/dashboard/credit-notes/new">
+            <Button variant="outline">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Returns
+            </Button>
+          </Link>
           {!isFactoryRole && (
             <Link href="/dashboard/stock-transfers/new">
               <Button>

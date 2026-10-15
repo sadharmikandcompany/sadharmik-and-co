@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { ExpenseTypeCombobox } from "@/components/ui/expense-type-combobox"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -2440,22 +2441,7 @@ export default function ReconciliationPage() {
                 <TabsContent value="expense" className="space-y-4 mt-4">
                   <div className="space-y-2">
                     <Label>Expense Type *</Label>
-                    <Select value={txnExpenseType} onValueChange={setTxnExpenseType}>
-                      <SelectTrigger><SelectValue placeholder="Select expense type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="loan">Loan Payment</SelectItem>
-                        <SelectItem value="daily_expenses">Daily Expenses</SelectItem>
-                        <SelectItem value="rent">Rent</SelectItem>
-                        <SelectItem value="utilities">Utilities (Electricity, Water, etc.)</SelectItem>
-                        <SelectItem value="salary">Salary</SelectItem>
-                        <SelectItem value="wages">Wages</SelectItem>
-                        <SelectItem value="transportation">Transportation</SelectItem>
-                        <SelectItem value="maintenance">Maintenance &amp; Repairs</SelectItem>
-                        <SelectItem value="marketing">Marketing &amp; Advertising</SelectItem>
-                        <SelectItem value="insurance">Insurance</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <ExpenseTypeCombobox value={txnExpenseType} onValueChange={setTxnExpenseType} />
                   </div>
 
                   <div className="space-y-2">

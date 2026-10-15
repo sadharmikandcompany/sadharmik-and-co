@@ -995,7 +995,7 @@ export default function FactoryDashboardPage() {
       // ===== EXPENSES split into direct / indirect =====
       // Direct: production-linked spend (wages, daily ops).
       // Indirect: financing & overhead (loan, rent, other).
-      const DIRECT_TYPES = new Set(["wages", "daily_expenses", "freight", "transport"])
+      const DIRECT_TYPES = new Set(["wages", "daily_expenses", "freight", "transport", "wheat", "oil", "ghee", "spices", "pp_bag", "box", "sticker"])
       const { data: expenseRows, error: expenseErr } = await supabase
         .from("expenses")
         .select("amount, expense_type, expense_date")
