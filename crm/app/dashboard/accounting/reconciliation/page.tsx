@@ -149,7 +149,10 @@ export default function ReconciliationPage() {
   const [txnReference, setTxnReference] = useState("")
   const [txnDate, setTxnDate] = useState(new Date().toISOString().split("T")[0])
   const [searchingOrders, setSearchingOrders] = useState(false)
-  const [txnPaymentStatusFilter, setTxnPaymentStatusFilter] = useState<string>("all")
+  // Defaults to "not yet paid" — opening Create Transaction is almost always
+  // about finding a bill to collect payment against, so starting on "all"
+  // buried it under every already-paid order too.
+  const [txnPaymentStatusFilter, setTxnPaymentStatusFilter] = useState<string>("not_completed")
   const [txnPaymentMethodFilter, setTxnPaymentMethodFilter] = useState<string>("all")
   const [txnDateFrom, setTxnDateFrom] = useState("")
   const [txnDateTo, setTxnDateTo] = useState("")
@@ -597,22 +600,44 @@ export default function ReconciliationPage() {
       const df = dateFrom ?? txnDateFrom
       const dt = dateTo ?? txnDateTo
 
-      // If searching by text, first check if it matches customer name/phone/vip
+      // If searching by text, first check if it matches a customer,
+      // distributor, or retailer's name/phone (previously only checked
+      // customers, so searching a distributor's name like "Nilesh Trevadia"
+      // never found their bills at all).
       let customerIds: string[] = []
+      let distributorIds: string[] = []
+      let retailerIds: string[] = []
       if (searchVal && searchVal.length >= 2) {
-        const { data: customers } = await supabase
-          .from("customers")
-          .select("id")
-          .or(`first_name.ilike.%${searchVal}%,last_name.ilike.%${searchVal}%,mobile_primary.ilike.%${searchVal}%,vip_number.ilike.%${searchVal}%`)
-          .limit(50)
+        const [{ data: customers }, { data: distributors }, { data: retailers }] = await Promise.all([
+          supabase
+            .from("customers")
+            .select("id")
+            .or(`first_name.ilike.%${searchVal}%,last_name.ilike.%${searchVal}%,mobile_primary.ilike.%${searchVal}%,vip_number.ilike.%${searchVal}%`)
+            .limit(50),
+          supabase
+            .from("distributors")
+            .select("id")
+            .or(`name.ilike.%${searchVal}%,company_name.ilike.%${searchVal}%,phone_primary.ilike.%${searchVal}%`)
+            .limit(50),
+          supabase
+            .from("retailers")
+            .select("id")
+            .or(`name.ilike.%${searchVal}%,company_name.ilike.%${searchVal}%,phone_primary.ilike.%${searchVal}%`)
+            .limit(50),
+        ])
         customerIds = (customers || []).map(c => c.id)
+        distributorIds = (distributors || []).map(d => d.id)
+        retailerIds = (retailers || []).map(r => r.id)
       }
 
       let q = supabase
         .from("orders")
-        .select("id, order_number, total_amount, payment_status, payment_method, easebuzz_txn_id, order_date, source, customer_id, invoice_number_gst, invoice_number_non_gst")
+        .select("id, order_number, total_amount, payment_status, payment_method, easebuzz_txn_id, order_date, source, customer_id, distributor_id, retailer_id, invoice_number_gst, invoice_number_non_gst")
         .order("order_date", { ascending: false })
-        .limit(50)
+        // Generous cap, not a hard 50 — this used to silently drop every
+        // bill older than the 50 most recent, which is why some bills never
+        // showed up here even when searched for directly by number.
+        .limit(500)
 
       if (searchVal && searchVal.length >= 2) {
         const orParts = [
@@ -624,6 +649,12 @@ export default function ReconciliationPage() {
         if (customerIds.length > 0) {
           orParts.push(`customer_id.in.(${customerIds.join(",")})`)
         }
+        if (distributorIds.length > 0) {
+          orParts.push(`distributor_id.in.(${distributorIds.join(",")})`)
+        }
+        if (retailerIds.length > 0) {
+          orParts.push(`retailer_id.in.(${retailerIds.join(",")})`)
+        }
         q = q.or(orParts.join(","))
       }
 
@@ -634,38 +665,58 @@ export default function ReconciliationPage() {
 
       const { data } = await q
 
-      // Fetch customer names for results
-      const orderCustomerIds = (data || []).filter(o => o.customer_id).map(o => o.customer_id)
+      // Fetch party names for results — customer, distributor, or retailer,
+      // whichever the order actually belongs to.
+      const orderCustomerIds = [...new Set((data || []).filter(o => o.customer_id).map(o => o.customer_id))]
+      const orderDistributorIds = [...new Set((data || []).filter(o => o.distributor_id).map(o => o.distributor_id))]
+      const orderRetailerIds = [...new Set((data || []).filter(o => o.retailer_id).map(o => o.retailer_id))]
       const customerMap: Record<string, { first_name: string; last_name: string; mobile_primary: string; vip_number: string | null }> = {}
-      if (orderCustomerIds.length > 0) {
-        const uniqueIds = [...new Set(orderCustomerIds)]
-        const { data: custData } = await supabase
-          .from("customers")
-          .select("id, first_name, last_name, mobile_primary, vip_number")
-          .in("id", uniqueIds)
-        if (custData) {
-          custData.forEach(c => { customerMap[c.id] = c })
-        }
-      }
+      const distributorMap: Record<string, { name: string; phone_primary: string | null }> = {}
+      const retailerMap: Record<string, { name: string; phone_primary: string | null }> = {}
 
-      const results = (data || []).map(order => ({
-        ...order,
-        customer_name: order.customer_id && customerMap[order.customer_id]
-          ? `${customerMap[order.customer_id].first_name} ${customerMap[order.customer_id].last_name}`
-          : null,
-        customer_phone: order.customer_id && customerMap[order.customer_id]
-          ? customerMap[order.customer_id].mobile_primary
-          : null,
-        customer_vip: order.customer_id && customerMap[order.customer_id]
-          ? customerMap[order.customer_id].vip_number
-          : null,
-      }))
+      const [custRes, distRes, retRes] = await Promise.all([
+        orderCustomerIds.length > 0
+          ? supabase.from("customers").select("id, first_name, last_name, mobile_primary, vip_number").in("id", orderCustomerIds)
+          : Promise.resolve({ data: [] as any[] }),
+        orderDistributorIds.length > 0
+          ? supabase.from("distributors").select("id, name, phone_primary").in("id", orderDistributorIds)
+          : Promise.resolve({ data: [] as any[] }),
+        orderRetailerIds.length > 0
+          ? supabase.from("retailers").select("id, name, phone_primary").in("id", orderRetailerIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+      ;(custRes.data || []).forEach((c: any) => { customerMap[c.id] = c })
+      ;(distRes.data || []).forEach((d: any) => { distributorMap[d.id] = d })
+      ;(retRes.data || []).forEach((r: any) => { retailerMap[r.id] = r })
+
+      const results = (data || []).map(order => {
+        const customer = order.customer_id ? customerMap[order.customer_id] : null
+        const distributor = order.distributor_id ? distributorMap[order.distributor_id] : null
+        const retailer = order.retailer_id ? retailerMap[order.retailer_id] : null
+        return {
+          ...order,
+          customer_name: customer
+            ? `${customer.first_name} ${customer.last_name}`
+            : distributor?.name || retailer?.name || null,
+          customer_phone: customer?.mobile_primary || distributor?.phone_primary || retailer?.phone_primary || null,
+          customer_vip: customer?.vip_number || null,
+        }
+      })
 
       setTxnOrderResults(results)
     } catch {
       setTxnOrderResults([])
     } finally { setSearchingOrders(false) }
   }
+
+  // Populate the bill list the moment Create Transaction opens, instead of
+  // showing nothing until the user types or touches a filter first.
+  useEffect(() => {
+    if (isCreateTxnOpen && txnMode === "order") {
+      searchOrders()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreateTxnOpen, txnMode])
 
   const handleSelectOrder = (order: any) => {
     setTxnSelectedOrder(order)
@@ -1192,7 +1243,7 @@ export default function ReconciliationPage() {
     setTxnDescription("")
     setTxnReference("")
     setTxnDate(new Date().toISOString().split("T")[0])
-    setTxnPaymentStatusFilter("all")
+    setTxnPaymentStatusFilter("not_completed")
     setTxnPaymentMethodFilter("all")
     setTxnDateFrom("")
     setTxnDateTo("")
