@@ -1073,6 +1073,19 @@ function CustomersV2Content() {
         }
       })
 
+      // Credit notes (returns) reduce what each customer owes, including
+      // ones not tied to a specific order — this is what the Contacts list
+      // amount actually renders from (getEntityBalance -> customerBalanceData).
+      const { data: notes } = await supabase
+        .from("credit_notes")
+        .select("party_id, total_amount")
+        .in("party_id", customerIds)
+      ;(notes || []).forEach((n: any) => {
+        if (!n.party_id) return
+        if (!balanceMap[n.party_id]) balanceMap[n.party_id] = { totalPending: 0, balanceAmount: 0 }
+        balanceMap[n.party_id].balanceAmount -= Number(n.total_amount) || 0
+      })
+
       setCustomerBalanceData(balanceMap)
     } catch (error) {
       console.error("Error fetching customer balance data:", error)
