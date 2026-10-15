@@ -1085,16 +1085,23 @@ export default function ReconciliationPage() {
     }
     if (!txnAmount || parseFloat(txnAmount) <= 0) { toast.error("Please enter a valid amount"); return }
 
-    // Prevent duplicate: same order + same txn type
+    // Catch an accidental double-submit of the exact same payment (same
+    // order, type, and amount) — but a real second entry for the same
+    // order (a partial/installment payment, a different amount) is legit
+    // and must go through. Matching on description.includes() used to flag
+    // any second entry at all against that order as "already exists",
+    // which blocked legitimate multiple payments on the same bill.
     if (txnSelectedOrder) {
       const orderRef = txnReference || txnSelectedOrder.order_number
+      const amountNum = parseFloat(txnAmount)
       const duplicate = transactions.find(t =>
         t.txn_type === txnType &&
-        ((t.reference && t.reference === orderRef) || (t.description && t.description.includes(txnSelectedOrder.order_number)))
+        t.reference === orderRef &&
+        Number(t.amount) === amountNum
       )
       if (duplicate) {
         const typeLabel = txnType === "Cr" ? "Payment In" : "Payment Out"
-        toast.error(`${typeLabel} already exists for order ${txnSelectedOrder.order_number}`)
+        toast.error(`${typeLabel} of this exact amount already recorded for order ${txnSelectedOrder.order_number}`)
         return
       }
     }
