@@ -87,35 +87,14 @@ export function WarehouseSelector({
           : []
         setWarehouses(warehousesArray)
 
-        // Auto-detect warehouse based on pincode (skip for cash payments)
-        // Cash payments will be handled after stock is fetched
-        const isCashPayment = paymentMethod === "cash" || paymentMethod === "Cash"
-
-        if (!isCashPayment && shippingPincode && shippingPincode.length === 6 && warehousesArray.length > 0) {
-          const matched = warehousesArray.find((warehouse: Godown) => {
-            if (!warehouse.serviceable_pincodes) return false
-
-            // Handle both array and comma-separated string formats
-            const pincodes = Array.isArray(warehouse.serviceable_pincodes)
-              ? warehouse.serviceable_pincodes
-              : warehouse.serviceable_pincodes.split(",").map((p) => p.trim())
-
-            return pincodes.includes(shippingPincode)
-          })
-
-          if (matched) {
-            setAutoDetectedId(matched.id)
-            onWarehouseSelect(matched.id)
-          } else {
-            const primary = warehousesArray.find((w: Godown) => w.is_primary)
-            if (primary) {
-              setAutoDetectedId(primary.id)
-              onWarehouseSelect(primary.id)
-            } else {
-              setAutoDetectedId(null)
-            }
-          }
-        } else if (warehousesArray.length > 0) {
+        // Always default to the company's own primary warehouse. Backend
+        // bills should come out of the company's own stock unless staff
+        // deliberately pick a distributor's warehouse from the dropdown —
+        // auto-routing by pincode used to silently force orders into
+        // whichever distributor's "serviceable_pincodes" matched the
+        // customer's address, which is not what a counter/backend sale
+        // should do.
+        if (warehousesArray.length > 0) {
           const primary = warehousesArray.find((w: Godown) => w.is_primary)
           if (primary) {
             setAutoDetectedId(primary.id)
@@ -171,97 +150,22 @@ export function WarehouseSelector({
     fetchWarehouseStock()
   }, [selectedProducts, warehouses])
 
-  // Handle warehouse selection based on payment method and pincode
+  // Always default to the company's own primary warehouse — no pincode-based
+  // auto-routing to a distributor's godown. Staff can still pick a different
+  // warehouse manually from the dropdown above when that's actually needed
+  // (e.g. a distributor order).
   useEffect(() => {
-    const isCashPayment = paymentMethod === "cash" || paymentMethod === "Cash"
-
     if (warehouses.length === 0) return
+    setCashWarehouseReason(null)
 
-    // First, check pincode-based selection for all cases
-    let pincodeMatchedWarehouse: Godown | undefined
-    if (shippingPincode && shippingPincode.length === 6) {
-      pincodeMatchedWarehouse = warehouses.find((warehouse) => {
-        if (!warehouse.serviceable_pincodes) return false
-
-        const pincodes = Array.isArray(warehouse.serviceable_pincodes)
-          ? warehouse.serviceable_pincodes
-          : warehouse.serviceable_pincodes.split(",").map((p) => p.trim())
-
-        return pincodes.includes(shippingPincode)
-      })
-    }
-
-    // Check if the pincode is serviced by Dadar warehouses (GDN002 or RAJ123)
-    const primaryCashWarehouse = warehouses.find((w) => w.godown_code === "GDN002")
-    const fallbackCashWarehouse = warehouses.find((w) => w.godown_code === "RAJ123")
-
-    const isDadarPincode = pincodeMatchedWarehouse &&
-      (pincodeMatchedWarehouse.godown_code === "GDN002" ||
-       pincodeMatchedWarehouse.godown_code === "RAJ123")
-
-    // Special cash payment logic ONLY for Dadar warehouse pincodes
-    if (isCashPayment && isDadarPincode) {
-      // If no products selected yet, default to primary warehouse
-      if (selectedProducts.length === 0) {
-        if (primaryCashWarehouse) {
-          setAutoDetectedId(primaryCashWarehouse.id)
-          onWarehouseSelect(primaryCashWarehouse.id)
-          setCashWarehouseReason("Selected for cash payment (primary warehouse)")
-        }
-        return
-      }
-
-      // Wait for stock data to be loaded
-      if (Object.keys(warehouseStock).length === 0) return
-
-      // Check if all items are available in primary warehouse (GDN002)
-      if (primaryCashWarehouse) {
-        const primaryStock = warehouseStock[primaryCashWarehouse.id] || []
-        const allAvailableInPrimary = selectedProducts.every((product) => {
-          const stock = primaryStock.find((s) => s.product_id === product.product_id)
-          return stock && stock.available_quantity >= product.quantity
-        })
-
-        if (allAvailableInPrimary) {
-          setAutoDetectedId(primaryCashWarehouse.id)
-          onWarehouseSelect(primaryCashWarehouse.id)
-          setCashWarehouseReason("Selected for cash payment (primary warehouse)")
-          return
-        }
-      }
-
-      // Fallback to RAJ123 if items not available in GDN002
-      if (fallbackCashWarehouse) {
-        setAutoDetectedId(fallbackCashWarehouse.id)
-        onWarehouseSelect(fallbackCashWarehouse.id)
-        setCashWarehouseReason("Selected for cash payment (fallback - items not available in primary)")
-        return
-      }
-
-      // If neither warehouse has the items, still select primary for cash
-      if (primaryCashWarehouse) {
-        setAutoDetectedId(primaryCashWarehouse.id)
-        onWarehouseSelect(primaryCashWarehouse.id)
-        setCashWarehouseReason("Selected for cash payment (primary warehouse)")
-      }
+    const primaryWarehouse = warehouses.find((w) => w.is_primary)
+    if (primaryWarehouse) {
+      setAutoDetectedId(primaryWarehouse.id)
+      onWarehouseSelect(primaryWarehouse.id)
     } else {
-      // Normal pincode-based selection for non-Dadar pincodes OR non-cash payments
-      setCashWarehouseReason(null)
-
-      if (pincodeMatchedWarehouse) {
-        setAutoDetectedId(pincodeMatchedWarehouse.id)
-        onWarehouseSelect(pincodeMatchedWarehouse.id)
-      } else {
-        const primaryWarehouse = warehouses.find((w) => w.is_primary)
-        if (primaryWarehouse) {
-          setAutoDetectedId(primaryWarehouse.id)
-          onWarehouseSelect(primaryWarehouse.id)
-        } else {
-          setAutoDetectedId(null)
-        }
-      }
+      setAutoDetectedId(null)
     }
-  }, [paymentMethod, warehouses, selectedProducts, warehouseStock, shippingPincode])
+  }, [warehouses])
 
   const getStockStatus = (warehouseId: string) => {
     if (selectedProducts.length === 0) return null
@@ -455,9 +359,9 @@ export function WarehouseSelector({
         </Card>
       )}
 
-      {!loading && shippingPincode && !autoDetectedId && (
+      {!loading && !autoDetectedId && (
         <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
-          No warehouse found servicing pincode {shippingPincode}. Please select manually.
+          No warehouse could be auto-selected. Please select one manually.
         </div>
       )}
     </div>
