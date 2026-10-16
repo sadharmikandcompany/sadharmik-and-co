@@ -63,18 +63,27 @@ export async function applyOrderReturnEffects(
     const deltaSgst = Number(fresh.sgst_amount) * ratio
     const deltaTotal = Number(fresh.total) * ratio
 
-    await supabase
-      .from("order_items")
-      .update({
-        quantity: Number(fresh.quantity) - qty,
-        subtotal: Math.max(0, Number(fresh.subtotal) - deltaSubtotal),
-        discount_amount: Math.max(0, Number(fresh.discount_amount) - deltaDiscount),
-        gst_amount: Math.max(0, Number(fresh.gst_amount) - deltaGst),
-        cgst_amount: Math.max(0, Number(fresh.cgst_amount) - deltaCgst),
-        sgst_amount: Math.max(0, Number(fresh.sgst_amount) - deltaSgst),
-        total: Math.max(0, Number(fresh.total) - deltaTotal),
-      })
-      .eq("id", line.orderItemId)
+    const remainingQty = Number(fresh.quantity) - qty
+    if (remainingQty <= 0) {
+      // order_items.quantity/subtotal/total all have a > 0 CHECK constraint
+      // — a full return of this line can't be expressed as an update to 0,
+      // so the line is removed instead of left behind at a quantity the
+      // return already fully consumed.
+      await supabase.from("order_items").delete().eq("id", line.orderItemId)
+    } else {
+      await supabase
+        .from("order_items")
+        .update({
+          quantity: remainingQty,
+          subtotal: Math.max(0, Number(fresh.subtotal) - deltaSubtotal),
+          discount_amount: Math.max(0, Number(fresh.discount_amount) - deltaDiscount),
+          gst_amount: Math.max(0, Number(fresh.gst_amount) - deltaGst),
+          cgst_amount: Math.max(0, Number(fresh.cgst_amount) - deltaCgst),
+          sgst_amount: Math.max(0, Number(fresh.sgst_amount) - deltaSgst),
+          total: Math.max(0, Number(fresh.total) - deltaTotal),
+        })
+        .eq("id", line.orderItemId)
+    }
 
     totalReturnValue += deltaTotal
     deltaSubtotalTotal += deltaSubtotal

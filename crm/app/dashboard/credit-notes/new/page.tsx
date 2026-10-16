@@ -17,6 +17,14 @@ import {
 } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +59,9 @@ import {
   ChevronUp,
   ChevronDown,
   RotateCcw,
+  Link2,
+  Unlink,
+  Receipt,
 } from "lucide-react"
 import { applyOrderReturnEffects, type OrderForReturn, type OrderReturnLine } from "@/lib/accounting/apply-order-return"
 import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
@@ -84,6 +95,14 @@ type Category = {
   parent_category_id: string | null
 }
 
+type BillOption = {
+  id: string
+  label: string
+  order_date: string | null
+  total_amount: number
+  paid_amount: number
+}
+
 function NewCreditNotePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -102,6 +121,15 @@ function NewCreditNotePageContent() {
   const [selectedParty, setSelectedParty] = useState<Party | null>(null)
   const [showPartyDetails, setShowPartyDetails] = useState(false)
   const [returnNo, setReturnNo] = useState<number>(1)
+
+  // The party a linked bill belongs to — used to auto-unlink if the user
+  // changes the party after already picking a bill, so the note never ends
+  // up referencing a bill that doesn't match who it's being issued to.
+  const linkedBillPartyIdRef = useRef<string | null>(null)
+  const [billPickerOpen, setBillPickerOpen] = useState(false)
+  const [billSearchQuery, setBillSearchQuery] = useState("")
+  const [billOptions, setBillOptions] = useState<BillOption[]>([])
+  const [billSearchLoading, setBillSearchLoading] = useState(false)
 
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState("")
@@ -199,96 +227,189 @@ function NewCreditNotePageContent() {
     setSelectedParty(party)
   }
 
-  // Pre-fill from the order this return is against (opened via "Process
-  // Return" on an order in Orders V2 / Distributor Orders). Direct ID
-  // lookup for distributor/retailer/customer orders; guest orders (no
-  // linked party) are left for the user to pick manually rather than risk
-  // a wrong fuzzy name match on a real sale.
+  // Pre-fill from a specific bill (order) this credit note is against —
+  // either opened via "Process Return" on an order (?orderId= in the URL)
+  // or picked from the bill-search once a party is selected below. Either
+  // way, linking a bill is what makes saving this note actually shrink that
+  // order's total (and therefore the amount still owed on it) the same way
+  // Vyapar nets a credit note off its linked bill — see handleSave's
+  // returnOrderMeta branch.
+  const loadOrderForReturn = async (orderId: string) => {
+    const { data: order } = await supabase
+      .from("orders")
+      .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, subtotal, gst_amount, cgst_amount, sgst_amount, source_godown_id, payment_status, payment_method, customer_id, distributor_id, retailer_id")
+      .eq("id", orderId)
+      .single()
+    if (!order) return
+
+    const { data: orderItems } = await supabase
+      .from("order_items")
+      .select("id, product_id, product_name, quantity, unit_price, weight_grams, hsn_code, gst_percentage, subtotal, discount_amount, gst_amount, cgst_amount, sgst_amount, total")
+      .eq("order_id", order.id)
+
+    setReturnOrderMeta({
+      id: order.id,
+      order_number: order.order_number,
+      total_amount: Number(order.total_amount) || 0,
+      subtotal: Number(order.subtotal) || 0,
+      gst_amount: Number(order.gst_amount) || 0,
+      cgst_amount: Number(order.cgst_amount) || 0,
+      sgst_amount: Number(order.sgst_amount) || 0,
+      source_godown_id: order.source_godown_id,
+      payment_status: order.payment_status,
+      payment_method: order.payment_method,
+    })
+
+    setInvoiceNumber(order.invoice_number_gst || order.invoice_number_non_gst || order.order_number)
+    if (order.order_date) setInvoiceDate(new Date(order.order_date))
+
+    const linkedPartyId = order.distributor_id || order.retailer_id || order.customer_id || null
+    linkedBillPartyIdRef.current = linkedPartyId
+
+    if (order.distributor_id) {
+      const { data: d } = await supabase.from("distributors").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.distributor_id).single()
+      if (d) handlePartyChange(d.id, { id: d.id, name: d.name, phone: d.phone_primary, email: d.email, company_name: d.company_name, gst_number: d.gst_number, type: "distributor" })
+    } else if (order.retailer_id) {
+      const { data: r } = await supabase.from("retailers").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.retailer_id).single()
+      if (r) handlePartyChange(r.id, { id: r.id, name: r.name, phone: r.phone_primary, email: r.email, company_name: r.company_name, gst_number: r.gst_number, type: "retailer" })
+    } else if (order.customer_id) {
+      const { data: c } = await supabase.from("customers").select("id, first_name, last_name, mobile_primary, email, company_name, gst_number").eq("id", order.customer_id).single()
+      if (c) handlePartyChange(c.id, { id: c.id, name: `${c.first_name} ${c.last_name}`.trim(), phone: c.mobile_primary, email: c.email, company_name: c.company_name, gst_number: c.gst_number, type: "customer" })
+    }
+
+    const meta: typeof itemOrderMeta = {}
+    const noteItems: NoteItem[] = (orderItems || []).map((item: any) => {
+      const id = Math.random().toString(36).substring(2, 9)
+      meta[id] = {
+        orderItemId: item.id,
+        productId: item.product_id,
+        weightGrams: item.weight_grams,
+        originalQty: Number(item.quantity) || 0,
+      }
+      const gstPct = Number(item.gst_percentage) || 0
+      // order_items.unit_price is GST-inclusive; NoteItem's price_per_unit
+      // is the excl.-tax rate calculateNoteItemAmount expects, so back
+      // the tax out before handing it off.
+      const priceExclTax = gstPct > 0 ? Number(item.unit_price) / (1 + gstPct / 100) : Number(item.unit_price)
+      return calculateNoteItemAmount({
+        id,
+        product_id: item.product_id || "",
+        item_name: item.product_name,
+        hsn_code: item.hsn_code || "",
+        description: "",
+        quantity: Number(item.quantity) || 0,
+        unit: "PCS",
+        price_per_unit: priceExclTax,
+        discount_percent: 0,
+        discount_amount: 0,
+        tax_percent: gstPct,
+        tax_amount: 0,
+        amount: 0,
+      })
+    })
+    setItemOrderMeta(meta)
+    setItems(noteItems)
+    setDescription(`Return against order ${order.order_number}`)
+  }
+
+  // Direct ID lookup for distributor/retailer/customer orders; guest orders
+  // (no linked party) are left for the user to pick manually rather than
+  // risk a wrong fuzzy name match on a real sale.
   useEffect(() => {
     if (!returnOrderId) return
     let cancelled = false
-    ;(async () => {
-      const { data: order } = await supabase
-        .from("orders")
-        .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, subtotal, gst_amount, cgst_amount, sgst_amount, source_godown_id, payment_status, payment_method, customer_id, distributor_id, retailer_id")
-        .eq("id", returnOrderId)
-        .single()
-      if (cancelled || !order) return
-
-      const { data: orderItems } = await supabase
-        .from("order_items")
-        .select("id, product_id, product_name, quantity, unit_price, weight_grams, hsn_code, gst_percentage, subtotal, discount_amount, gst_amount, cgst_amount, sgst_amount, total")
-        .eq("order_id", order.id)
-      if (cancelled) return
-
-      setReturnOrderMeta({
-        id: order.id,
-        order_number: order.order_number,
-        total_amount: Number(order.total_amount) || 0,
-        subtotal: Number(order.subtotal) || 0,
-        gst_amount: Number(order.gst_amount) || 0,
-        cgst_amount: Number(order.cgst_amount) || 0,
-        sgst_amount: Number(order.sgst_amount) || 0,
-        source_godown_id: order.source_godown_id,
-        payment_status: order.payment_status,
-        payment_method: order.payment_method,
-      })
-
-      setInvoiceNumber(order.invoice_number_gst || order.invoice_number_non_gst || order.order_number)
-      if (order.order_date) setInvoiceDate(new Date(order.order_date))
-
-      if (order.distributor_id) {
-        const { data: d } = await supabase.from("distributors").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.distributor_id).single()
-        if (d && !cancelled) handlePartyChange(d.id, { id: d.id, name: d.name, phone: d.phone_primary, email: d.email, company_name: d.company_name, gst_number: d.gst_number, type: "distributor" })
-      } else if (order.retailer_id) {
-        const { data: r } = await supabase.from("retailers").select("id, name, phone_primary, email, company_name, gst_number").eq("id", order.retailer_id).single()
-        if (r && !cancelled) handlePartyChange(r.id, { id: r.id, name: r.name, phone: r.phone_primary, email: r.email, company_name: r.company_name, gst_number: r.gst_number, type: "retailer" })
-      } else if (order.customer_id) {
-        const { data: c } = await supabase.from("customers").select("id, first_name, last_name, mobile_primary, email, company_name, gst_number").eq("id", order.customer_id).single()
-        if (c && !cancelled) handlePartyChange(c.id, { id: c.id, name: `${c.first_name} ${c.last_name}`.trim(), phone: c.mobile_primary, email: c.email, company_name: c.company_name, gst_number: c.gst_number, type: "customer" })
-      }
-
-      const meta: typeof itemOrderMeta = {}
-      const noteItems: NoteItem[] = (orderItems || []).map((item: any) => {
-        const id = Math.random().toString(36).substring(2, 9)
-        meta[id] = {
-          orderItemId: item.id,
-          productId: item.product_id,
-          weightGrams: item.weight_grams,
-          originalQty: Number(item.quantity) || 0,
-        }
-        const gstPct = Number(item.gst_percentage) || 0
-        // order_items.unit_price is GST-inclusive; NoteItem's price_per_unit
-        // is the excl.-tax rate calculateNoteItemAmount expects, so back
-        // the tax out before handing it off.
-        const priceExclTax = gstPct > 0 ? Number(item.unit_price) / (1 + gstPct / 100) : Number(item.unit_price)
-        return calculateNoteItemAmount({
-          id,
-          product_id: item.product_id || "",
-          item_name: item.product_name,
-          hsn_code: item.hsn_code || "",
-          description: "",
-          quantity: Number(item.quantity) || 0,
-          unit: "PCS",
-          price_per_unit: priceExclTax,
-          discount_percent: 0,
-          discount_amount: 0,
-          tax_percent: gstPct,
-          tax_amount: 0,
-          amount: 0,
-        })
-      })
-      if (!cancelled) {
-        setItemOrderMeta(meta)
-        setItems(noteItems)
-        setDescription(`Return against order ${order.order_number}`)
-      }
-    })()
+    loadOrderForReturn(returnOrderId).catch((err) => {
+      if (!cancelled) console.error("Error loading order for return:", err)
+    })
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnOrderId])
+
+  // Unlink the bill if the user changes the party after a bill was already
+  // picked — a linked bill that no longer matches the selected party would
+  // silently shrink the wrong party's order.
+  useEffect(() => {
+    if (returnOrderMeta && linkedBillPartyIdRef.current && selectedPartyId !== linkedBillPartyIdRef.current) {
+      setReturnOrderMeta(null)
+      setItemOrderMeta({})
+      setItems([])
+      setInvoiceNumber("")
+      setDescription("")
+      linkedBillPartyIdRef.current = null
+      toast.info("Bill link removed — party changed")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPartyId])
+
+  const searchPartyBills = async (query: string) => {
+    if (!selectedPartyId || !selectedParty) {
+      setBillOptions([])
+      return
+    }
+    setBillSearchLoading(true)
+    try {
+      const column =
+        selectedParty.type === "distributor"
+          ? "distributor_id"
+          : selectedParty.type === "retailer"
+          ? "retailer_id"
+          : selectedParty.type === "customer"
+          ? "customer_id"
+          : null
+      if (!column) {
+        setBillOptions([])
+        return
+      }
+
+      let q = supabase
+        .from("orders")
+        .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, paid_amount")
+        .eq(column, selectedPartyId)
+        .neq("order_status", "cancelled")
+        .order("order_date", { ascending: false })
+        .limit(25)
+
+      if (query.trim()) {
+        const pattern = `%${query.trim()}%`
+        q = q.or(`order_number.ilike.${pattern},invoice_number_gst.ilike.${pattern},invoice_number_non_gst.ilike.${pattern}`)
+      }
+
+      const { data } = await q
+      setBillOptions(
+        (data || []).map((o) => ({
+          id: o.id,
+          label: o.invoice_number_gst || o.invoice_number_non_gst || o.order_number,
+          order_date: o.order_date,
+          total_amount: Number(o.total_amount) || 0,
+          paid_amount: Number(o.paid_amount) || 0,
+        }))
+      )
+    } finally {
+      setBillSearchLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (billPickerOpen) searchPartyBills(billSearchQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billPickerOpen, billSearchQuery, selectedPartyId])
+
+  const handlePickBill = async (billId: string) => {
+    setBillPickerOpen(false)
+    setBillSearchQuery("")
+    await loadOrderForReturn(billId)
+  }
+
+  const handleUnlinkBill = () => {
+    setReturnOrderMeta(null)
+    setItemOrderMeta({})
+    setItems([])
+    setInvoiceNumber("")
+    setDescription("")
+    linkedBillPartyIdRef.current = null
+  }
 
   const filteredCatalogProducts = catalogProducts.filter((p) => {
     if (selectedCategory !== "all" && p.parent_category_id !== selectedCategory) return false
@@ -755,6 +876,73 @@ function NewCreditNotePageContent() {
                 </>
               )}
 
+              {selectedParty && selectedParty.type !== "vendor" && (
+                <div className="space-y-2">
+                  <Label>Linked Bill</Label>
+                  {returnOrderMeta ? (
+                    <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm">
+                      <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>
+                        Linked to <strong>{returnOrderMeta.order_number}</strong> — current total{" "}
+                        {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(returnOrderMeta.total_amount)}
+                      </span>
+                      <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 gap-1" onClick={handleUnlinkBill}>
+                        <Unlink className="h-3.5 w-3.5" />
+                        Unlink
+                      </Button>
+                    </div>
+                  ) : (
+                    <Popover open={billPickerOpen} onOpenChange={setBillPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="gap-2">
+                          <Link2 className="h-4 w-4" />
+                          Link to a bill
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search this party's bills..."
+                            value={billSearchQuery}
+                            onValueChange={setBillSearchQuery}
+                          />
+                          <CommandList>
+                            {billSearchLoading ? (
+                              <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+                            ) : billOptions.length === 0 ? (
+                              <CommandEmpty>No bills found for this party.</CommandEmpty>
+                            ) : (
+                              <CommandGroup>
+                                {billOptions.map((bill) => (
+                                  <CommandItem key={bill.id} value={bill.id} onSelect={() => handlePickBill(bill.id)} className="cursor-pointer">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-medium">{bill.label}</span>
+                                        <span className="text-sm">
+                                          {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(bill.total_amount)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                        <span>{bill.order_date ? format(new Date(bill.order_date), "PPP") : ""}</span>
+                                        <span>{bill.paid_amount >= bill.total_amount ? "Paid" : "Unpaid/partial"}</span>
+                                      </div>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Linking a bill reduces that bill&apos;s own total by this note&apos;s amount, so the amount still
+                    owed on it goes down right away — same as entering a credit note against a bill in Vyapar.
+                  </p>
+                </div>
+              )}
+
               <Separator />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -764,6 +952,8 @@ function NewCreditNotePageContent() {
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                     placeholder="INV-001"
+                    readOnly={!!returnOrderMeta}
+                    className={returnOrderMeta ? "bg-muted" : undefined}
                   />
                 </div>
                 <div className="space-y-2">

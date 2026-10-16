@@ -715,6 +715,10 @@ function CustomersV2Content() {
   // when the note isn't tied to one specific invoice (a general credit
   // against their running account) — orders alone don't carry this.
   const [partyCreditNotesTotal, setPartyCreditNotesTotal] = useState(0)
+  // Debit notes are the mirror of credit notes — additional charges or
+  // adjustments billed to the party after the fact — so they increase what
+  // the party owes instead of reducing it.
+  const [partyDebitNotesTotal, setPartyDebitNotesTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -774,6 +778,14 @@ function CustomersV2Content() {
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Guards fetchCustomerSpendData/fetchCustomerBalanceData against
+  // out-of-order responses — e.g. the big unfiltered-page request started
+  // before a search narrowed `customers` can resolve AFTER the search's own
+  // (much smaller) request and clobber its correct result with stale data
+  // for customers no longer even in view. Each call captures the id current
+  // when it started and only commits its state if nothing newer has started
+  // since.
+  const balanceRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
@@ -804,8 +816,9 @@ function CustomersV2Content() {
 
   useEffect(() => {
     if (customers.length > 0) {
-      fetchCustomerSpendData()
-      fetchCustomerBalanceData()
+      const requestId = ++balanceRequestIdRef.current
+      fetchCustomerSpendData(requestId)
+      fetchCustomerBalanceData(requestId)
     }
   }, [customers])
 
@@ -819,8 +832,16 @@ function CustomersV2Content() {
         .then(({ data }) => {
           setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
         })
+      supabase
+        .from("debit_notes")
+        .select("total_amount")
+        .eq("party_id", selectedCustomer.id)
+        .then(({ data }) => {
+          setPartyDebitNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
+        })
     } else {
       setPartyCreditNotesTotal(0)
+      setPartyDebitNotesTotal(0)
     }
     setIsEditingOpeningBalance(false)
     setOpeningBalanceInput("")
@@ -935,7 +956,7 @@ function CustomersV2Content() {
     }
   }
 
-  const fetchCustomerSpendData = async () => {
+  const fetchCustomerSpendData = async (requestId: number) => {
     try {
       const customerIds = customers.map((c) => c.id)
       if (customerIds.length === 0) return
@@ -981,13 +1002,26 @@ function CustomersV2Content() {
         }
       })
 
+      // Debit notes (additional charges/adjustments) increase what each
+      // customer owes — the mirror of credit notes above.
+      const { data: debitNotes } = await supabase
+        .from("debit_notes")
+        .select("party_id, total_amount")
+        .in("party_id", customerIds)
+      ;(debitNotes || []).forEach((n: any) => {
+        if (n.party_id) {
+          spendMap[n.party_id] = (spendMap[n.party_id] || 0) + (Number(n.total_amount) || 0)
+        }
+      })
+
+      if (requestId !== balanceRequestIdRef.current) return
       setCustomerTotalSpend(spendMap)
     } catch (error) {
       console.error("Error fetching customer spend data:", error)
     }
   }
 
-  const fetchCustomerBalanceData = async () => {
+  const fetchCustomerBalanceData = async (requestId: number) => {
     try {
       const customerIds = customers.map((c) => c.id)
       if (customerIds.length === 0) return
@@ -1018,7 +1052,7 @@ function CustomersV2Content() {
       }
 
       if (allPendingOrders.length === 0) {
-        setCustomerBalanceData({})
+        if (requestId === balanceRequestIdRef.current) setCustomerBalanceData({})
         return
       }
 
@@ -1086,6 +1120,19 @@ function CustomersV2Content() {
         balanceMap[n.party_id].balanceAmount -= Number(n.total_amount) || 0
       })
 
+      // Debit notes (additional charges/adjustments) increase what each
+      // customer owes — the mirror of credit notes above.
+      const { data: debitNotes } = await supabase
+        .from("debit_notes")
+        .select("party_id, total_amount")
+        .in("party_id", customerIds)
+      ;(debitNotes || []).forEach((n: any) => {
+        if (!n.party_id) return
+        if (!balanceMap[n.party_id]) balanceMap[n.party_id] = { totalPending: 0, balanceAmount: 0 }
+        balanceMap[n.party_id].balanceAmount += Number(n.total_amount) || 0
+      })
+
+      if (requestId !== balanceRequestIdRef.current) return
       setCustomerBalanceData(balanceMap)
     } catch (error) {
       console.error("Error fetching customer balance data:", error)
@@ -1298,6 +1345,28 @@ function CustomersV2Content() {
             const key = `${n.party_type}_${n.party_id}`
             if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
             balanceMap[key].balanceAmount -= Number(n.total_amount) || 0
+          })
+        }
+      }
+
+      // Debit notes against a distributor/retailer are additional charges —
+      // they increase what that party owes, the mirror of credit notes
+      // above. Against a vendor a debit note is a purchase return instead,
+      // so it reduces what we owe them (Amount Payable), same direction a
+      // credit note reduces a customer's receivable.
+      const debitNoteParties = [...distIds, ...retIds, ...vendorIds]
+      if (debitNoteParties.length > 0) {
+        const { data: debitNotes } = await supabase
+          .from("debit_notes")
+          .select("party_id, party_type, total_amount")
+          .in("party_id", debitNoteParties)
+        if (debitNotes) {
+          debitNotes.forEach((n: any) => {
+            if (!n.party_id || !n.party_type) return
+            const key = `${n.party_type}_${n.party_id}`
+            if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
+            const amount = Number(n.total_amount) || 0
+            balanceMap[key].balanceAmount += n.party_type === "vendor" ? -amount : amount
           })
         }
       }
@@ -2020,7 +2089,7 @@ function CustomersV2Content() {
     return sum + Math.max(0, (order.total_amount || 0) - payOut)
   }, 0)
   const totalPaid = totalBilled - unpaidFromOrders
-  const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0) - partyCreditNotesTotal
+  const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0) - partyCreditNotesTotal + partyDebitNotesTotal
 
   return (
     <div className="flex gap-3 -mx-6 -my-4 max-w-none w-[calc(100%+3rem)] px-3 py-3">
