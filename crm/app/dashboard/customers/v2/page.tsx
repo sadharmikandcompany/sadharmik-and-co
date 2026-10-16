@@ -719,6 +719,11 @@ function CustomersV2Content() {
   // adjustments billed to the party after the fact — so they increase what
   // the party owes instead of reducing it.
   const [partyDebitNotesTotal, setPartyDebitNotesTotal] = useState(0)
+  // The actual note records (not just the summed total) so the Transactions
+  // table can show them as their own rows — otherwise they silently shift
+  // Balance Due with nothing in the list to explain why.
+  const [partyCreditNotes, setPartyCreditNotes] = useState<{ id: string; note_number: string; note_date: string; total_amount: number }[]>([])
+  const [partyDebitNotes, setPartyDebitNotes] = useState<{ id: string; note_number: string; note_date: string; total_amount: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -827,21 +832,25 @@ function CustomersV2Content() {
       fetchCustomerOrders(selectedCustomer.id)
       supabase
         .from("credit_notes")
-        .select("total_amount")
+        .select("id, note_number, note_date, total_amount")
         .eq("party_id", selectedCustomer.id)
         .then(({ data }) => {
+          setPartyCreditNotes(data || [])
           setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
         })
       supabase
         .from("debit_notes")
-        .select("total_amount")
+        .select("id, note_number, note_date, total_amount")
         .eq("party_id", selectedCustomer.id)
         .then(({ data }) => {
+          setPartyDebitNotes(data || [])
           setPartyDebitNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
         })
     } else {
       setPartyCreditNotesTotal(0)
       setPartyDebitNotesTotal(0)
+      setPartyCreditNotes([])
+      setPartyDebitNotes([])
     }
     setIsEditingOpeningBalance(false)
     setOpeningBalanceInput("")
@@ -2091,6 +2100,18 @@ function CustomersV2Content() {
   const totalPaid = totalBilled - unpaidFromOrders
   const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0) - partyCreditNotesTotal + partyDebitNotesTotal
 
+  // Credit/debit notes shift Balance Due but aren't orders, so they need
+  // their own rows in the Transactions table below — otherwise the total
+  // there never explains the rest of the numbers on this page.
+  type TxnEntry =
+    | { kind: "order"; date: string; order: (typeof customerOrders)[number] }
+    | { kind: "credit" | "debit"; date: string; note: { id: string; note_number: string; note_date: string; total_amount: number } }
+  const txnEntries: TxnEntry[] = [
+    ...customerOrders.map((order): TxnEntry => ({ kind: "order", date: order.order_date, order })),
+    ...partyCreditNotes.map((note): TxnEntry => ({ kind: "credit", date: note.note_date, note })),
+    ...partyDebitNotes.map((note): TxnEntry => ({ kind: "debit", date: note.note_date, note })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
   return (
     <div className="flex gap-3 -mx-6 -my-4 max-w-none w-[calc(100%+3rem)] px-3 py-3">
       {/* Left Panel - Customer List (1/3) */}
@@ -2734,6 +2755,14 @@ function CustomersV2Content() {
                     <CardTitle>Transactions</CardTitle>
                     <CardDescription>
                       {customerOrders.length} {customerOrders.length === 1 ? "order" : "orders"}
+                      {(partyCreditNotes.length > 0 || partyDebitNotes.length > 0) && (
+                        <>
+                          {" · "}
+                          {partyCreditNotes.length > 0 && `${partyCreditNotes.length} credit note${partyCreditNotes.length === 1 ? "" : "s"}`}
+                          {partyCreditNotes.length > 0 && partyDebitNotes.length > 0 && ", "}
+                          {partyDebitNotes.length > 0 && `${partyDebitNotes.length} debit note${partyDebitNotes.length === 1 ? "" : "s"}`}
+                        </>
+                      )}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -2767,7 +2796,7 @@ function CustomersV2Content() {
               </CardHeader>
               <CardContent className="overflow-hidden">
                 {/* Compact Transactions Table (Parties-style) */}
-                {!ordersLoading && customerOrders.length > 0 && (
+                {!ordersLoading && txnEntries.length > 0 && (
                   <div className="border rounded-md overflow-hidden mb-4">
                     <Table>
                       <TableHeader>
@@ -2782,7 +2811,38 @@ function CustomersV2Content() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customerOrders.map((order) => {
+                        {txnEntries.map((entry) => {
+                          if (entry.kind !== "order") {
+                            const note = entry.note
+                            const isCredit = entry.kind === "credit"
+                            return (
+                              <TableRow key={`${entry.kind}-${note.id}`} className="hover:bg-muted/30">
+                                <TableCell className={`font-medium text-sm ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                  {isCredit ? "Credit Note" : "Debit Note"}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">{note.note_number}</TableCell>
+                                <TableCell className="text-xs whitespace-nowrap">
+                                  {format(new Date(note.note_date), "dd/MM/yyyy")}
+                                </TableCell>
+                                <TableCell className={`text-right text-sm tabular-nums font-medium ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                  {isCredit ? "− " : "+ "}₹ {(note.total_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-right text-sm tabular-nums text-muted-foreground">—</TableCell>
+                                <TableCell className="text-sm font-medium text-muted-foreground">
+                                  {isCredit ? "Reduces balance" : "Adds to balance"}
+                                </TableCell>
+                                <TableCell>
+                                  <Link href={`/dashboard/${isCredit ? "credit-notes" : "debit-notes"}/${note.id}`}>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </Link>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          }
+
+                          const order = entry.order
                           const invoiceNo = order.is_gst_invoice ? order.invoice_number_gst : order.invoice_number_non_gst
                           const total = order.total_amount || 0
                           const payOut = order.payment_out_amount || 0
