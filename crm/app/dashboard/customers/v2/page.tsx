@@ -719,6 +719,61 @@ async function fetchLinkedCreditNotesByOrder(orderIds: string[]): Promise<Record
   return byOrder
 }
 
+export type PartyPaymentRow = {
+  id: string
+  txn_date: string
+  amount: number
+  txn_type: "Cr" | "Dr"
+  description: string | null
+  reference: string | null
+}
+
+// Payments recorded against this party's bills — via Reconciliation's bill
+// picker or the Payment In/Out button here, which both write a
+// payment_allocations row per bill — plus, for backward compatibility,
+// any older bank_transaction whose reference is simply the order_number
+// (how a single-bill payment used to be recorded before allocations
+// existed, with no payment_allocations row to find it by). Without this,
+// a payment that actually went through has nothing in this list to show
+// it ever happened.
+async function fetchPartyPayments(orderIds: string[], orderNumbers: string[]): Promise<PartyPaymentRow[]> {
+  if (orderIds.length === 0) return []
+  const byTxnId = new Map<string, PartyPaymentRow>()
+
+  const { data: allocs, error: allocErr } = await supabase
+    .from("payment_allocations")
+    .select("bank_transaction_id, order_id")
+    .in("order_id", orderIds)
+  const txnIdsFromAllocs = [...new Set((allocs || []).map((a: any) => a.bank_transaction_id))]
+
+  const txnIdQuery =
+    !allocErr && txnIdsFromAllocs.length > 0
+      ? supabase.from("bank_transactions").select("id, txn_date, amount, txn_type, description, reference").in("id", txnIdsFromAllocs)
+      : null
+  const refQuery =
+    orderNumbers.length > 0
+      ? supabase.from("bank_transactions").select("id, txn_date, amount, txn_type, description, reference").in("reference", orderNumbers)
+      : null
+
+  const [byIdRes, byRefRes] = await Promise.all([
+    txnIdQuery ?? Promise.resolve({ data: [] as any[] }),
+    refQuery ?? Promise.resolve({ data: [] as any[] }),
+  ])
+  ;[...(byIdRes.data || []), ...(byRefRes.data || [])].forEach((t: any) => {
+    if (!byTxnId.has(t.id)) {
+      byTxnId.set(t.id, {
+        id: t.id,
+        txn_date: t.txn_date,
+        amount: Number(t.amount) || 0,
+        txn_type: t.txn_type,
+        description: t.description,
+        reference: t.reference,
+      })
+    }
+  })
+  return Array.from(byTxnId.values())
+}
+
 function CustomersV2Content() {
   // ?view=debtors (linked from the Factory Dashboard's Bills Receivable
   // card) shows every customer with an outstanding balance instead of the
@@ -757,6 +812,11 @@ function CustomersV2Content() {
   // to show that bill's own remaining balance (total - paid - linked notes)
   // in the Transactions table; independent of the party-level aggregate.
   const [linkedCreditNotesByOrder, setLinkedCreditNotesByOrder] = useState<Record<string, number>>({})
+  // Payments recorded against this customer's bills (Reconciliation's bill
+  // picker or the Payment In/Out button) — shown as their own rows in the
+  // Transactions table so a recorded payment is actually visible, not just
+  // implied by a bill's status changing.
+  const [partyPayments, setPartyPayments] = useState<PartyPaymentRow[]>([])
   // Credit notes against this party (returns) reduce what they owe, even
   // when the note isn't tied to one specific invoice (a general credit
   // against their running account) — orders alone don't carry this.
@@ -1295,9 +1355,11 @@ function CustomersV2Content() {
 
         setCustomerOrders(enrichedOrders as any)
         setLinkedCreditNotesByOrder(await fetchLinkedCreditNotesByOrder(orderIds))
+        setPartyPayments(await fetchPartyPayments(orderIds, data.map((o) => o.order_number)))
       } else {
         setCustomerOrders(data || [])
         setLinkedCreditNotesByOrder({})
+        setPartyPayments([])
       }
     } catch (error) {
       console.error("Error fetching customer orders:", error)
@@ -2174,10 +2236,12 @@ function CustomersV2Content() {
   type TxnEntry =
     | { kind: "order"; date: string; order: (typeof customerOrders)[number] }
     | { kind: "credit" | "debit"; date: string; note: { id: string; note_number: string; note_date: string; total_amount: number; linked_order_id?: string | null } }
+    | { kind: "payment"; date: string; payment: PartyPaymentRow }
   const txnEntries: TxnEntry[] = [
     ...customerOrders.map((order): TxnEntry => ({ kind: "order", date: order.order_date, order })),
     ...partyCreditNotes.map((note): TxnEntry => ({ kind: "credit", date: note.note_date, note })),
     ...partyDebitNotes.map((note): TxnEntry => ({ kind: "debit", date: note.note_date, note })),
+    ...partyPayments.map((payment): TxnEntry => ({ kind: "payment", date: payment.txn_date, payment })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   const invoiceLabelByOrderId = new Map(
     customerOrders.map((order) => [
@@ -2837,12 +2901,14 @@ function CustomersV2Content() {
                     <CardTitle>Transactions</CardTitle>
                     <CardDescription>
                       {customerOrders.length} {customerOrders.length === 1 ? "order" : "orders"}
-                      {(partyCreditNotes.length > 0 || partyDebitNotes.length > 0) && (
+                      {(partyCreditNotes.length > 0 || partyDebitNotes.length > 0 || partyPayments.length > 0) && (
                         <>
                           {" · "}
-                          {partyCreditNotes.length > 0 && `${partyCreditNotes.length} credit note${partyCreditNotes.length === 1 ? "" : "s"}`}
-                          {partyCreditNotes.length > 0 && partyDebitNotes.length > 0 && ", "}
-                          {partyDebitNotes.length > 0 && `${partyDebitNotes.length} debit note${partyDebitNotes.length === 1 ? "" : "s"}`}
+                          {[
+                            partyPayments.length > 0 && `${partyPayments.length} payment${partyPayments.length === 1 ? "" : "s"}`,
+                            partyCreditNotes.length > 0 && `${partyCreditNotes.length} credit note${partyCreditNotes.length === 1 ? "" : "s"}`,
+                            partyDebitNotes.length > 0 && `${partyDebitNotes.length} debit note${partyDebitNotes.length === 1 ? "" : "s"}`,
+                          ].filter(Boolean).join(", ")}
                         </>
                       )}
                     </CardDescription>
@@ -2894,6 +2960,29 @@ function CustomersV2Content() {
                       </TableHeader>
                       <TableBody>
                         {txnEntries.map((entry) => {
+                          if (entry.kind === "payment") {
+                            const payment = entry.payment
+                            const isPaymentIn = payment.txn_type === "Cr"
+                            return (
+                              <TableRow key={`payment-${payment.id}`} className="hover:bg-muted/30">
+                                <TableCell className={`font-medium text-sm ${isPaymentIn ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                                  {isPaymentIn ? "Payment In" : "Payment Out"}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">{payment.reference || "—"}</TableCell>
+                                <TableCell className="text-xs whitespace-nowrap">
+                                  {format(new Date(payment.txn_date), "dd/MM/yyyy")}
+                                </TableCell>
+                                <TableCell className={`text-right text-sm tabular-nums font-medium ${isPaymentIn ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                                  {isPaymentIn ? "+ " : "− "}₹ {payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-right text-sm tabular-nums text-muted-foreground">—</TableCell>
+                                <TableCell className="text-sm font-medium text-muted-foreground truncate max-w-[180px]" title={payment.description || ""}>
+                                  {payment.description || "Recorded"}
+                                </TableCell>
+                                <TableCell />
+                              </TableRow>
+                            )
+                          }
                           if (entry.kind !== "order") {
                             const note = entry.note
                             const isCredit = entry.kind === "credit"
