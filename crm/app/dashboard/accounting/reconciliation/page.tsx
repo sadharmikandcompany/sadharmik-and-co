@@ -632,7 +632,7 @@ export default function ReconciliationPage() {
 
       let q = supabase
         .from("orders")
-        .select("id, order_number, total_amount, payment_status, payment_method, easebuzz_txn_id, order_date, source, customer_id, distributor_id, retailer_id, invoice_number_gst, invoice_number_non_gst")
+        .select("id, order_number, total_amount, paid_amount, payment_status, payment_method, easebuzz_txn_id, order_date, source, customer_id, distributor_id, retailer_id, invoice_number_gst, invoice_number_non_gst")
         .order("order_date", { ascending: false })
         // Generous cap, not a hard 50 — this used to silently drop every
         // bill older than the 50 most recent, which is why some bills never
@@ -720,7 +720,12 @@ export default function ReconciliationPage() {
 
   const handleSelectOrder = (order: any) => {
     setTxnSelectedOrder(order)
-    setTxnAmount(String(order.total_amount))
+    // total_amount is the bill's own total (already reduced if a credit
+    // note is linked to it) — what's still owed also has to subtract
+    // whatever's already been paid, or a part-paid bill would prefill the
+    // full amount again instead of just the remainder.
+    const owed = Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0))
+    setTxnAmount(String(owed))
     setTxnDescription(`Payment In - ${order.order_number} (${order.payment_method || "online"})`)
     setTxnReference(order.easebuzz_txn_id || order.order_number)
     setTxnDate(new Date().toISOString().split("T")[0])
@@ -2294,7 +2299,7 @@ export default function ReconciliationPage() {
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                       <div>
                         <span className="font-mono font-medium">{txnSelectedOrder.order_number}</span>
-                        <span className="text-muted-foreground ml-2">{formatCurrency(Number(txnSelectedOrder.total_amount))}</span>
+                        <span className="text-muted-foreground ml-2">{formatCurrency(Math.max(0, Number(txnSelectedOrder.total_amount || 0) - Number(txnSelectedOrder.paid_amount || 0)))} owed</span>
                       </div>
                       <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setTxnSelectedOrder(null)}>
                         <X className="h-3 w-3" />
@@ -2366,7 +2371,7 @@ export default function ReconciliationPage() {
                                   {order.payment_status}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(Number(order.total_amount))}</TableCell>
+                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0)))}</TableCell>
                               <TableCell className="py-2">
                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"><Plus className="h-3 w-3" /></Button>
                               </TableCell>

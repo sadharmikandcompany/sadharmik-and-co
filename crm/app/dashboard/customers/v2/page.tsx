@@ -677,6 +677,30 @@ function CustomerForm({
   )
 }
 
+// A credit note linked to a bill (via the bill-search picker on Create
+// Credit Note) already reduced that order's total_amount directly — so
+// every balance/spend aggregate below that separately sums credit_notes
+// must exclude linked notes, or it subtracts the same amount twice: once
+// through the order's already-reduced total, again through this sum.
+// linked_order_id may not exist yet if migrations/add_credit_note_linked_order.sql
+// hasn't been run — fall back to the unfiltered (pre-migration) query
+// rather than breaking balance data entirely while that's pending.
+async function fetchUnlinkedCreditNotes<T>(selectCols: string, partyIds: string[]): Promise<T[]> {
+  if (partyIds.length === 0) return []
+  const { data, error } = await supabase
+    .from("credit_notes")
+    .select(selectCols)
+    .in("party_id", partyIds)
+    .is("linked_order_id", null)
+  if (!error) return (data || []) as T[]
+  if (error.code === "42703" || error.code === "PGRST204") {
+    const { data: fallback } = await supabase.from("credit_notes").select(selectCols).in("party_id", partyIds)
+    return (fallback || []) as T[]
+  }
+  console.error("Error fetching credit notes:", error)
+  return []
+}
+
 function CustomersV2Content() {
   // ?view=debtors (linked from the Factory Dashboard's Bills Receivable
   // card) shows every customer with an outstanding balance instead of the
@@ -722,7 +746,7 @@ function CustomersV2Content() {
   // The actual note records (not just the summed total) so the Transactions
   // table can show them as their own rows — otherwise they silently shift
   // Balance Due with nothing in the list to explain why.
-  const [partyCreditNotes, setPartyCreditNotes] = useState<{ id: string; note_number: string; note_date: string; total_amount: number }[]>([])
+  const [partyCreditNotes, setPartyCreditNotes] = useState<{ id: string; note_number: string; note_date: string; total_amount: number; linked_order_id?: string | null }[]>([])
   const [partyDebitNotes, setPartyDebitNotes] = useState<{ id: string; note_number: string; note_date: string; total_amount: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
@@ -832,11 +856,31 @@ function CustomersV2Content() {
       fetchCustomerOrders(selectedCustomer.id)
       supabase
         .from("credit_notes")
-        .select("id, note_number, note_date, total_amount")
+        .select("id, note_number, note_date, total_amount, linked_order_id")
         .eq("party_id", selectedCustomer.id)
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          // linked_order_id may not exist yet if the migration hasn't run —
+          // fall back to the plain select and treat every note as unlinked,
+          // same as before that column existed.
+          if (error && (error.code === "42703" || error.code === "PGRST204")) {
+            supabase
+              .from("credit_notes")
+              .select("id, note_number, note_date, total_amount")
+              .eq("party_id", selectedCustomer.id)
+              .then(({ data: fallbackData }) => {
+                setPartyCreditNotes(fallbackData || [])
+                setPartyCreditNotesTotal((fallbackData || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
+              })
+            return
+          }
           setPartyCreditNotes(data || [])
-          setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
+          // A note already baked into a linked order's total isn't
+          // subtracted again here, or Balance Due would count it twice.
+          setPartyCreditNotesTotal(
+            (data || [])
+              .filter((n: any) => !n.linked_order_id)
+              .reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0)
+          )
         })
       supabase
         .from("debit_notes")
@@ -1000,12 +1044,13 @@ function CustomersV2Content() {
       })
 
       // Credit notes (returns) reduce what each customer owes, including
-      // ones not tied to a specific order.
-      const { data: notes } = await supabase
-        .from("credit_notes")
-        .select("party_id, total_amount")
-        .in("party_id", customerIds)
-      ;(notes || []).forEach((n: any) => {
+      // ones not tied to a specific order. Notes already linked to a bill
+      // are excluded — that bill's own total already reflects them.
+      const notes = await fetchUnlinkedCreditNotes<{ party_id: string; total_amount: number }>(
+        "party_id, total_amount",
+        customerIds
+      )
+      notes.forEach((n: any) => {
         if (n.party_id) {
           spendMap[n.party_id] = (spendMap[n.party_id] || 0) - (Number(n.total_amount) || 0)
         }
@@ -1119,11 +1164,13 @@ function CustomersV2Content() {
       // Credit notes (returns) reduce what each customer owes, including
       // ones not tied to a specific order — this is what the Contacts list
       // amount actually renders from (getEntityBalance -> customerBalanceData).
-      const { data: notes } = await supabase
-        .from("credit_notes")
-        .select("party_id, total_amount")
-        .in("party_id", customerIds)
-      ;(notes || []).forEach((n: any) => {
+      // Notes already linked to a bill are excluded — that bill's own
+      // total already reflects them.
+      const notes = await fetchUnlinkedCreditNotes<{ party_id: string; total_amount: number }>(
+        "party_id, total_amount",
+        customerIds
+      )
+      notes.forEach((n: any) => {
         if (!n.party_id) return
         if (!balanceMap[n.party_id]) balanceMap[n.party_id] = { totalPending: 0, balanceAmount: 0 }
         balanceMap[n.party_id].balanceAmount -= Number(n.total_amount) || 0
@@ -1342,20 +1389,20 @@ function CustomersV2Content() {
 
       // Credit notes (returns) reduce what each party owes — subtract them
       // from the balance shown in the list, same as the detail panel does.
+      // Notes already linked to a bill are excluded — that bill's own
+      // total already reflects them.
       const creditNoteParties = [...distIds, ...retIds]
       if (creditNoteParties.length > 0) {
-        const { data: notes } = await supabase
-          .from("credit_notes")
-          .select("party_id, party_type, total_amount")
-          .in("party_id", creditNoteParties)
-        if (notes) {
-          notes.forEach((n: any) => {
-            if (!n.party_id || !n.party_type) return
-            const key = `${n.party_type}_${n.party_id}`
-            if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
-            balanceMap[key].balanceAmount -= Number(n.total_amount) || 0
-          })
-        }
+        const notes = await fetchUnlinkedCreditNotes<{ party_id: string; party_type: string; total_amount: number }>(
+          "party_id, party_type, total_amount",
+          creditNoteParties
+        )
+        notes.forEach((n: any) => {
+          if (!n.party_id || !n.party_type) return
+          const key = `${n.party_type}_${n.party_id}`
+          if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
+          balanceMap[key].balanceAmount -= Number(n.total_amount) || 0
+        })
       }
 
       // Debit notes against a distributor/retailer are additional charges —
@@ -2105,12 +2152,18 @@ function CustomersV2Content() {
   // there never explains the rest of the numbers on this page.
   type TxnEntry =
     | { kind: "order"; date: string; order: (typeof customerOrders)[number] }
-    | { kind: "credit" | "debit"; date: string; note: { id: string; note_number: string; note_date: string; total_amount: number } }
+    | { kind: "credit" | "debit"; date: string; note: { id: string; note_number: string; note_date: string; total_amount: number; linked_order_id?: string | null } }
   const txnEntries: TxnEntry[] = [
     ...customerOrders.map((order): TxnEntry => ({ kind: "order", date: order.order_date, order })),
     ...partyCreditNotes.map((note): TxnEntry => ({ kind: "credit", date: note.note_date, note })),
     ...partyDebitNotes.map((note): TxnEntry => ({ kind: "debit", date: note.note_date, note })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const invoiceLabelByOrderId = new Map(
+    customerOrders.map((order) => [
+      order.id,
+      (order.is_gst_invoice ? order.invoice_number_gst : order.invoice_number_non_gst) || order.order_number,
+    ])
+  )
 
   return (
     <div className="flex gap-3 -mx-6 -my-4 max-w-none w-[calc(100%+3rem)] px-3 py-3">
@@ -2829,7 +2882,11 @@ function CustomersV2Content() {
                                 </TableCell>
                                 <TableCell className="text-right text-sm tabular-nums text-muted-foreground">—</TableCell>
                                 <TableCell className="text-sm font-medium text-muted-foreground">
-                                  {isCredit ? "Reduces balance" : "Adds to balance"}
+                                  {isCredit
+                                    ? note.linked_order_id
+                                      ? `Applied to ${invoiceLabelByOrderId.get(note.linked_order_id) || "a bill"}`
+                                      : "Reduces balance"
+                                    : "Adds to balance"}
                                 </TableCell>
                                 <TableCell>
                                   <Link href={`/dashboard/${isCredit ? "credit-notes" : "debit-notes"}/${note.id}`}>

@@ -701,6 +701,14 @@ function NewCreditNotePageContent() {
 
         const returnedValue = await applyOrderReturnEffects(supabase, returnOrderMeta, returnLines)
         if (returnedValue > 0) {
+          // Marks this note as already baked into the order's total, so
+          // Customers V2's balance/spend aggregates (which separately
+          // subtract every credit note) know to skip it instead of
+          // subtracting the same amount twice.
+          await supabase
+            .from("credit_notes")
+            .update({ linked_order_id: returnOrderMeta.id })
+            .eq("id", creditNote.id)
           toast.success(`Order ${returnOrderMeta.order_number} reduced by ₹${returnedValue.toFixed(2)} and stock restocked`)
         }
       } else {
