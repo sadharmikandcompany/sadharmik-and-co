@@ -116,7 +116,13 @@ function NewCreditNotePageContent() {
   // source order_items row, so edits to quantity in the form (returning
   // less than what was originally sold) still return the right amount.
   const [returnOrderMeta, setReturnOrderMeta] = useState<OrderForReturn | null>(null)
-  const [itemOrderMeta, setItemOrderMeta] = useState<Record<string, { orderItemId: string; productId: string | null; weightGrams: number | null; originalQty: number }>>({})
+  const [itemOrderMeta, setItemOrderMeta] = useState<Record<string, { productId: string | null; weightGrams: number | null }>>({})
+  // Display-only: the bill's own fixed total never changes (matching
+  // Vyapar), so this is what's actually still owed on it right now —
+  // total minus what's paid minus any credit notes already linked to it —
+  // shown so staff aren't left guessing what this note will bring it down
+  // to.
+  const [linkedBillSummary, setLinkedBillSummary] = useState<{ total: number; owed: number } | null>(null)
   const [selectedPartyId, setSelectedPartyId] = useState<string>("")
   const [selectedParty, setSelectedParty] = useState<Party | null>(null)
   const [showPartyDetails, setShowPartyDetails] = useState(false)
@@ -237,7 +243,7 @@ function NewCreditNotePageContent() {
   const loadOrderForReturn = async (orderId: string) => {
     const { data: order } = await supabase
       .from("orders")
-      .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, subtotal, gst_amount, cgst_amount, sgst_amount, source_godown_id, payment_status, payment_method, customer_id, distributor_id, retailer_id")
+      .select("id, order_number, invoice_number_gst, invoice_number_non_gst, order_date, total_amount, paid_amount, source_godown_id, payment_status, payment_method, customer_id, distributor_id, retailer_id")
       .eq("id", orderId)
       .single()
     if (!order) return
@@ -250,15 +256,24 @@ function NewCreditNotePageContent() {
     setReturnOrderMeta({
       id: order.id,
       order_number: order.order_number,
-      total_amount: Number(order.total_amount) || 0,
-      subtotal: Number(order.subtotal) || 0,
-      gst_amount: Number(order.gst_amount) || 0,
-      cgst_amount: Number(order.cgst_amount) || 0,
-      sgst_amount: Number(order.sgst_amount) || 0,
       source_godown_id: order.source_godown_id,
       payment_status: order.payment_status,
       payment_method: order.payment_method,
     })
+
+    // Sum whatever's already linked to this bill (from an earlier credit
+    // note), falling back gracefully if linked_order_id isn't there yet.
+    const { data: existingLinked, error: linkedErr } = await supabase
+      .from("credit_notes")
+      .select("total_amount")
+      .eq("linked_order_id", order.id)
+    const alreadyLinkedTotal =
+      linkedErr && (linkedErr.code === "42703" || linkedErr.code === "PGRST204")
+        ? 0
+        : (existingLinked || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0)
+    const total = Number(order.total_amount) || 0
+    const paid = Number(order.paid_amount) || 0
+    setLinkedBillSummary({ total, owed: Math.max(0, total - paid - alreadyLinkedTotal) })
 
     setInvoiceNumber(order.invoice_number_gst || order.invoice_number_non_gst || order.order_number)
     if (order.order_date) setInvoiceDate(new Date(order.order_date))
@@ -281,10 +296,8 @@ function NewCreditNotePageContent() {
     const noteItems: NoteItem[] = (orderItems || []).map((item: any) => {
       const id = Math.random().toString(36).substring(2, 9)
       meta[id] = {
-        orderItemId: item.id,
         productId: item.product_id,
         weightGrams: item.weight_grams,
-        originalQty: Number(item.quantity) || 0,
       }
       const gstPct = Number(item.gst_percentage) || 0
       // order_items.unit_price is GST-inclusive; NoteItem's price_per_unit
@@ -337,6 +350,7 @@ function NewCreditNotePageContent() {
       setItems([])
       setInvoiceNumber("")
       setDescription("")
+      setLinkedBillSummary(null)
       linkedBillPartyIdRef.current = null
       toast.info("Bill link removed — party changed")
     }
@@ -408,6 +422,7 @@ function NewCreditNotePageContent() {
     setItems([])
     setInvoiceNumber("")
     setDescription("")
+    setLinkedBillSummary(null)
     linkedBillPartyIdRef.current = null
   }
 
@@ -681,35 +696,35 @@ function NewCreditNotePageContent() {
 
       if (itemsError) throw itemsError
 
-      // This credit note is against one of our own sales — shrink that
-      // order to match what's actually being returned, restock the
-      // warehouse, and reverse the payment in Reconciliation if it was
-      // already marked paid.
+      // This credit note is against one of our own sales — restock the
+      // warehouse and reverse the payment in Reconciliation if it was
+      // already marked paid. The bill's own total is never touched; what's
+      // still owed on it is computed from total_amount - paid_amount -
+      // (credit notes linked to it) everywhere that's shown.
       if (returnOrderMeta) {
         const returnLines: OrderReturnLine[] = validItems
           .map((item) => {
             const meta = itemOrderMeta[item.id]
             if (!meta) return null
             return {
-              orderItemId: meta.orderItemId,
               productId: meta.productId,
               weightGrams: meta.weightGrams,
-              returnQty: Math.min(item.quantity, meta.originalQty),
+              quantity: item.quantity,
+              amount: item.amount,
             }
           })
           .filter((l): l is OrderReturnLine => l !== null)
 
         const returnedValue = await applyOrderReturnEffects(supabase, returnOrderMeta, returnLines)
         if (returnedValue > 0) {
-          // Marks this note as already baked into the order's total, so
-          // Customers V2's balance/spend aggregates (which separately
-          // subtract every credit note) know to skip it instead of
-          // subtracting the same amount twice.
+          // Records which bill this note is already accounted against, so
+          // every balance calculation can net it out of that bill's own
+          // "amount still owed" instead of subtracting it again separately.
           await supabase
             .from("credit_notes")
             .update({ linked_order_id: returnOrderMeta.id })
             .eq("id", creditNote.id)
-          toast.success(`Order ${returnOrderMeta.order_number} reduced by ₹${returnedValue.toFixed(2)} and stock restocked`)
+          toast.success(`₹${returnedValue.toFixed(2)} credited against order ${returnOrderMeta.order_number} and stock restocked`)
         }
       } else {
         // Freeform credit note (not opened from a specific order) — still
@@ -766,9 +781,9 @@ function NewCreditNotePageContent() {
         <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           <RotateCcw className="h-4 w-4 shrink-0" />
           <span>
-            Returning against order <strong>{returnOrderMeta.order_number}</strong> — saving this note will reduce
-            that order&apos;s total, add the returned stock back to its warehouse, and reverse the payment in
-            Reconciliation if it was already paid.
+            Returning against order <strong>{returnOrderMeta.order_number}</strong> — the bill&apos;s own total stays
+            the same, but saving this note reduces what&apos;s still owed on it, adds the returned stock back to its
+            warehouse, and reverses the payment in Reconciliation if it was already paid.
           </span>
         </div>
       )}
@@ -891,8 +906,15 @@ function NewCreditNotePageContent() {
                     <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm">
                       <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span>
-                        Linked to <strong>{returnOrderMeta.order_number}</strong> — current total{" "}
-                        {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(returnOrderMeta.total_amount)}
+                        Linked to <strong>{returnOrderMeta.order_number}</strong>
+                        {linkedBillSummary && (
+                          <>
+                            {" "}— bill total{" "}
+                            {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(linkedBillSummary.total)}
+                            , currently owed{" "}
+                            {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(linkedBillSummary.owed)}
+                          </>
+                        )}
                       </span>
                       <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 gap-1" onClick={handleUnlinkBill}>
                         <Unlink className="h-3.5 w-3.5" />

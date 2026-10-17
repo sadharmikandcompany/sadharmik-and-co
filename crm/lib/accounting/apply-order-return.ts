@@ -2,20 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { restoreKgStockForOrder } from "@/lib/stock/deduct-kg-stock"
 
 export type OrderReturnLine = {
-  orderItemId: string
   productId: string | null
   weightGrams: number | null
-  returnQty: number
+  quantity: number
+  amount: number
 }
 
 export type OrderForReturn = {
   id: string
   order_number: string
-  total_amount: number
-  subtotal: number
-  gst_amount: number
-  cgst_amount: number
-  sgst_amount: number
   source_godown_id: string | null
   payment_status: string
   payment_method: string | null
@@ -23,91 +18,35 @@ export type OrderForReturn = {
 
 /**
  * Applies the real-world effects of a return against an already-billed
- * order: shrinks the returned line items and the order's totals
- * proportionally, adds the returned kg back to the warehouse that
- * fulfilled it, and — if the order was already marked paid — posts a
- * reversal transaction so Reconciliation doesn't overstate what was
- * actually kept. Used when a Debit Note is created against one of our own
- * sales (see the ?orderId= pre-fill on app/dashboard/debit-notes/new).
- * Returns the total value returned.
+ * order: adds the returned kg back to the warehouse that fulfilled it, and
+ * — if the order was already marked paid — posts a reversal transaction so
+ * Reconciliation doesn't overstate what was actually kept.
+ *
+ * Deliberately does NOT touch the order's own total_amount/subtotal or its
+ * order_items — a bill's own total is fixed once issued (matching Vyapar:
+ * a sale's "Total" never changes, only its "Balance" does). The order's
+ * linked_order_id on the credit note is what later lets every balance
+ * calculation compute "amount still owed" as
+ * total_amount - paid_amount - sum(linked credit notes), without ever
+ * rewriting the bill itself.
  */
 export async function applyOrderReturnEffects(
   supabase: SupabaseClient,
   order: OrderForReturn,
   returns: OrderReturnLine[]
 ): Promise<number> {
-  const lines = returns.filter((r) => r.returnQty > 0)
+  const lines = returns.filter((r) => r.quantity > 0)
   if (lines.length === 0) return 0
 
-  let totalReturnValue = 0
-  let deltaSubtotalTotal = 0
-  let deltaGstTotal = 0
-  let deltaCgstTotal = 0
-  let deltaSgstTotal = 0
-  const restockLines: { product_id: string | null; quantity: number; weight_grams: number | null }[] = []
-
-  for (const line of lines) {
-    const { data: fresh } = await supabase
-      .from("order_items")
-      .select("quantity, subtotal, discount_amount, gst_amount, cgst_amount, sgst_amount, total")
-      .eq("id", line.orderItemId)
-      .single()
-    if (!fresh || Number(fresh.quantity) <= 0) continue
-
-    const qty = Math.min(line.returnQty, Number(fresh.quantity))
-    const ratio = qty / Number(fresh.quantity)
-    const deltaSubtotal = Number(fresh.subtotal) * ratio
-    const deltaDiscount = Number(fresh.discount_amount) * ratio
-    const deltaGst = Number(fresh.gst_amount) * ratio
-    const deltaCgst = Number(fresh.cgst_amount) * ratio
-    const deltaSgst = Number(fresh.sgst_amount) * ratio
-    const deltaTotal = Number(fresh.total) * ratio
-
-    const remainingQty = Number(fresh.quantity) - qty
-    if (remainingQty <= 0) {
-      // order_items.quantity/subtotal/total all have a > 0 CHECK constraint
-      // — a full return of this line can't be expressed as an update to 0,
-      // so the line is removed instead of left behind at a quantity the
-      // return already fully consumed.
-      await supabase.from("order_items").delete().eq("id", line.orderItemId)
-    } else {
-      await supabase
-        .from("order_items")
-        .update({
-          quantity: remainingQty,
-          subtotal: Math.max(0, Number(fresh.subtotal) - deltaSubtotal),
-          discount_amount: Math.max(0, Number(fresh.discount_amount) - deltaDiscount),
-          gst_amount: Math.max(0, Number(fresh.gst_amount) - deltaGst),
-          cgst_amount: Math.max(0, Number(fresh.cgst_amount) - deltaCgst),
-          sgst_amount: Math.max(0, Number(fresh.sgst_amount) - deltaSgst),
-          total: Math.max(0, Number(fresh.total) - deltaTotal),
-        })
-        .eq("id", line.orderItemId)
-    }
-
-    totalReturnValue += deltaTotal
-    deltaSubtotalTotal += deltaSubtotal
-    deltaGstTotal += deltaGst
-    deltaCgstTotal += deltaCgst
-    deltaSgstTotal += deltaSgst
-    restockLines.push({ product_id: line.productId, quantity: qty, weight_grams: line.weightGrams })
-  }
-
+  const totalReturnValue = lines.reduce((sum, l) => sum + l.amount, 0)
   if (totalReturnValue <= 0) return 0
 
-  await supabase
-    .from("orders")
-    .update({
-      subtotal: Math.max(0, Number(order.subtotal) - deltaSubtotalTotal),
-      gst_amount: Math.max(0, Number(order.gst_amount) - deltaGstTotal),
-      cgst_amount: Math.max(0, Number(order.cgst_amount) - deltaCgstTotal),
-      sgst_amount: Math.max(0, Number(order.sgst_amount) - deltaSgstTotal),
-      total_amount: Math.max(0, Number(order.total_amount) - totalReturnValue),
-    })
-    .eq("id", order.id)
-
   if (order.source_godown_id) {
-    await restoreKgStockForOrder(supabase, order.source_godown_id, restockLines)
+    await restoreKgStockForOrder(
+      supabase,
+      order.source_godown_id,
+      lines.map((l) => ({ product_id: l.productId, quantity: l.quantity, weight_grams: l.weightGrams }))
+    )
   }
 
   if (order.payment_status === "completed") {

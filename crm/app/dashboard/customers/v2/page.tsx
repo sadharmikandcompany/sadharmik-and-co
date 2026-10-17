@@ -677,28 +677,44 @@ function CustomerForm({
   )
 }
 
-// A credit note linked to a bill (via the bill-search picker on Create
-// Credit Note) already reduced that order's total_amount directly — so
-// every balance/spend aggregate below that separately sums credit_notes
-// must exclude linked notes, or it subtracts the same amount twice: once
-// through the order's already-reduced total, again through this sum.
-// linked_order_id may not exist yet if migrations/add_credit_note_linked_order.sql
-// hasn't been run — fall back to the unfiltered (pre-migration) query
-// rather than breaking balance data entirely while that's pending.
-async function fetchUnlinkedCreditNotes<T>(selectCols: string, partyIds: string[]): Promise<T[]> {
+// A linked credit note never touches its bill's own total_amount (a bill's
+// Total is fixed forever, matching Vyapar — only its Balance goes down).
+// So every party-level balance/spend aggregate below always subtracts the
+// FULL sum of every credit note once, linked or not — there's no
+// double-counting risk because the order side is never reduced. (Per-bill
+// "amount still owed" display, computed separately per order, is a
+// different, independent calculation — see linked-notes-by-order below.)
+async function fetchCreditNotesForParties<T>(selectCols: string, partyIds: string[]): Promise<T[]> {
   if (partyIds.length === 0) return []
+  const { data, error } = await supabase.from("credit_notes").select(selectCols).in("party_id", partyIds)
+  if (error) {
+    console.error("Error fetching credit notes:", error)
+    return []
+  }
+  return (data || []) as T[]
+}
+
+// Credit notes already linked to a specific bill, summed per order id — used
+// only to show that bill's own remaining balance (total - paid - linked
+// notes) in the Transactions table and bill pickers. Independent of the
+// party-level aggregate above. Falls back to empty if the linked_order_id
+// migration hasn't been run yet, so nothing breaks while that's pending.
+async function fetchLinkedCreditNotesByOrder(orderIds: string[]): Promise<Record<string, number>> {
+  if (orderIds.length === 0) return {}
   const { data, error } = await supabase
     .from("credit_notes")
-    .select(selectCols)
-    .in("party_id", partyIds)
-    .is("linked_order_id", null)
-  if (!error) return (data || []) as T[]
-  if (error.code === "42703" || error.code === "PGRST204") {
-    const { data: fallback } = await supabase.from("credit_notes").select(selectCols).in("party_id", partyIds)
-    return (fallback || []) as T[]
+    .select("linked_order_id, total_amount")
+    .in("linked_order_id", orderIds)
+  if (error) {
+    if (error.code !== "42703" && error.code !== "PGRST204") console.error("Error fetching linked credit notes:", error)
+    return {}
   }
-  console.error("Error fetching credit notes:", error)
-  return []
+  const byOrder: Record<string, number> = {}
+  ;(data || []).forEach((n: any) => {
+    if (!n.linked_order_id) return
+    byOrder[n.linked_order_id] = (byOrder[n.linked_order_id] || 0) + (Number(n.total_amount) || 0)
+  })
+  return byOrder
 }
 
 function CustomersV2Content() {
@@ -735,6 +751,10 @@ function CustomersV2Content() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerOrders, setCustomerOrders] = useState<Order[]>([])
+  // Credit notes linked to a specific bill, summed per order id — used only
+  // to show that bill's own remaining balance (total - paid - linked notes)
+  // in the Transactions table; independent of the party-level aggregate.
+  const [linkedCreditNotesByOrder, setLinkedCreditNotesByOrder] = useState<Record<string, number>>({})
   // Credit notes against this party (returns) reduce what they owe, even
   // when the note isn't tied to one specific invoice (a general credit
   // against their running account) — orders alone don't carry this.
@@ -860,8 +880,8 @@ function CustomersV2Content() {
         .eq("party_id", selectedCustomer.id)
         .then(({ data, error }) => {
           // linked_order_id may not exist yet if the migration hasn't run —
-          // fall back to the plain select and treat every note as unlinked,
-          // same as before that column existed.
+          // fall back to the plain select, which behaves identically for
+          // the total (every note is summed either way).
           if (error && (error.code === "42703" || error.code === "PGRST204")) {
             supabase
               .from("credit_notes")
@@ -874,13 +894,11 @@ function CustomersV2Content() {
             return
           }
           setPartyCreditNotes(data || [])
-          // A note already baked into a linked order's total isn't
-          // subtracted again here, or Balance Due would count it twice.
-          setPartyCreditNotesTotal(
-            (data || [])
-              .filter((n: any) => !n.linked_order_id)
-              .reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0)
-          )
+          // A bill's own total never changes once issued (matching
+          // Vyapar) — a linked note just tells you which bill it's
+          // against for display, it's still subtracted here same as a
+          // freeform one, or Balance Due would never reflect it at all.
+          setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
         })
       supabase
         .from("debit_notes")
@@ -1043,10 +1061,10 @@ function CustomersV2Content() {
         }
       })
 
-      // Credit notes (returns) reduce what each customer owes, including
-      // ones not tied to a specific order. Notes already linked to a bill
-      // are excluded — that bill's own total already reflects them.
-      const notes = await fetchUnlinkedCreditNotes<{ party_id: string; total_amount: number }>(
+      // Credit notes (returns) reduce what each customer owes, every one of
+      // them — a linked note's bill keeps its own fixed total, so nothing
+      // here double-counts it.
+      const notes = await fetchCreditNotesForParties<{ party_id: string; total_amount: number }>(
         "party_id, total_amount",
         customerIds
       )
@@ -1161,12 +1179,10 @@ function CustomersV2Content() {
         }
       })
 
-      // Credit notes (returns) reduce what each customer owes, including
-      // ones not tied to a specific order — this is what the Contacts list
-      // amount actually renders from (getEntityBalance -> customerBalanceData).
-      // Notes already linked to a bill are excluded — that bill's own
-      // total already reflects them.
-      const notes = await fetchUnlinkedCreditNotes<{ party_id: string; total_amount: number }>(
+      // Credit notes (returns) reduce what each customer owes, every one of
+      // them — this is what the Contacts list amount actually renders from
+      // (getEntityBalance -> customerBalanceData).
+      const notes = await fetchCreditNotesForParties<{ party_id: string; total_amount: number }>(
         "party_id, total_amount",
         customerIds
       )
@@ -1274,8 +1290,10 @@ function CustomersV2Content() {
         })
 
         setCustomerOrders(enrichedOrders as any)
+        setLinkedCreditNotesByOrder(await fetchLinkedCreditNotesByOrder(orderIds))
       } else {
         setCustomerOrders(data || [])
+        setLinkedCreditNotesByOrder({})
       }
     } catch (error) {
       console.error("Error fetching customer orders:", error)
@@ -1387,13 +1405,12 @@ function CustomersV2Content() {
         }
       }
 
-      // Credit notes (returns) reduce what each party owes — subtract them
-      // from the balance shown in the list, same as the detail panel does.
-      // Notes already linked to a bill are excluded — that bill's own
-      // total already reflects them.
+      // Credit notes (returns) reduce what each party owes — subtract every
+      // one of them from the balance shown in the list, same as the detail
+      // panel does.
       const creditNoteParties = [...distIds, ...retIds]
       if (creditNoteParties.length > 0) {
-        const notes = await fetchUnlinkedCreditNotes<{ party_id: string; party_type: string; total_amount: number }>(
+        const notes = await fetchCreditNotesForParties<{ party_id: string; party_type: string; total_amount: number }>(
           "party_id, party_type, total_amount",
           creditNoteParties
         )
@@ -2903,15 +2920,23 @@ function CustomersV2Content() {
                           const invoiceNo = order.is_gst_invoice ? order.invoice_number_gst : order.invoice_number_non_gst
                           const total = order.total_amount || 0
                           const payOut = order.payment_out_amount || 0
+                          const linkedNotes = linkedCreditNotesByOrder[order.id] || 0
+                          // This bill's own Total never changes once issued
+                          // (matching Vyapar) — only this Balance reflects
+                          // what's left after payment and any credit notes
+                          // linked to it.
                           const balance = order.payment_status === "completed"
                             ? 0
-                            : Math.max(0, total - payOut)
+                            : Math.max(0, total - payOut - linkedNotes)
+                          const fullyCreditedNotPaid = order.payment_status !== "completed" && balance === 0 && linkedNotes > 0
                           const statusLabel = order.payment_status === "completed"
                             ? "Paid"
-                            : order.payment_status === "partial"
-                              ? "Partial"
-                              : "Unpaid"
-                          const statusColor = order.payment_status === "completed"
+                            : fullyCreditedNotPaid
+                              ? "Credited"
+                              : order.payment_status === "partial"
+                                ? "Partial"
+                                : "Unpaid"
+                          const statusColor = order.payment_status === "completed" || fullyCreditedNotPaid
                             ? "text-emerald-600 dark:text-emerald-400"
                             : order.payment_status === "partial"
                               ? "text-amber-600 dark:text-amber-400"

@@ -101,6 +101,10 @@ export default function ReconciliationPage() {
 
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
+  // order_number -> { bill, party } for display only — transactions still
+  // store the ORD-… number (duplicate checks and matching key off it), but
+  // the table shows the bill number and customer SD/Man/Shop number instead.
+  const [orderLabels, setOrderLabels] = useState<Record<string, { bill: string | null; party: string | null }>>({})
   const [loading, setLoading] = useState(true)
   const [selectedBankId, setSelectedBankId] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -460,6 +464,39 @@ export default function ReconciliationPage() {
 
     setTransactions(allTxns)
     setLoading(false)
+
+    const orderNumbers = [...new Set(allTxns.flatMap((t: any) =>
+      `${t.reference || ""} ${t.description || ""}`.match(/ORD-\d+/g) || []
+    ))]
+    if (orderNumbers.length > 0) {
+      const { data: labelOrders } = await supabase
+        .from("orders")
+        .select("order_number, invoice_number_gst, invoice_number_non_gst, customer_id, distributor_id, retailer_id")
+        .in("order_number", orderNumbers)
+      const custIds = [...new Set((labelOrders || []).map(o => o.customer_id).filter(Boolean))]
+      const distIds = [...new Set((labelOrders || []).map(o => o.distributor_id).filter(Boolean))]
+      const retIds = [...new Set((labelOrders || []).map(o => o.retailer_id).filter(Boolean))]
+      const [custRes, distRes, retRes] = await Promise.all([
+        custIds.length ? supabase.from("customers").select("id, first_name, last_name, vip_number, mandir_number, shop_number").in("id", custIds) : Promise.resolve({ data: [] as any[] }),
+        distIds.length ? supabase.from("distributors").select("id, name").in("id", distIds) : Promise.resolve({ data: [] as any[] }),
+        retIds.length ? supabase.from("retailers").select("id, name").in("id", retIds) : Promise.resolve({ data: [] as any[] }),
+      ])
+      const custMap = Object.fromEntries((custRes.data || []).map((c: any) => [c.id, c]))
+      const distMap = Object.fromEntries((distRes.data || []).map((d: any) => [d.id, d]))
+      const retMap = Object.fromEntries((retRes.data || []).map((r: any) => [r.id, r]))
+      const labels: Record<string, { bill: string | null; party: string | null }> = {}
+      ;(labelOrders || []).forEach((o: any) => {
+        const c = o.customer_id ? custMap[o.customer_id] : null
+        const party = c
+          ? (c.vip_number ? `SD${c.vip_number}`
+            : c.mandir_number ? `Man${c.mandir_number}`
+            : c.shop_number ? `Shop${c.shop_number}`
+            : `${c.first_name || ""} ${c.last_name || ""}`.trim() || null)
+          : distMap[o.distributor_id]?.name || retMap[o.retailer_id]?.name || null
+        labels[o.order_number] = { bill: o.invoice_number_non_gst || o.invoice_number_gst || null, party }
+      })
+      setOrderLabels(labels)
+    }
   }
 
   const isCashType = (type: string) => type === "cash"
@@ -665,6 +702,24 @@ export default function ReconciliationPage() {
 
       const { data } = await q
 
+      // A bill's own total never changes once issued (matching Vyapar) —
+      // a credit note linked to it instead reduces what's still owed, so
+      // that has to be netted out here same as paid_amount is.
+      const orderIdsForNotes = (data || []).map(o => o.id)
+      const linkedNotesByOrder: Record<string, number> = {}
+      if (orderIdsForNotes.length > 0) {
+        const { data: linkedNotes, error: linkedErr } = await supabase
+          .from("credit_notes")
+          .select("linked_order_id, total_amount")
+          .in("linked_order_id", orderIdsForNotes)
+        if (!linkedErr) {
+          (linkedNotes || []).forEach((n: any) => {
+            if (!n.linked_order_id) return
+            linkedNotesByOrder[n.linked_order_id] = (linkedNotesByOrder[n.linked_order_id] || 0) + (Number(n.total_amount) || 0)
+          })
+        }
+      }
+
       // Fetch party names for results — customer, distributor, or retailer,
       // whichever the order actually belongs to.
       const orderCustomerIds = [...new Set((data || []).filter(o => o.customer_id).map(o => o.customer_id))]
@@ -700,6 +755,7 @@ export default function ReconciliationPage() {
             : distributor?.name || retailer?.name || null,
           customer_phone: customer?.mobile_primary || distributor?.phone_primary || retailer?.phone_primary || null,
           customer_vip: customer?.vip_number || null,
+          linked_credit_notes: linkedNotesByOrder[order.id] || 0,
         }
       })
 
@@ -720,11 +776,12 @@ export default function ReconciliationPage() {
 
   const handleSelectOrder = (order: any) => {
     setTxnSelectedOrder(order)
-    // total_amount is the bill's own total (already reduced if a credit
-    // note is linked to it) — what's still owed also has to subtract
-    // whatever's already been paid, or a part-paid bill would prefill the
-    // full amount again instead of just the remainder.
-    const owed = Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0))
+    // total_amount is the bill's own fixed total (never changes once
+    // issued, matching Vyapar) — what's still owed subtracts whatever's
+    // already been paid and any credit notes linked to this bill, or a
+    // part-paid or credited bill would prefill the full amount again
+    // instead of just the remainder.
+    const owed = Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0) - Number(order.linked_credit_notes || 0))
     setTxnAmount(String(owed))
     setTxnDescription(`Payment In - ${order.order_number} (${order.payment_method || "online"})`)
     setTxnReference(order.easebuzz_txn_id || order.order_number)
@@ -1548,6 +1605,16 @@ export default function ReconciliationPage() {
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(amount)
 
+  const orderLabelText = (orderNumber: string) => {
+    const l = orderLabels[orderNumber]
+    if (!l?.bill) return orderNumber
+    return l.party ? `${l.bill} · ${l.party}` : l.bill
+  }
+  const displayDescription = (t: BankTransaction) =>
+    (t.description || "").replace(/ORD-\d+/g, m => orderLabelText(m))
+  const displayReference = (t: BankTransaction) =>
+    (t.reference || "").replace(/^ORD-\d+$/, m => orderLabelText(m))
+
   const filtered = transactions.filter(t => {
     const matchesBank = selectedBankId === "all" || t.bank_account_id === selectedBankId
     const matchesStatus = statusFilter === "all" || t.status === statusFilter
@@ -1556,7 +1623,9 @@ export default function ReconciliationPage() {
     const matchesDateTo = !dateToFilter || t.txn_date <= dateToFilter
     const matchesSearch = searchTerm === "" ||
       (t.description || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.reference || "").toLowerCase().includes(searchTerm.toLowerCase())
+      (t.reference || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      displayDescription(t).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      displayReference(t).toLowerCase().includes(searchTerm.toLowerCase())
     return matchesBank && matchesStatus && matchesType && matchesDateFrom && matchesDateTo && matchesSearch
   })
 
@@ -1570,7 +1639,7 @@ export default function ReconciliationPage() {
     switch (column) {
       case "date": return new Date(t.txn_date).getTime()
       case "account": return bankAccounts.find(b => b.id === t.bank_account_id)?.bank_name || ""
-      case "description": return (t.description || "").toLowerCase()
+      case "description": return displayDescription(t).toLowerCase()
       case "debit": return t.txn_type === "Dr" ? Number(t.amount) : -1
       case "credit": return t.txn_type === "Cr" ? Number(t.amount) : -1
       case "status": return t.status
@@ -2069,10 +2138,10 @@ export default function ReconciliationPage() {
                             {txn.source === "expense" && <Badge variant="outline" className="text-red-600 border-red-300 shrink-0">Expense</Badge>}
                             {txn.source === "delivery" && <Badge variant="outline" className="text-emerald-600 border-emerald-300 shrink-0">Delivery Cash</Badge>}
                             {txn.source === "retailer_payment" && <Badge variant="outline" className="text-amber-600 border-amber-300 shrink-0">Retailer Payment</Badge>}
-                            <span className="truncate">{txn.description || "-"}</span>
+                            <span className="truncate" title={txn.description || undefined}>{displayDescription(txn) || "-"}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-sm">{txn.reference || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm" title={txn.reference || undefined}>{displayReference(txn) || "-"}</TableCell>
                         <TableCell className="text-right text-red-600">{txn.txn_type === "Dr" ? formatCurrency(Number(txn.amount)) : "-"}</TableCell>
                         <TableCell className="text-right text-green-600">{txn.txn_type === "Cr" ? formatCurrency(Number(txn.amount)) : "-"}</TableCell>
                         <TableCell>
@@ -2299,7 +2368,7 @@ export default function ReconciliationPage() {
                       <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                       <div>
                         <span className="font-mono font-medium">{txnSelectedOrder.order_number}</span>
-                        <span className="text-muted-foreground ml-2">{formatCurrency(Math.max(0, Number(txnSelectedOrder.total_amount || 0) - Number(txnSelectedOrder.paid_amount || 0)))} owed</span>
+                        <span className="text-muted-foreground ml-2">{formatCurrency(Math.max(0, Number(txnSelectedOrder.total_amount || 0) - Number(txnSelectedOrder.paid_amount || 0) - Number(txnSelectedOrder.linked_credit_notes || 0)))} owed</span>
                       </div>
                       <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setTxnSelectedOrder(null)}>
                         <X className="h-3 w-3" />
@@ -2371,7 +2440,7 @@ export default function ReconciliationPage() {
                                   {order.payment_status}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0)))}</TableCell>
+                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0) - Number(order.linked_credit_notes || 0)))}</TableCell>
                               <TableCell className="py-2">
                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"><Plus className="h-3 w-3" /></Button>
                               </TableCell>
