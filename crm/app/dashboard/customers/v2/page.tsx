@@ -58,6 +58,8 @@ import Link from "next/link"
 import { format } from "date-fns"
 import { ExportButtons } from "@/components/export-buttons"
 import { exportToCSV, exportToExcel, exportTableToPDF } from "@/lib/export-utils"
+import { RecordPaymentDialog, type RecordPaymentParty } from "@/components/customers/record-payment-dialog"
+import { ArrowDownCircle, ArrowUpCircle } from "lucide-react"
 
 // Indian States and Union Territories
 const INDIAN_STATES = [
@@ -774,6 +776,8 @@ function CustomersV2Content() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [paymentDialogType, setPaymentDialogType] = useState<"Cr" | "Dr">("Cr")
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -2560,6 +2564,14 @@ function CustomersV2Content() {
                         Opening: {(selectedCustomer.opening_balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Button>
                     )}
+                    <Button variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => { setPaymentDialogType("Cr"); setPaymentDialogOpen(true) }}>
+                      <ArrowDownCircle className="h-4 w-4 mr-2" />
+                      Payment In
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { setPaymentDialogType("Dr"); setPaymentDialogOpen(true) }}>
+                      <ArrowUpCircle className="h-4 w-4 mr-2" />
+                      Payment Out
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedCustomer)}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit
@@ -3147,6 +3159,18 @@ function CustomersV2Content() {
                         Opening: {(selectedEntityRaw.opening_balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Button>
                     )}
+                    {selectedEntityRole !== 'vendor' && (
+                      <>
+                        <Button variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => { setPaymentDialogType("Cr"); setPaymentDialogOpen(true) }}>
+                          <ArrowDownCircle className="h-4 w-4 mr-2" />
+                          Payment In
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { setPaymentDialogType("Dr"); setPaymentDialogOpen(true) }}>
+                          <ArrowUpCircle className="h-4 w-4 mr-2" />
+                          Payment Out
+                        </Button>
+                      </>
+                    )}
                     <Link href={`/dashboard/${selectedEntityRole === 'vendor' ? 'vendors' : selectedEntityRole === 'retailer' ? 'retailers' : 'distributors'}/${selectedEntityRaw.id}`}>
                       <Button variant="outline" size="sm">
                         <Eye className="h-4 w-4 mr-2" />
@@ -3416,6 +3440,38 @@ function CustomersV2Content() {
           </Card>
         )}
       </div>
+
+      {/* Record Payment In/Out Dialog — customer or distributor/retailer only (vendor payments already have their own flow on the Purchases page) */}
+      {(() => {
+        const party: RecordPaymentParty | null = selectedCustomer
+          ? { id: selectedCustomer.id, type: "customer", name: `${selectedCustomer.first_name} ${selectedCustomer.last_name}`.trim() }
+          : selectedEntityRaw && (selectedEntityRole === "distributor" || selectedEntityRole === "sub_distributor" || selectedEntityRole === "retailer")
+            ? { id: selectedEntityRaw.id, type: selectedEntityRole === "retailer" ? "retailer" : "distributor", name: selectedEntityRaw.display_name || selectedEntityRaw.name }
+            : null
+        if (!party) return null
+        return (
+          <RecordPaymentDialog
+            open={paymentDialogOpen}
+            onOpenChange={setPaymentDialogOpen}
+            party={party}
+            defaultType={paymentDialogType}
+            onSaved={() => {
+              if (selectedCustomer) {
+                fetchCustomerOrders(selectedCustomer.id)
+                const requestId = ++balanceRequestIdRef.current
+                fetchCustomerBalanceData(requestId)
+              } else if (selectedEntityRaw && selectedEntityRole) {
+                if (selectedEntityRole === "distributor" || selectedEntityRole === "sub_distributor") {
+                  fetchEntityOrders(selectedEntityRaw.id, "distributor")
+                } else if (selectedEntityRole === "retailer") {
+                  fetchEntityOrders(selectedEntityRaw.id, "retailer")
+                }
+                fetchEntityBalanceData()
+              }
+            }}
+          />
+        )
+      })()}
 
       {/* Add Customer Dialog */}
       {/* Add Customer Dialog */}

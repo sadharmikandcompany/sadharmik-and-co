@@ -147,7 +147,11 @@ export default function ReconciliationPage() {
   const [txnType, setTxnType] = useState<string>("Cr")
   const [txnOrderSearch, setTxnOrderSearch] = useState("")
   const [txnOrderResults, setTxnOrderResults] = useState<any[]>([])
-  const [txnSelectedOrder, setTxnSelectedOrder] = useState<any>(null)
+  // Multiple bills can be paid together in one transaction (e.g. a
+  // customer settling two invoices with one transfer) — each toggled
+  // order stays selected while more are picked, and the amount/
+  // description auto-sum across all of them.
+  const [txnSelectedOrders, setTxnSelectedOrders] = useState<any[]>([])
   const [txnAmount, setTxnAmount] = useState("")
   const [txnDescription, setTxnDescription] = useState("")
   const [txnReference, setTxnReference] = useState("")
@@ -774,33 +778,81 @@ export default function ReconciliationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCreateTxnOpen, txnMode])
 
-  const handleSelectOrder = (order: any) => {
-    setTxnSelectedOrder(order)
-    // total_amount is the bill's own fixed total (never changes once
-    // issued, matching Vyapar) — what's still owed subtracts whatever's
-    // already been paid and any credit notes linked to this bill, or a
-    // part-paid or credited bill would prefill the full amount again
-    // instead of just the remainder.
-    const owed = Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0) - Number(order.linked_credit_notes || 0))
-    setTxnAmount(String(owed))
-    setTxnDescription(`Payment In - ${order.order_number} (${order.payment_method || "online"})`)
-    setTxnReference(order.easebuzz_txn_id || order.order_number)
-    setTxnDate(new Date().toISOString().split("T")[0])
-    setTxnOrderSearch("")
-    setTxnOrderResults([])
+  // total_amount is a bill's own fixed total (never changes once issued,
+  // matching Vyapar) — what's still owed subtracts whatever's already been
+  // paid and any credit notes linked to this bill.
+  const orderOwed = (order: any) =>
+    Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0) - Number(order.linked_credit_notes || 0))
 
-    // Auto-pick the matching account for this order's payment method —
-    // previously the bank account field was left exactly as it was before
-    // (often still "Main Cash" from the last transaction), so a UPI order
-    // would silently get logged as cash unless staff remembered to switch
-    // it by hand. Cash orders go to the cash account; anything else (UPI,
-    // card, bank transfer, cheque, online) goes to the first real bank
-    // account, same as Easebuzz settlements use elsewhere on this page.
-    const isCashOrder = order.payment_method === "cash"
-    const matchingAccount = bankAccounts.find((b) =>
-      isCashOrder ? b.account_type === "cash" : b.account_type !== "cash"
-    )
-    if (matchingAccount) setTxnBankId(matchingAccount.id)
+  // Toggles one order in/out of the selected set — several bills can be
+  // picked together (a customer settling more than one invoice with a
+  // single transfer), with the amount/description auto-summing across
+  // whatever's currently selected. The results list stays open afterward
+  // so more bills can be picked without re-searching.
+  const toggleSelectOrder = (order: any) => {
+    setTxnSelectedOrders((prev) => {
+      const isSelected = prev.some((o) => o.id === order.id)
+      const next = isSelected ? prev.filter((o) => o.id !== order.id) : [...prev, order]
+
+      const totalOwed = next.reduce((sum, o) => sum + orderOwed(o), 0)
+      setTxnAmount(String(totalOwed))
+
+      const typeLabel = txnType === "Cr" ? "Payment In" : "Payment Out"
+      if (next.length === 0) {
+        setTxnDescription("")
+        setTxnReference("")
+      } else if (next.length === 1) {
+        setTxnDescription(`${typeLabel} - ${next[0].order_number} (${next[0].payment_method || "online"})`)
+        setTxnReference(next[0].easebuzz_txn_id || next[0].order_number)
+      } else {
+        const labels = next.map((o) => o.invoice_number_gst || o.invoice_number_non_gst || o.order_number)
+        setTxnDescription(`${typeLabel} - ${next.length} bills (${labels.join(", ")})`)
+        setTxnReference(next.map((o) => o.order_number).join(","))
+      }
+
+      return next
+    })
+
+    if (!txnSelectedOrders.some((o) => o.id === order.id)) {
+      setTxnDate(new Date().toISOString().split("T")[0])
+      // Auto-pick the matching account for this order's payment method —
+      // previously the bank account field was left exactly as it was
+      // before (often still "Main Cash" from the last transaction), so a
+      // UPI order would silently get logged as cash unless staff
+      // remembered to switch it by hand. Cash orders go to the cash
+      // account; anything else (UPI, card, bank transfer, cheque, online)
+      // goes to the first real bank account, same as Easebuzz settlements
+      // use elsewhere on this page.
+      const isCashOrder = order.payment_method === "cash"
+      const matchingAccount = bankAccounts.find((b) =>
+        isCashOrder ? b.account_type === "cash" : b.account_type !== "cash"
+      )
+      if (matchingAccount) setTxnBankId(matchingAccount.id)
+    }
+  }
+
+  // Splits one transaction's amount across every selected bill, in the
+  // order they were picked — each bill's own remaining balance first, any
+  // leftover rolling to the next. Writes a payment_allocations row per
+  // bill touched (same table the vendor/FIFO paths already use) so the
+  // split can be read back or reversed correctly later.
+  const allocateToSelectedOrders = async (bankTransactionId: string, orders: any[], totalAmount: number, type: "Cr" | "Dr") => {
+    let remaining = totalAmount
+    const sign = type === "Cr" ? 1 : -1
+    for (const order of orders) {
+      if (remaining <= 0) break
+      const owed = orderOwed(order)
+      if (owed <= 0) continue
+      const applied = Math.min(owed, remaining)
+      await adjustOrderPayment(order.id, sign * applied)
+      const { error } = await supabase
+        .from("payment_allocations")
+        .insert([{ bank_transaction_id: bankTransactionId, order_id: order.id, amount_applied: applied }])
+      if (error && !isMissingAllocationsTable(error)) {
+        console.error("Failed to record payment allocation:", error)
+      }
+      remaining -= applied
+    }
   }
 
   // Picks from the FULL real distributors/customers tables (via
@@ -1153,8 +1205,8 @@ export default function ReconciliationPage() {
     // and must go through. Matching on description.includes() used to flag
     // any second entry at all against that order as "already exists",
     // which blocked legitimate multiple payments on the same bill.
-    if (txnSelectedOrder) {
-      const orderRef = txnReference || txnSelectedOrder.order_number
+    if (txnSelectedOrders.length > 0) {
+      const orderRef = txnReference || txnSelectedOrders.map((o) => o.order_number).join(",")
       const amountNum = parseFloat(txnAmount)
       const duplicate = transactions.find(t =>
         t.txn_type === txnType &&
@@ -1163,7 +1215,8 @@ export default function ReconciliationPage() {
       )
       if (duplicate) {
         const typeLabel = txnType === "Cr" ? "Payment In" : "Payment Out"
-        toast.error(`${typeLabel} of this exact amount already recorded for order ${txnSelectedOrder.order_number}`)
+        const orderLabel = txnSelectedOrders.length === 1 ? txnSelectedOrders[0].order_number : `${txnSelectedOrders.length} bills`
+        toast.error(`${typeLabel} of this exact amount already recorded for ${orderLabel}`)
         return
       }
     }
@@ -1245,14 +1298,12 @@ export default function ReconciliationPage() {
       // number that never moves.
       await adjustAccountBalance(txnBankId, effectiveTxnType === "Cr" ? amount : -amount)
 
-      // Vendor payments (Payment Out) auto-allocate against their bills —
-      // the specific one picked in the bill-picker if any, otherwise FIFO
-      // across their oldest open bills. This is what actually keeps
-      // purchases.paid_amount (and the Vendor panel's payable total) in
-      // sync — it previously only happened when a bill was manually
-      // picked, which is why unlinked payments left a large stale
-      // outstanding balance despite being paid.
-      if (insertedTxn?.id && txnMode === "distributor" && txnSelectedParty?.type === "vendor" && effectiveTxnType === "Dr") {
+      // One or more bills picked directly in Find Order — split this
+      // transaction's amount across exactly those bills (not a FIFO sweep
+      // of every open bill, since these were explicitly chosen).
+      if (insertedTxn?.id && txnMode === "order" && txnSelectedOrders.length > 0) {
+        await allocateToSelectedOrders(insertedTxn.id, txnSelectedOrders, amount, effectiveTxnType as "Cr" | "Dr")
+      } else if (insertedTxn?.id && txnMode === "distributor" && txnSelectedParty?.type === "vendor" && effectiveTxnType === "Dr") {
         await allocatePayment(insertedTxn.id, txnSelectedParty.id, amount, txnSelectedVendorBill?.id)
       } else if (
         insertedTxn?.id && txnMode === "distributor" && effectiveTxnType === "Cr" &&
@@ -1307,7 +1358,7 @@ export default function ReconciliationPage() {
     setTxnType("Cr")
     setTxnOrderSearch("")
     setTxnOrderResults([])
-    setTxnSelectedOrder(null)
+    setTxnSelectedOrders([])
     setTxnAmount("")
     setTxnDescription("")
     setTxnReference("")
@@ -2278,7 +2329,7 @@ export default function ReconciliationPage() {
             {/* Left: Source Selection */}
             <div className="space-y-4">
               <Tabs value={txnMode} onValueChange={(v) => {
-                setTxnMode(v); setTxnSelectedOrder(null); setTxnSelectedDistributor(""); setTxnSelectedParty(null); setTxnOrderResults([])
+                setTxnMode(v); setTxnSelectedOrders([]); setTxnSelectedDistributor(""); setTxnSelectedParty(null); setTxnOrderResults([])
                 setTxnVendorBills([]); setTxnSelectedVendorBill(null)
                 setTxnContraFromAccount(""); setTxnContraToAccount("")
                 if (v === "expense") {
@@ -2363,16 +2414,25 @@ export default function ReconciliationPage() {
                     }}><X className="h-3 w-3 mr-1" />Clear Filters</Button>
                   )}
 
-                  {txnSelectedOrder && (
-                    <div className="flex items-center gap-2 text-sm bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-2.5 rounded-md">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="font-mono font-medium">{txnSelectedOrder.order_number}</span>
-                        <span className="text-muted-foreground ml-2">{formatCurrency(Math.max(0, Number(txnSelectedOrder.total_amount || 0) - Number(txnSelectedOrder.paid_amount || 0) - Number(txnSelectedOrder.linked_credit_notes || 0)))} owed</span>
-                      </div>
-                      <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setTxnSelectedOrder(null)}>
-                        <X className="h-3 w-3" />
-                      </Button>
+                  {txnSelectedOrders.length > 0 && (
+                    <div className="space-y-1.5">
+                      {txnSelectedOrders.map((order) => (
+                        <div key={order.id} className="flex items-center gap-2 text-sm bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-2.5 rounded-md">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-mono font-medium">{order.order_number}</span>
+                            <span className="text-muted-foreground ml-2">{formatCurrency(orderOwed(order))} owed</span>
+                          </div>
+                          <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => toggleSelectOrder(order)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      {txnSelectedOrders.length > 1 && (
+                        <p className="text-xs text-muted-foreground px-1">
+                          {txnSelectedOrders.length} bills selected — total {formatCurrency(txnSelectedOrders.reduce((sum, o) => sum + orderOwed(o), 0))}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -2391,20 +2451,28 @@ export default function ReconciliationPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="text-xs w-[32px]"></TableHead>
                             <TableHead className="text-xs">Order</TableHead>
                             <TableHead className="text-xs">Customer</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
                             <TableHead className="text-xs">Method</TableHead>
                             <TableHead className="text-xs">Status</TableHead>
                             <TableHead className="text-xs text-right">Amount</TableHead>
-                            <TableHead className="text-xs w-[40px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {txnOrderResults.map(order => {
                             const existingTxn = getOrderTxnStatus(order.order_number, order.easebuzz_txn_id)
+                            const isSelected = txnSelectedOrders.some(o => o.id === order.id)
                             return (
-                            <TableRow key={order.id} className={`cursor-pointer hover:bg-muted/50 ${existingTxn ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`} onClick={() => handleSelectOrder(order)}>
+                            <TableRow
+                              key={order.id}
+                              className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-emerald-50/70 dark:bg-emerald-950/30" : existingTxn ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
+                              onClick={() => toggleSelectOrder(order)}
+                            >
+                              <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox checked={isSelected} onCheckedChange={() => toggleSelectOrder(order)} />
+                              </TableCell>
                               <TableCell className="py-2">
                                 <div className="flex items-center gap-1.5">
                                   <div className="font-mono text-xs">{order.order_number}</div>
@@ -2440,10 +2508,7 @@ export default function ReconciliationPage() {
                                   {order.payment_status}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(Math.max(0, Number(order.total_amount || 0) - Number(order.paid_amount || 0) - Number(order.linked_credit_notes || 0)))}</TableCell>
-                              <TableCell className="py-2">
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0"><Plus className="h-3 w-3" /></Button>
-                              </TableCell>
+                              <TableCell className="text-xs py-2 text-right font-medium">{formatCurrency(orderOwed(order))}</TableCell>
                             </TableRow>
                             )
                           })}
