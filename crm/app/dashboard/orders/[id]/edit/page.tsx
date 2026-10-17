@@ -48,6 +48,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { postOrderPaymentTransaction } from "@/lib/accounting/post-order-payment"
 
 type Order = {
   id: string
@@ -950,6 +951,21 @@ export default function EditOrderPage() {
             }
           }
         }
+      }
+
+      // Switching Payment Status to completed here (e.g. a UPI payment
+      // received after the order was created) needs the same Reconciliation
+      // entry the Complete Order buttons post — without it the payment never
+      // reached Fedral Bank / Main Cash.
+      if (order && order.payment_status !== "completed" && formData.payment_status === "completed") {
+        const { data: { user } } = await supabase.auth.getUser()
+        await postOrderPaymentTransaction(supabase, {
+          orderNumber: order.order_number,
+          amount: Number(formData.total_amount) || 0,
+          paymentMethod: formData.payment_method || null,
+          orderDate: new Date().toISOString(),
+          createdBy: user?.id,
+        })
       }
 
       toast.success("Order updated successfully")
