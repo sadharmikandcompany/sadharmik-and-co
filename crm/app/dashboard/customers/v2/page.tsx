@@ -171,6 +171,7 @@ type Order = {
   cod_collected_amount: string | number | null
   payment_out_method?: string | null
   payment_out_amount?: number
+  paid_amount?: number | null
 }
 
 type EntityRole = 'customer' | 'distributor' | 'sub_distributor' | 'retailer' | 'vendor'
@@ -679,13 +680,9 @@ function CustomerForm({
   )
 }
 
-// A linked credit note never touches its bill's own total_amount (a bill's
-// Total is fixed forever, matching Vyapar — only its Balance goes down).
-// So every party-level balance/spend aggregate below always subtracts the
-// FULL sum of every credit note once, linked or not — there's no
-// double-counting risk because the order side is never reduced. (Per-bill
-// "amount still owed" display, computed separately per order, is a
-// different, independent calculation — see linked-notes-by-order below.)
+// Every credit note for a party, linked or not — for DISPLAY only (the
+// Transactions table list). Never use this sum directly in a balance/spend
+// aggregate: see fetchUnlinkedCreditNotesForParties below for why.
 async function fetchCreditNotesForParties<T>(selectCols: string, partyIds: string[]): Promise<T[]> {
   if (partyIds.length === 0) return []
   const { data, error } = await supabase.from("credit_notes").select(selectCols).in("party_id", partyIds)
@@ -694,6 +691,38 @@ async function fetchCreditNotesForParties<T>(selectCols: string, partyIds: strin
     return []
   }
   return (data || []) as T[]
+}
+
+// A linked credit note never touches its bill's own total_amount (a bill's
+// Total is fixed forever, matching Vyapar — only its Balance goes down).
+// Once that bill's paid_amount plus its linked note(s) cover the total, the
+// bill is marked "completed" and every balance aggregate already drops it
+// to zero. Subtracting that same linked note's value AGAIN as a flat sum
+// double-counts it (confirmed: a party whose only unpaid bill is ₹10,800
+// showed Balance Due ₹6,615 — exactly 10,800 minus a ₹4,185 note that was
+// already fully absorbed by a now-completed bill). So every aggregate below
+// uses this unlinked-only sum instead — a linked note's effect lives
+// entirely in its bill's own paid/owed state, not in this flat total.
+async function fetchUnlinkedCreditNotesForParties<T>(
+  selectCols: string,
+  partyIds: string[]
+): Promise<T[]> {
+  if (partyIds.length === 0) return []
+  const { data, error } = await supabase
+    .from("credit_notes")
+    .select(selectCols)
+    .in("party_id", partyIds)
+    .is("linked_order_id", null)
+  if (!error) return (data || []) as T[]
+  // linked_order_id column missing (migration not run) — every note is
+  // effectively unlinked from the DB's point of view, so the unfiltered
+  // query is the correct fallback, not a degraded one.
+  if (error.code === "42703" || error.code === "PGRST204") {
+    const { data: fallback } = await supabase.from("credit_notes").select(selectCols).in("party_id", partyIds)
+    return (fallback || []) as T[]
+  }
+  console.error("Error fetching unlinked credit notes:", error)
+  return []
 }
 
 // Credit notes already linked to a specific bill, summed per order id — used
@@ -958,11 +987,15 @@ function CustomersV2Content() {
             return
           }
           setPartyCreditNotes(data || [])
-          // A bill's own total never changes once issued (matching
-          // Vyapar) — a linked note just tells you which bill it's
-          // against for display, it's still subtracted here same as a
-          // freeform one, or Balance Due would never reflect it at all.
-          setPartyCreditNotesTotal((data || []).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
+          // partyCreditNotesTotal feeds Balance Due, which must NOT include
+          // a linked note — once its bill's paid_amount plus the note
+          // covers the total, that bill drops out of unpaidFromOrders
+          // entirely (marked "completed"), so the note's effect is already
+          // reflected there. Subtracting it again here double-counts it —
+          // confirmed: a party whose only unpaid bill was ₹10,800 showed
+          // Balance Due ₹6,615, exactly 10,800 minus a ₹4,185 note that was
+          // already fully absorbed by a different, now-completed bill.
+          setPartyCreditNotesTotal((data || []).filter((n: any) => !n.linked_order_id).reduce((sum, n: any) => sum + (Number(n.total_amount) || 0), 0))
         })
       supabase
         .from("debit_notes")
@@ -1172,7 +1205,7 @@ function CustomersV2Content() {
         const pendingQuery = withFactoryScope(
           supabase
             .from("orders")
-            .select("id, customer_id, total_amount, payment_status, order_status, cod_collected_amount, cod_payment_method")
+            .select("id, customer_id, total_amount, paid_amount, payment_status, order_status, cod_collected_amount, cod_payment_method")
             .in("customer_id", customerIds)
             .in("payment_status", ["pending", "partial"])
             .not("order_status", "eq", "cancelled"),
@@ -1217,6 +1250,13 @@ function CustomersV2Content() {
         }
       }
 
+      // A bill already covered by paid_amount plus a credit note linked to
+      // it gets marked "completed" and drops out of allPendingOrders
+      // entirely — so that note's effect is already baked into this list
+      // simply not including it. Subtracting it again below as a flat sum
+      // would double it.
+      const linkedNotesByOrder = await fetchLinkedCreditNotesByOrder(allPendingOrders.map((o) => o.id))
+
       // Calculate per customer: totalPending and balanceAmount
       const balanceMap: { [key: string]: { totalPending: number; balanceAmount: number } } = {}
 
@@ -1232,7 +1272,9 @@ function CustomersV2Content() {
         const actualRaCollected = raMethod && raMethod !== "balance" ? raCollected : 0
         const actualCodCollected = codMethod && codMethod !== "balance" ? codCollected : 0
         const collected = actualRaCollected || actualCodCollected
-        const balance = (order.total_amount || 0) - collected
+        const paid = Number(order.paid_amount) || 0
+        const linkedNotes = linkedNotesByOrder[order.id] || 0
+        const balance = (order.total_amount || 0) - collected - paid - linkedNotes
 
         if (!balanceMap[order.customer_id]) {
           balanceMap[order.customer_id] = { totalPending: 0, balanceAmount: 0 }
@@ -1243,10 +1285,13 @@ function CustomersV2Content() {
         }
       })
 
-      // Credit notes (returns) reduce what each customer owes, every one of
-      // them — this is what the Contacts list amount actually renders from
+      // Credit notes (returns) reduce what each customer owes — but only
+      // ones NOT linked to a specific bill, since a linked note's effect is
+      // already reflected above (either its bill is excluded entirely once
+      // completed, or netted into that bill's balance via linkedNotesByOrder).
+      // This is what the Contacts list amount actually renders from
       // (getEntityBalance -> customerBalanceData).
-      const notes = await fetchCreditNotesForParties<{ party_id: string; total_amount: number }>(
+      const notes = await fetchUnlinkedCreditNotesForParties<{ party_id: string; total_amount: number }>(
         "party_id, total_amount",
         customerIds
       )
@@ -1412,45 +1457,47 @@ function CustomersV2Content() {
     try {
       const balanceMap: Record<string, { totalPending: number; balanceAmount: number }> = {}
 
-      // Distributor balances from orders
+      // Distributor + retailer open bills, collected first so linked credit
+      // notes can be fetched in one batch and netted in per-order below —
+      // a bill already covered by paid_amount plus its own linked note is
+      // excluded entirely once marked "completed", so only a bill that's
+      // still open but partly covered by a linked note needs netting here.
       const distIds = distributorsList.map((d: any) => d.id)
+      const retIds = retailersList.map((r: any) => r.id)
+      const openEntityOrders: { id: string; key: string; total_amount: number; paid_amount: number }[] = []
+
       if (distIds.length > 0) {
         const { data: distOrders } = await supabase
           .from("orders")
-          .select("distributor_id, total_amount, payment_status, order_status")
+          .select("id, distributor_id, total_amount, paid_amount, payment_status, order_status")
           .in("distributor_id", distIds)
           .in("payment_status", ["pending", "partial"])
           .not("order_status", "eq", "cancelled")
-        if (distOrders) {
-          distOrders.forEach((o: any) => {
-            if (!o.distributor_id) return
-            const key = `distributor_${o.distributor_id}`
-            if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
-            balanceMap[key].totalPending += o.total_amount || 0
-            balanceMap[key].balanceAmount += o.total_amount || 0
-          })
-        }
+        ;(distOrders || []).forEach((o: any) => {
+          if (!o.distributor_id) return
+          openEntityOrders.push({ id: o.id, key: `distributor_${o.distributor_id}`, total_amount: o.total_amount || 0, paid_amount: Number(o.paid_amount) || 0 })
+        })
       }
 
-      // Retailer balances from orders
-      const retIds = retailersList.map((r: any) => r.id)
       if (retIds.length > 0) {
         const { data: retOrders } = await supabase
           .from("orders")
-          .select("retailer_id, total_amount, payment_status, order_status")
+          .select("id, retailer_id, total_amount, paid_amount, payment_status, order_status")
           .in("retailer_id", retIds)
           .in("payment_status", ["pending", "partial"])
           .not("order_status", "eq", "cancelled")
-        if (retOrders) {
-          retOrders.forEach((o: any) => {
-            if (!o.retailer_id) return
-            const key = `retailer_${o.retailer_id}`
-            if (!balanceMap[key]) balanceMap[key] = { totalPending: 0, balanceAmount: 0 }
-            balanceMap[key].totalPending += o.total_amount || 0
-            balanceMap[key].balanceAmount += o.total_amount || 0
-          })
-        }
+        ;(retOrders || []).forEach((o: any) => {
+          if (!o.retailer_id) return
+          openEntityOrders.push({ id: o.id, key: `retailer_${o.retailer_id}`, total_amount: o.total_amount || 0, paid_amount: Number(o.paid_amount) || 0 })
+        })
       }
+
+      const entityLinkedNotesByOrder = await fetchLinkedCreditNotesByOrder(openEntityOrders.map((o) => o.id))
+      openEntityOrders.forEach((o) => {
+        if (!balanceMap[o.key]) balanceMap[o.key] = { totalPending: 0, balanceAmount: 0 }
+        balanceMap[o.key].totalPending += o.total_amount
+        balanceMap[o.key].balanceAmount += o.total_amount - o.paid_amount - (entityLinkedNotesByOrder[o.id] || 0)
+      })
 
       // Vendor balances from purchases
       const vendorIds = vendorsList.map((v: any) => v.id)
@@ -1471,12 +1518,12 @@ function CustomersV2Content() {
         }
       }
 
-      // Credit notes (returns) reduce what each party owes — subtract every
-      // one of them from the balance shown in the list, same as the detail
-      // panel does.
+      // Credit notes (returns) reduce what each party owes — but only ones
+      // NOT linked to a specific bill, since a linked note's effect is
+      // already reflected above.
       const creditNoteParties = [...distIds, ...retIds]
       if (creditNoteParties.length > 0) {
-        const notes = await fetchCreditNotesForParties<{ party_id: string; party_type: string; total_amount: number }>(
+        const notes = await fetchUnlinkedCreditNotesForParties<{ party_id: string; party_type: string; total_amount: number }>(
           "party_id, party_type, total_amount",
           creditNoteParties
         )
@@ -2225,7 +2272,9 @@ function CustomersV2Content() {
   const unpaidFromOrders = activeCustomerOrders.reduce((sum, order) => {
     if (order.payment_status === "completed") return sum
     const payOut = order.payment_out_amount || 0
-    return sum + Math.max(0, (order.total_amount || 0) - payOut)
+    const paid = Number(order.paid_amount) || 0
+    const linkedNotes = linkedCreditNotesByOrder[order.id] || 0
+    return sum + Math.max(0, (order.total_amount || 0) - payOut - paid - linkedNotes)
   }, 0)
   const totalPaid = totalBilled - unpaidFromOrders
   const balanceDue = unpaidFromOrders + (selectedCustomer?.opening_balance || 0) - partyCreditNotesTotal + partyDebitNotesTotal
@@ -3021,6 +3070,7 @@ function CustomersV2Content() {
                           const invoiceNo = order.is_gst_invoice ? order.invoice_number_gst : order.invoice_number_non_gst
                           const total = order.total_amount || 0
                           const payOut = order.payment_out_amount || 0
+                          const paid = Number(order.paid_amount) || 0
                           const linkedNotes = linkedCreditNotesByOrder[order.id] || 0
                           // This bill's own Total never changes once issued
                           // (matching Vyapar) — only this Balance reflects
@@ -3028,7 +3078,7 @@ function CustomersV2Content() {
                           // linked to it.
                           const balance = order.payment_status === "completed"
                             ? 0
-                            : Math.max(0, total - payOut - linkedNotes)
+                            : Math.max(0, total - payOut - paid - linkedNotes)
                           const fullyCreditedNotPaid = order.payment_status !== "completed" && balance === 0 && linkedNotes > 0
                           const statusLabel = order.payment_status === "completed"
                             ? "Paid"
