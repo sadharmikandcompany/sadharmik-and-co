@@ -534,7 +534,7 @@ function generateInvoiceContent(doc: jsPDF, data: OrderInvoiceData): void {
     head: [[{ content: 'Bill To', styles: { fontStyle: 'bold', fontSize: 9 } }]],
     body: [
       [{
-        content: `${data.customer.first_name} ${data.customer.last_name}${data.customer.vip_number ? ` (${data.customer.vip_number})` : ''}\n${customerAddress}\nContact No. : ${data.customer.mobile_primary}${data.customer.whatsapp_number && data.customer.whatsapp_number !== data.customer.mobile_primary ? `\nWhatsApp: ${data.customer.whatsapp_number}` : ''}${data.customer.mobile_secondary_1 ? `\nPh2: ${data.customer.mobile_secondary_1}` : ''}${data.customer.mobile_secondary_2 ? `\nPh3: ${data.customer.mobile_secondary_2}` : ''}`,
+        content: `${data.customer.first_name} ${data.customer.last_name}${data.customer.vip_number ? ` (${data.customer.vip_number})` : ''}\n${customerAddress}\nContact No. : ${data.customer.mobile_primary}${data.customer.whatsapp_number && data.customer.whatsapp_number !== data.customer.mobile_primary ? `\nWhatsApp: ${data.customer.whatsapp_number}` : ''}${data.customer.mobile_secondary_1 ? `\nPh2: ${data.customer.mobile_secondary_1}` : ''}${data.customer.mobile_secondary_2 ? `\nPh3: ${data.customer.mobile_secondary_2}` : ''}${data.customer.gst_number ? `\nGSTIN: ${data.customer.gst_number}` : ''}`,
         styles: { fontSize: 9, cellPadding: 3 }
       }]
     ],
