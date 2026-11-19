@@ -25,6 +25,70 @@ type PendingOrder = {
   item_count: number
 }
 
+// Strips everything but digits and drops a leading country code (91) so a
+// phone saved as "+919820162010", "919820162010" or "9820162010" all match
+// the same 10-digit Indian mobile number.
+const normalizePhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
+// Website guest checkouts carry name/phone directly on the order (see
+// app/api/public-orders/route.ts) instead of a customer_id. Converting to a
+// bill is the natural point to resolve that to a real customer: match by
+// phone if one already exists, otherwise create one from what the order
+// already has, so the order (and future ones from the same number) show up
+// on the Customers page instead of staying untracked guests forever.
+async function findOrCreateCustomerForOrder(order: PendingOrder): Promise<string | null> {
+  const phone = (order.guest_phone || '').trim()
+  if (!phone) return null
+  const normalized = normalizePhone(phone)
+  if (normalized.length !== 10) return null
+
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('id, mobile_primary')
+    .ilike('mobile_primary', `%${normalized}%`)
+    .limit(1)
+    .maybeSingle()
+  if (existing) return existing.id
+
+  const name = (order.customer_full_name || 'Guest').trim()
+  const [firstName, ...restName] = name.split(/\s+/)
+
+  // Website checkouts only ever ship within Mumbai/Maharashtra (see
+  // public-orders route) and store the whole typed address as one string —
+  // mirrored into both building_name/street_area here, same as that route
+  // does for the order itself, since customers requires these NOT NULL.
+  const address = order.shipping_full_address || ''
+  const { data: created, error } = await supabase
+    .from('customers')
+    .insert([{
+      first_name: firstName || 'Guest',
+      last_name: restName.join(' ') || '',
+      mobile_primary: normalized,
+      full_address: address || null,
+      shipping_building_name: address,
+      shipping_street_area: address,
+      shipping_city: 'Mumbai',
+      shipping_state: 'Maharashtra',
+      shipping_pincode: order.shipping_pincode || '',
+      billing_building_name: address,
+      billing_street_area: address,
+      billing_city: 'Mumbai',
+      billing_state: 'Maharashtra',
+      billing_pincode: order.shipping_pincode || '',
+      is_active: true,
+    }])
+    .select('id')
+    .single()
+  if (error) {
+    console.error('Error creating customer for website order:', error)
+    return null
+  }
+  return created.id
+}
+
 export default function WebsiteOrdersPage() {
   const router = useRouter()
   const [orders, setOrders] = useState<PendingOrder[]>([])
@@ -118,9 +182,15 @@ export default function WebsiteOrdersPage() {
 
       if (invoiceError) throw invoiceError
 
+      // Website checkouts never create a customer record (see public-orders
+      // route) — find-or-create one here by phone so the order actually shows
+      // up on the Customers page once it becomes a real bill, instead of
+      // staying an untracked guest forever.
+      const customerId = await findOrCreateCustomerForOrder(order)
+
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ invoice_number_non_gst: nextInvoiceNumber })
+        .update({ invoice_number_non_gst: nextInvoiceNumber, customer_id: customerId })
         .eq('id', order.id)
 
       if (updateError) throw updateError
