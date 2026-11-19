@@ -609,6 +609,19 @@ export function OrdersTable({
           .join(", "),
         vip_number: null,
       }
+    } else if (orderData.customer_first_name || orderData.customer_full_name || orderData.guest_phone) {
+      // Guest website checkouts never create a customers row — the name/phone
+      // are stored directly on the order (customer_first_name/last_name,
+      // guest_phone) instead of via customer_id.
+      customerData = {
+        first_name: orderData.customer_first_name || orderData.customer_full_name?.split(" ")[0] || "Guest",
+        last_name: orderData.customer_last_name || orderData.customer_full_name?.split(" ").slice(1).join(" ") || "",
+        mobile_primary: orderData.guest_phone || "",
+        company_name: orderData.company_name || undefined,
+        gst_number: orderData.customer_gst_number || undefined,
+        full_address: orderData.shipping_full_address || orderData.billing_full_address || undefined,
+        vip_number: null,
+      }
     } else {
       throw new Error("This order has no linked customer or distributor")
     }
